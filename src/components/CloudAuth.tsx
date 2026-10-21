@@ -29,7 +29,7 @@ export function CloudAuth({ children }: { children?: React.ReactNode }) {
   }
   if (!cloud) return <Notice>{t('cloudSetup')}</Notice>;
   return <div className="cloud-auth">{user ? <><div className="connected-row"><span><Cloud size={18}/>{t('signedIn')}</span><button className="btn btn-ghost" onClick={async () => { const { error: err } = await cloud!.auth.signOut(); if (err) { setError(true); setMessage('syncError'); } }}><LogOut size={16}/>{t('signOut')}</button></div>{children}</> : <form onSubmit={submit} noValidate>
-    <Field label={t('email')}><input type="email" value={email} autoComplete="username" placeholder="name@beispiel.de" onChange={e => setEmail(e.target.value)}/></Field>
+    <Field label={t('email')}><input type="email" value={email} autoComplete="username" placeholder={t('emailPlaceholder')} onChange={e => setEmail(e.target.value)}/></Field>
     <Field label={t('cloudPassword')}><input type="password" minLength={8} value={password} autoComplete="current-password" onChange={e => setPassword(e.target.value)}/></Field>
     <div className="button-row"><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle size={17} className="spin"/> : <LogIn size={17}/>} {t('signIn')}</button><button type="button" className="btn btn-secondary" disabled={busy} onClick={e => void submit(e, true)}>{t('signUp')}</button></div>
   </form>}{message && <Notice error={error}>{t(message)}</Notice>}</div>;

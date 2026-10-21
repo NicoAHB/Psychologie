@@ -4,7 +4,7 @@ Eine lokale, verschlüsselte Praxis-PWA mit deutscher und ukrainischer Oberfläc
 
 ## Auf einem anderen Gerät weiterarbeiten
 
-Der Entwicklungsstand liegt auf GitHub im Branch **`codex/praxisraum-foundation`**. Öffne auf dem Tablet dieses Repository in einer neuen Codex-Aufgabe und wähle diesen Branch. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
+Der Entwicklungsstand ist lokal im Branch **`codex/praxisraum-foundation`** committed. **Der erste GitHub-Push wurde mit HTTP 403 abgelehnt; dieser Branch ist erst nach einem erfolgreichen Push auf GitHub verfügbar.** Die GitHub-Verbindung benötigt Schreibzugriff auf `NicoAHB/Psychologie`. Bis dahin diesen Cloud-Chat weiterverwenden oder ein Projektarchiv herunterladen. Öffne auf dem Tablet dieses Repository in einer neuen Codex-Aufgabe und wähle diesen Branch. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
 
 ```sh
 git clone --branch codex/praxisraum-foundation https://github.com/NicoAHB/Psychologie.git
@@ -54,14 +54,14 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out reminder-priva
 openssl pkey -in reminder-private.pem -pubout -out reminder-public.pem
 ```
 
-Den öffentlichen PEM-Schlüssel als `VITE_REMINDER_PUBLIC_KEY` setzen (Zeilenumbrüche oder literale `\n`). Private Datei niemals ins Repository einchecken. Für den Worker ausschließlich geschützte Laufzeit-/GitHub-Actions-Secrets setzen: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `REMINDER_PRIVATE_KEY`. Der Service-Role-Key ist privilegiert und gehört nie ins Frontend. Bot über BotFather anlegen; Empfänger müssen `/start` senden. Numerische Chat-ID in der App eintragen. Beim Klienten ukrainische Erinnerung und Einwilligung auswählen; eigene Chat-ID und Erinnerungen in Einstellungen aktivieren, danach synchronisieren.
+Den öffentlichen PEM-Schlüssel als `VITE_REMINDER_PUBLIC_KEY` setzen (Zeilenumbrüche oder literale `\n`). Private Datei niemals ins Repository einchecken. Für den Worker ausschließlich geschützte Laufzeit-/GitHub-Actions-Secrets setzen: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `REMINDER_PRIVATE_KEY`, `REMINDER_OWNER_ID` (UUID des eigenen Supabase-Auth-Kontos). Der Worker verarbeitet ausschließlich Jobs dieses Kontos, auch wenn weitere Konten im Projekt registriert sind. Der Service-Role-Key ist privilegiert und gehört nie ins Frontend. Bot über BotFather anlegen; Empfänger müssen `/start` senden. Numerische Chat-ID in der App eintragen. Beim Klienten ukrainische Erinnerung und Einwilligung auswählen; eigene Chat-ID und Erinnerungen in Einstellungen aktivieren, danach synchronisieren.
 
 Der Sollzeitpunkt wird als **18:00 Uhr am vorherigen Kalendertag in der Termin-Zeitzone** berechnet; Sommer-/Winterzeit werden berücksichtigt (Europe/Berlin oder Europe/Kyiv). Klientennachrichten:
 
 - DE: `Erinnerung an Ihren Termin morgen um [Uhrzeit]`
 - UA: `Нагадування про Вашу зустріч завтра о [Uhrzeit]`
 
-Kostenlose GitHub-Actions-Cronjobs können verspätet sein, ausfallen und bei inaktiven öffentlichen Repositories deaktiviert werden. Eine exakte Zustellung um 18:00 Uhr ist damit nicht garantiert. Das Beispiel prüft alle zehn Minuten zwischen 15 und 18 Uhr UTC (Berlin/Kyiv, saisonabhängig); ausstehende Nachrichten werden bis zum Terminbeginn nachgeholt. Bei einem bereits laufenden eigenen Rechner kann `CRON_TZ=Europe/Berlin` mit `0 18 * * * node /pfad/scripts/send-reminders.mjs` verwendet werden. Auch dort bleibt externe Zustellzeit abhängig von Telegram und Netzwerk.
+Kostenlose GitHub-Actions-Cronjobs können verspätet sein, ausfallen und bei inaktiven öffentlichen Repositories deaktiviert werden. Eine exakte Zustellung um 18:00 Uhr ist damit nicht garantiert. Das Beispiel prüft alle zehn Minuten zwischen 15 und 18 Uhr UTC (Berlin/Kyiv, saisonabhängig); ausstehende Nachrichten werden nur bis Mitternacht des Vorabends nachgeholt, damit niemals am Termintag eine irreführende „morgen“-Nachricht versendet wird. Bereits vom Dienst reservierte Zustellungen können bei einer gleichzeitigen Terminabsage nicht mehr zuverlässig zurückgerufen werden. Bei einem bereits laufenden eigenen Rechner kann `CRON_TZ=Europe/Berlin` mit `0 18 * * * node /pfad/scripts/send-reminders.mjs` verwendet werden. Auch dort bleibt externe Zustellzeit abhängig von Telegram und Netzwerk.
 
 Der Worker reserviert Jobs mit einer Lease und speichert den Erfolg je Empfänger. Bei einem Absturz zwischen Telegram-Zustellung und Datenbankbestätigung ist eine doppelte Nachricht technisch möglich; Telegram bietet hierfür keinen Idempotenzschlüssel. Es werden keine Chat-IDs, Bot-Tokens oder Nachrichtentexte protokolliert. GitHub-Actions-Minuten werden mit anderem Verbrauch geteilt; Workflow erst nach Konfiguration aktivieren.
 

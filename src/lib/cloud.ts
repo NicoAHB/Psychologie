@@ -2,17 +2,18 @@ import { createClient } from '@supabase/supabase-js';
 import type { EncryptedBlob, RemoteVault, VaultData, VaultEnvelope } from './types';
 import { readBlob, writeBlob, getRevision, setRevision } from './db';
 import { encryptReminder } from './crypto';
-import { appointmentInstant, reminderInstant } from './dates';
+import { reminderExpiration, reminderInstant } from './dates';
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const cloud = url && anon ? createClient(url, anon, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } }) : null;
 export const reminderPublicKey: string = import.meta.env.VITE_REMINDER_PUBLIC_KEY || '';
 export function cloudError(error: unknown): string {
   const msg = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? error);
+  if (msg.includes('DIFFERENT_VAULT')) return 'differentVault';
   if (msg.includes('SYNC_CONFLICT')) return 'syncConflict';
   if (/Invalid login credentials|Email not confirmed|invalid_credentials/i.test(msg)) return 'authError';
   if (/Failed to fetch|fetch failed|NetworkError|network/i.test(msg)) return 'networkError';
-  if (['differentVault', 'noRemote', 'cloudMissing', 'reminderKeyMissing', 'storageError'].includes(msg)) return msg;
+  if (['authError', 'differentVault', 'noRemote', 'cloudMissing', 'reminderKeyMissing', 'storageError'].includes(msg)) return msg;
   return 'syncError';
 }
 export async function currentUser() {
@@ -40,7 +41,7 @@ export async function downloadBlob(vaultId: string, id: string): Promise<Encrypt
   await writeBlob(blob);
   return blob;
 }
-export async function syncVault(envelope: VaultEnvelope, data: VaultData, persistAttachments = true) {
+export async function syncVault(envelope: VaultEnvelope, data: VaultData) {
   const user = await currentUser();
   const expected = await getRevision(user.id, envelope.vaultId);
   const remote = await fetchRemote();
@@ -61,7 +62,7 @@ export async function syncVault(envelope: VaultEnvelope, data: VaultData, persis
     if (!reminderPublicKey) throw new Error('reminderKeyMissing');
     for (const appointment of data.appointments.filter(a => a.status === 'scheduled')) {
       const client = data.clients.find(c => c.id === appointment.clientId);
-      const expires = appointmentInstant(appointment);
+      const expires = reminderExpiration(appointment);
       if (new Date(expires).getTime() <= Date.now()) continue;
       const advisorChatId = data.settings.advisorChatId;
       const clientChatId = client?.reminderConsent ? client.telegramChatId : '';
@@ -72,5 +73,4 @@ export async function syncVault(envelope: VaultEnvelope, data: VaultData, persis
   }
   const { error: reminderError } = await cloud!.rpc('replace_reminder_jobs', { p_jobs: jobs });
   if (reminderError) throw reminderError;
-  void persistAttachments;
 }

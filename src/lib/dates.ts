@@ -11,6 +11,9 @@ export function appointmentInstant(appointment: Pick<Appointment, 'date' | 'time
 export function reminderInstant(appointment: Pick<Appointment, 'date' | 'timeZone'>): string {
   return Temporal.PlainDate.from(appointment.date).subtract({ days: 1 }).toZonedDateTime({ timeZone: appointment.timeZone, plainTime: '18:00' }).toInstant().toString();
 }
+export function reminderExpiration(appointment: Pick<Appointment, 'date' | 'timeZone'>): string {
+  return Temporal.PlainDate.from(appointment.date).toZonedDateTime({ timeZone: appointment.timeZone, plainTime: '00:00' }).toInstant().toString();
+}
 export function parseMoney(input: string): number {
   if (!/^\d{1,6}([.,]\d{1,2})?$/.test(input.trim())) throw new Error('invalidAmount');
   const [whole, fraction = ''] = input.trim().replace(',', '.').split('.');

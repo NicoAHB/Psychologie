@@ -1,0 +1,53 @@
+# Weiterarbeit am Tablet
+
+## Wo liegt der Stand?
+
+- Repository in dieser Cloud-Aufgabe: `/workspace/Psychologie`
+- Lokaler Entwicklungsbranch: `codex/praxisraum-foundation`
+- **GitHub-Push blockiert:** Der Server antwortete beim ersten Push mit HTTP 403 / `Permission denied`. Der Branch darf bis zu einem erfolgreichen Push nicht als auf GitHub gesichert betrachtet werden.
+- Programmcode und Tests werden lokal committed. Ein Projekt-ZIP und ein selbstständiges Git-Bundle werden zusätzlich unter `/workspace` erzeugt. Sie enthalten keine echten Praxisdaten oder Zugangsdaten.
+
+Öffne diesen Chat auf dem Tablet, um die bestehende Aufgabe fortzusetzen. Für eine unabhängige neue Aufgabe oder Codespaces wird der erfolgreiche GitHub-Push oder das Projektarchiv benötigt. Eine langfristige Wiederherstellung lokaler Commits allein aus einem neuen Cloud-Task ist nicht zugesichert.
+
+## Noch nötig für GitHub
+
+In der GitHub-Verbindung Schreibzugriff auf `NicoAHB/Psychologie` einschließlich Workflow-Dateien ermöglichen. Es ist kein zusätzlicher Token im Anwendungscode nötig. Nach einer tatsächlichen Berechtigungsänderung:
+
+```sh
+cd /workspace/Psychologie
+git push -u origin codex/praxisraum-foundation
+```
+
+Nicht auf `main` zurücksetzen; dort liegt bisher nur die ursprüngliche README. Keine echten Praxisdaten ins Repository hochladen.
+
+## Starten und prüfen
+
+```sh
+npm ci
+npm test
+npm run build
+npm run dev
+```
+
+`npm run test:e2e` verwendet standardmäßig `/usr/bin/chromium`. Auf anderen Geräten zuerst `npx playwright install chromium`, dann `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=bundled npm run test:e2e`.
+
+Die App startet mit einem deutschen Einrichtungs-/Sperrbildschirm. „Mit Beispieldaten entdecken“ öffnet eine vollständig lokale Demo. Für echte eigene Daten eine neue, mindestens zwölf Zeichen lange Tresor-Passphrase wählen und separat sicher aufbewahren. Ein verschlüsseltes Backup vor jedem Gerätewechsel exportieren.
+
+## Was ist umgesetzt?
+
+DE/UA-Wechsel, AES-GCM-Tresor in IndexedDB, Klienten mit verschlüsselten Profilbildern, Sitzungsvorbereitung, Termine, Sitzungs- und Fotonotiz-Timeline mit Tags, bezahlte/offene Sitzungen, monatliche Einnahmen nach Zahlungseingang mit Vormonatsvergleich, Jahresauswahl, vollständige verschlüsselte Backups, PWA-App-Shell und Offlinebetrieb.
+
+Supabase-Schema mit RLS, Revisionsprüfung und privatem Bildspeicher sowie ein separater Node-Telegram-Worker sind im Repository. Der Erinnerungsplan wird im Browser zeitzonenkorrekt verschlüsselt. Telegram-Nachrichten selbst sind nicht Ende-zu-Ende-verschlüsselt; ein kostenloser Cron-Dienst garantiert keine minutengenaue Zustellung. Weitere Einzelheiten und Einrichtungsschritte stehen in README.md.
+
+## Externe Einrichtung steht aus
+
+Es wurden keine Supabase- oder Telegram-Zugangsdaten bereitgestellt. Die lokale App benötigt sie nicht. Für Live-Synchronisation bzw. Zustellung müssen die in `.env.example` und README genannten eigenen Projekte, Schlüssel und Actions-Secrets eingerichtet werden. Der Erinnerungs-Cron ist absichtlich bis zur Konfiguration deaktiviert. Keine Live-Synchronisation, Bot-Zustellung oder öffentliche Bereitstellung wurde behauptet oder durchgeführt.
+
+## Geprüfter Stand dieser Übergabe
+
+- 23 Funktions-/Datenbanktests bestanden (inklusive tatsächlicher PostgreSQL-Ausführung über PGlite, Kontentrennung/RLS und Worker-Kryptografie).
+- 6 Chromium-Browserprüfungen bestanden, je drei auf Desktop und emuliertem Smartphone: vollständiger Workflow einschließlich Bild-Upload und zweitem Browserprofil, Demo/Navigation sowie automatische Sperre.
+- Saubere Installation per `npm ci` und Produktionsbuild bestanden; PWA funktioniert bei Offline-Neuladen.
+- Produktionsabhängigkeiten: `npm audit --omit=dev` meldete keine Schwachstellen.
+- Supabase und Telegram wurden nicht mit echten Zugangsdaten getestet. Der Smartphone-Test emuliert Chromium; ein separater Test auf einem echten iPad/Safari steht aus.
+- `install_script` und `start_skill` sind als Cloud-Konfigurationsentwurf gespeichert. Die Umgebung wurde nicht veröffentlicht. Entwurf in den Umgebungseinstellungen prüfen und speichern, anschließend über die Oberfläche veröffentlichen. Ein solcher Snapshot ersetzt wegen der Einschränkungen lokaler Commits keinen verifizierten GitHub-Push.

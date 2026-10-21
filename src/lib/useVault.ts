@@ -92,10 +92,11 @@ export function useVault() {
   const exportBackup = async () => {
     await flush();
     if (demoRef.current || !info.current || !current.current) return;
+    const snapshot = info.current;
     const ids = referencedBlobs(current.current);
-    for (const id of ids) if (!await readBlob(id)) await downloadBlob(info.current.vaultId, id);
-    const blobs = (await allBlobs()).filter(b => b.vaultId === info.current!.vaultId && ids.includes(b.id));
-    return { type: 'praxisraum-backup-v1', envelope: info.current, blobs };
+    for (const id of ids) if (!await readBlob(id)) await downloadBlob(snapshot.vaultId, id);
+    const blobs = (await allBlobs()).filter(b => b.vaultId === snapshot.vaultId && ids.includes(b.id));
+    return { type: 'praxisraum-backup-v1', envelope: snapshot, blobs };
   };
   const importBackup = async (value: unknown) => {
     const backup = value as { type: string; envelope: VaultEnvelope; blobs: EncryptedBlob[] };

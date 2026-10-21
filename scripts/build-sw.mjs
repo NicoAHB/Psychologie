@@ -12,6 +12,6 @@ self.addEventListener('fetch', event => {
   if (event.request.mode === 'navigate') {
     event.respondWith(fetch(event.request).catch(() => caches.open(CACHE).then(cache => cache.match('/index.html'))));
   } else if (FILES.includes(url.pathname) && !url.search) {
-    event.respondWith(caches.open(CACHE).then(cache => cache.match(event.request).then(cached => cached || fetch(event.request))));
+    event.respondWith(caches.open(CACHE).then(cache => cache.match(url.pathname, { ignoreVary: true }).then(cached => cached || fetch(event.request))));
   }
 });\n`);

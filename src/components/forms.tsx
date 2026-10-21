@@ -77,7 +77,7 @@ export function SessionForm({ vault, clientId, appointment, onClose }: { vault: 
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
-    if (!selected || !date || !time || (paid && !paymentDate)) { setError('required'); return; }
+    if (!selected || !date || !time || (paid && (!paymentDate || paymentDate > today()))) { setError('required'); return; }
     setBusy(true);
     try {
       const session: Session = { id: uid(), clientId: selected, date, time, feeCents: parseMoney(fee), paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: appointment?.id };

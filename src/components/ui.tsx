@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { ArrowRight, Leaf, ShieldCheck, X, ImageOff, LoaderCircle } from 'lucide-react';
 import { LanguageSwitch, useI18n } from '../lib/i18n';
 import type { Client } from '../lib/types';
@@ -11,7 +11,7 @@ export function Modal({ title, children, onClose, wide = false }: { title: strin
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const d = ref.current!; d.showModal(); return () => d.close(); }, []);
-  return <dialog ref={ref} className={`modal ${wide ? 'modal-wide' : ''}`} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+  return <dialog ref={ref} className={`modal ${wide ? 'modal-wide' : ''}`} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }}>
     <div className="modal-heading"><h2>{title}</h2><LanguageSwitch/><button className="icon-btn" type="button" aria-label={t('close')} onClick={onClose}><X size={20}/></button></div>{children}
   </dialog>;
 }
@@ -20,7 +20,9 @@ export function Empty({ icon, title, text, action }: { icon: ReactNode; title: s
 }
 export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) { return <div className={`notice ${error ? 'notice-error' : ''}`} role={error ? 'alert' : 'status'}>{children}</div>; }
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
+  const hintId = useId();
+  const control = isValidElement(children) ? cloneElement(children as ReactElement<{ 'aria-label'?: string; 'aria-describedby'?: string }>, { 'aria-label': label, 'aria-describedby': hint ? hintId : undefined }) : children;
+  return <label className="field"><span>{label}</span>{control}{hint && <small id={hintId}>{hint}</small>}</label>;
 }
 export function ImageView({ id, vault, alt, className = '' }: { id: string; vault: VaultController; alt: string; className?: string }) {
   const [url, setUrl] = useState('');

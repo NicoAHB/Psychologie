@@ -1,6 +1,6 @@
 export async function compressImage(file: File, avatar = false): Promise<Uint8Array<ArrayBuffer>> {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024) throw new Error('invalidImage');
-  const image = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const image = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => { throw new Error('invalidImage'); });
   try {
     const maxSize = avatar ? 256 : 1600;
     const canvas = document.createElement('canvas');

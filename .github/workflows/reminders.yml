@@ -1,0 +1,28 @@
+name: Private appointment reminders
+on:
+  workflow_dispatch:
+  # Opt-in: after configuring secrets and REMINDER_OWNER_ID, uncomment schedule.
+  # Free schedulers can be delayed. Covers Berlin/Kyiv summer and winter UTC offsets.
+  # schedule:
+  #   - cron: '*/10 15-18 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: private-appointment-reminders
+  cancel-in-progress: false
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/send-reminders.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          REMINDER_PRIVATE_KEY: ${{ secrets.REMINDER_PRIVATE_KEY }}
+          REMINDER_OWNER_ID: ${{ secrets.REMINDER_OWNER_ID }}
