@@ -49,3 +49,9 @@ test('fee suggestion follows the latest session or appointment of that client', 
   assert.equal(suggestedFee(data, uid()), 8500); assert.equal(suggestedFee(emptyVault() as VaultData, ids.a, 1234), 1234);
   assert.equal(feeText(9050), '90,50'); assert.equal(feeText(8500), '85,00');
 });
+test('deleting a client also removes their invoices and questionnaires', () => {
+  const { data, ids } = sample();
+  data.invoices.push({ id: uid(), number: '2026-001', clientId: ids.a, issuedAt: '2026-05-01', lines: [], totalCents: 0, recipient: { name: 'A', address: '' }, sender: data.settings.practice, language: 'de' });
+  data.assessments.push({ id: uid(), clientId: ids.a, kind: 'gad7', date: '2026-05-01', answers: Array(7).fill(1), note: '' }, { id: uid(), clientId: ids.b, kind: 'gad7', date: '2026-05-01', answers: Array(7).fill(0), note: '' });
+  deleteClient(data, ids.a); assert.equal(data.invoices.length, 0); assert.deepEqual(data.assessments.map(a => a.clientId), [ids.b]);
+});

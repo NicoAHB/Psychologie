@@ -33,3 +33,7 @@ test('long texts are cut around the first match', () => {
   const [hit] = searchVault(data, 'zielwort'); assert.ok(hit.text.length < 200 && hit.text.startsWith('… ') && hit.text.endsWith(' …'));
   const [from, to] = hit.marks[0]; assert.equal(hit.text.slice(from, to), 'Zielwort');
 });
+import { withTemplate } from '../src/lib/templates';
+test('templates are appended below existing notes, separated by a blank line', () => {
+  assert.equal(withTemplate('', 'S: \nO: '), 'S: \nO: '); assert.equal(withTemplate('Notiz\n', 'S: '), 'Notiz\n\nS: '); assert.equal(withTemplate('   ', 'S: '), 'S: ');
+});

@@ -7,6 +7,7 @@ import { ZoneSelect } from './ZoneSelect';
 import { isValidZone, placeTime, utcOffset, zoneCity } from '../lib/zones';
 import { deleteClient, deleteSession, feeText, findConflict, suggestedFee } from '../lib/records';
 import { referencedBlobs } from '../lib/blobs';
+import { useTemplates, withTemplate } from '../lib/templates';
 import { compressImage } from '../lib/images';
 import type { VaultController } from '../lib/useVault';
 import { Avatar, Field, Modal, Notice } from './ui';
@@ -42,7 +43,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     } catch (err) { setError(err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function removeClient() {
-    if (!client || !window.confirm(`${client.name}\n\n${t('deleteClientConfirm')}`)) return;
+    if (!client || !window.confirm(`${client.name}\n\n${t('deleteClientConfirm')}${vault.data!.invoices.some(i => i.clientId === client.id) ? `\n\n${t('deleteClientInvoicesNote')}` : ''}`)) return;
     setBusy(true);
     try { await vault.remove(data => deleteClient(data, client.id), true); onDeleted?.(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
@@ -127,7 +128,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
   const [fee, setFee] = useState(feeText(session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
   const [feeTouched, setFeeTouched] = useState(!!(session || appointment));
   const [paid, setPaid] = useState(!!session?.paidAt); const [paymentDate, setPaymentDate] = useState(session?.paidAt || today());
-  const [notes, setNotes] = useState(session?.notes || ''); const [tags, setTags] = useState(session?.tags.map(tag => `#${tag}`).join(', ') || '');
+  const templates = useTemplates(data); const [notes, setNotes] = useState(session?.notes || ''); const [tags, setTags] = useState(session?.tags.map(tag => `#${tag}`).join(', ') || '');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
   function choose(id: string) { setSelected(id); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
   async function submit(e: FormEvent) {
@@ -155,6 +156,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     <Field label={t('fee')}><input inputMode="decimal" value={fee} onChange={e => { setFee(e.target.value); setFeeTouched(true); }}/></Field>
     <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
     {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}
+    <Field label={t('insertTemplate')}><select value="" onChange={e => { const chosen = templates.find(x => x.id === e.target.value); if (chosen) setNotes(withTemplate(notes, chosen.body)); }}><option value="">—</option>{templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
     <Field label={t('sessionNotes')}><textarea rows={3} value={notes} maxLength={20000} placeholder={t('sessionNotesPlaceholder')} onChange={e => setNotes(e.target.value)}/></Field>
     <Field label={t('tags')} hint={t('tagsHelp')}><input value={tags} maxLength={500} placeholder={t('tagsPlaceholder')} onChange={e => setTags(e.target.value)}/></Field>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>

@@ -33,7 +33,7 @@ function WeekView({ vault, onEdit }: { vault: VaultController; onEdit: (a: Appoi
       <strong>{dateLabel(monday, language, { day: 'numeric', month: 'short' })} – {dateLabel(addDays(monday, 6), language, { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
       <button className="icon-btn" aria-label={t('nextWeek')} onClick={() => setMonday(addDays(monday, 7))}><ChevronRight size={19}/></button>
       <button className="btn btn-secondary btn-small" onClick={() => setMonday(mondayOf(today()))}>{t('thisWeek')}</button></div>
-    <p className="hint">{t('calendarFor')}: {zone}</p>
+    <p className="hint">{t('calendarFor')}: {zoneCity(zone, language)}, {utcOffset(zone, Date.now())}</p>
     {narrow ? <div className="week-agenda">{days.map((d, i) => { const list = blocks.filter(b => b.day === i).sort((a, b) => a.start - b.start); return <div key={d} className={`agenda-day ${d === today() ? 'is-today' : ''}`}><h3>{dateLabel(d, language, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>{list.length ? list.map(b => <button key={b.appointment.id} className={`week-block static status-${b.appointment.status}`} onClick={() => onEdit(b.appointment)}><strong>{b.time}</strong> {name(b.appointment)}</button>) : <small className="hint">—</small>}</div>; })}</div>
     : <div className="week-grid" style={{ ['--hours' as string]: hours.length, ['--hour-px' as string]: `${pxPerHour}px` }}>
       <div className="week-corner"/>{days.map(d => <div key={d} className={`week-head ${d === today() ? 'is-today' : ''}`}>{dateLabel(d, language, { weekday: 'short', day: 'numeric' })}</div>)}
@@ -82,7 +82,7 @@ export function AppointmentsPage({ vault, onNew, onClient, onComplete, onEdit }:
   }
   return <><PageHeading title={t('appointments')} subtitle={t('appointmentsSubtitle')} action={<div className="button-row"><button className="btn btn-secondary" onClick={() => setExporting(true)}><CalendarPlus size={17}/>{t('exportCalendar')}</button><button className="btn btn-primary" onClick={onNew}><Plus size={17}/>{t('newAppointment')}</button></div>}/>
     {message && <Notice>{message}</Notice>}
-    <div className="toolbar-row"><div className="segmented-tabs" role="group">{mode === 'list' && (['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{t(f)}</button>)}</div>
+    <div className="toolbar-row">{mode === 'list' ? <div className="segmented-tabs" role="group">{(['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{t(f)}</button>)}</div> : <span/>}
       <div className="segmented-tabs small-tabs" role="group"><button className={mode === 'list' ? 'active' : ''} aria-pressed={mode === 'list'} onClick={() => setMode('list')}><List size={15}/> {t('listView')}</button><button className={mode === 'week' ? 'active' : ''} aria-pressed={mode === 'week'} onClick={() => setMode('week')}><CalendarDays size={15}/> {t('weekView')}</button></div></div>
     {mode === 'week' ? <WeekView vault={vault} onEdit={onEdit}/> : <section className="card appointments-card">{appointments.length ? appointments.map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={<div className="appointment-row-actions">{a.status === 'scheduled' ? <>
       <button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button>

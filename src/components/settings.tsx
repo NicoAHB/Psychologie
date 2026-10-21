@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Briefcase, CalendarDays, Cloud, Leaf } from 'lucide-react';
+import { Briefcase, CalendarDays, Cloud, FileText, Leaf, Trash2 } from 'lucide-react';
+import { uid } from '../lib/types';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { isValidZone } from '../lib/zones';
 import type { PracticeProfile } from '../lib/types';
@@ -11,6 +12,14 @@ import { BackupCard, HistoryCard } from './backup';
 import type { AutoBackup } from '../lib/useAutoBackup';
 import { ZoneSelect } from './ZoneSelect';
 
+function TemplatesCard({ vault }: { vault: VaultController }) {
+  const { t } = useI18n(); const [name, setName] = useState(''); const [body, setBody] = useState(''); const list = vault.data!.templates;
+  return <section className="card settings-card"><span className="settings-icon"><FileText size={24}/></span><h2>{t('templates')}</h2><p>{t('templatesText')}</p>
+    {list.length > 0 && <ul className="passkey-list">{list.map(x => <li key={x.id}><span>{x.name}</span><button className="icon-btn danger" aria-label={`${t('templateDelete')}: ${x.name}`} title={t('templateDelete')} onClick={() => { void vault.update(d => { d.templates = d.templates.filter(y => y.id !== x.id); }).catch(() => {}); }}><Trash2 size={16}/></button></li>)}</ul>}
+    <Field label={t('templateName')}><input value={name} maxLength={60} onChange={e => setName(e.target.value)}/></Field>
+    <Field label={t('templateBody')}><textarea rows={4} value={body} maxLength={4000} onChange={e => setBody(e.target.value)}/></Field>
+    <button className="btn btn-secondary" disabled={vault.demo || !name.trim() || !body.trim()} onClick={() => { void vault.update(d => { d.templates.push({ id: uid(), name: name.trim(), body }); }).then(() => { setName(''); setBody(''); }).catch(() => {}); }}>{t('templateAdd')}</button></section>;
+}
 function PracticeCard({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const stored = vault.data!.settings.practice;
   const [draft, setDraft] = useState<PracticeProfile>(stored); const [saved, setSaved] = useState(false);
@@ -37,6 +46,7 @@ export function SettingsPage({ vault, auto, onSync, syncing, onRestore }: { vaul
     <section className="card settings-card"><span className="settings-icon"><Leaf size={24}/></span><h2>{t('deviceTitle')}</h2><p>{t('installHint')}</p><p>{t('storageHint')}</p><button className="btn btn-secondary" onClick={async () => { try { setMessage(await navigator.storage?.persist?.() ? 'storageGranted' : 'storageDenied'); } catch { setMessage('storageDenied'); } }}>{t('storagePersist')}</button></section>
     <SecurityCard vault={vault}/>
     <HistoryCard vault={vault}/>
+    <TemplatesCard vault={vault}/>
     <PracticeCard vault={vault}/>
   </div></>;
 }

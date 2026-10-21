@@ -12,6 +12,7 @@ import { AppointmentRow, AppointmentsPage } from './components/appointments';
 import { SettingsPage } from './components/settings';
 import { CsvExport, InvoiceForm, InvoiceList, InvoiceView } from './components/invoices';
 import { SearchModal } from './components/SearchModal';
+import { AssessmentsSection } from './components/assessments';
 import { PassphraseReset } from './components/security';
 import { useAutoBackup } from './lib/useAutoBackup';
 import { backupNeeded, hasRecords, latestChange, markBackup, readBackupState, type BackupState } from './lib/backupState';
@@ -111,6 +112,7 @@ export default function App() {
           <section className="preparation-card"><div className="section-heading"><div><span className="eyebrow"><Sparkles size={15}/>{t('privateNote')}</span><h2>{t('preparation')}</h2></div></div><p>{t('preparationHint')}</p><PreparationEditor key={selected.id} vault={vault} client={selected}/><div className="autosave"><LockKeyhole size={13}/>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</div></section>
           <section className="card timeline-card"><div className="section-heading flex-wrap"><h2>{t('timeline')}</h2><div className="button-row"><button className="btn btn-secondary btn-small" onClick={() => setForm({ type: 'note', clientId: selected.id })}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-primary btn-small" onClick={() => setForm({ type: 'session', clientId: selected.id })}><Plus size={16}/>{t('addSession')}</button></div></div>
           <Timeline vault={vault} clientId={selected.id} tag={tag} setTag={setTag} onPhoto={setPhoto} onPayment={markPayment} onEdit={session => setForm({ type: 'session', session })} onDeleteNote={deleteNoteEntry}/></section>
+          <AssessmentsSection vault={vault} clientId={selected.id}/>
           <section className="card"><div className="section-heading"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div></div><div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, i) => <div key={label}><span>{t(label)}</span><strong className={i === 2 ? 'text-rose' : ''}>{money(data.sessions.filter(s => s.clientId === selected.id && (i === 0 || (i === 1 ? !!s.paidAt : !s.paidAt))).reduce((n, s) => n + s.feeCents, 0), language)}</strong></div>)}</div><button className="text-link" onClick={() => setForm({ type: 'appointment', clientId: selected.id })}><Plus size={16}/>{t('newAppointment')}</button></section>
         </div> : <section className="card directory-empty"><Empty icon={<Users size={32}/>} title={data.clients.length ? t('openProfile') : t('noClients')} text={t('noClientsText')} action={<button className="btn btn-primary" onClick={() => setForm({ type: 'client' })}><Plus size={17}/>{t('newClient')}</button>}/></section>}
       </div></>}

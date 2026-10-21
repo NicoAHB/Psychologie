@@ -6,10 +6,11 @@ import {
 } from './crypto';
 import { emptyVault, uid, type EncryptedBlob, type PasskeyWrap, type VaultData, type VaultEnvelope, type Wraps } from './types';
 import { demoVault } from './demo';
-import { currentUser, downloadBlob, fetchRemote, remoteEnvelope } from './cloud';
+import { downloadBlob } from './cloud';
+import { fetchMerged } from './syncMerge';
 import { referencedBlobs } from './blobs';
 import { orphanedBlobs } from './records';
-import { mergeEnvelopes, mergeVaults, stampChanges } from './merge';
+import { stampChanges } from './merge';
 import { formatRecoveryKey, newRecoveryBytes, parseRecoveryKey } from './recovery';
 import { createPasskey, unlockWithPasskey as assertPasskey } from './passkey';
 import { clearSnapshots, listSnapshots, readSnapshot, recordSnapshot } from './history';
@@ -239,16 +240,12 @@ export function useVault() {
   const mergeRemote = async () => {
     if (!current.current || !key.current || demoRef.current) throw new Error('locked');
     await flush();
-    const [remote, user] = await Promise.all([fetchRemote(), currentUser()]);
-    if (!remote) throw new Error('noRemote');
-    if (remote.vault_id !== info.current!.vaultId) throw new Error('differentVault');
-    const remoteEnv = remoteEnvelope(remote);
-    const remoteData = await decryptVault(key.current, remoteEnv);
     const before = referencedBlobs(current.current);
-    const merged = mergeVaults(current.current, remoteData);
+    const result = await fetchMerged(key.current, current.current, info.current!);
+    const merged = result.data;
     current.current = merged; setData(merged); bump();
-    await persist(merged, mergeEnvelopes(info.current!, remoteEnv));
-    await setRevision(user.id, remote.vault_id, remote.revision);
+    await persist(merged, { wraps: result.envelope.wraps, format: result.envelope.format });
+    await setRevision(result.userId, result.vaultId, result.revision);
     await purgeUnused(before);
     return { data: merged, generation: generationRef.current };
   };
