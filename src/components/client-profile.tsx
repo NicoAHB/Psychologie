@@ -10,6 +10,7 @@ import type { AssessmentKind, Client, PhotoNote, Session } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Avatar, Empty, ImageView, Notice, PaymentBadge } from './ui';
 import { AssessmentsSection } from './assessments';
+import { clockText } from './DualTime';
 
 export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'finances';
 export interface ProfileActions {
@@ -47,7 +48,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
   return <>
     <section className="card glance-card" aria-labelledby="glance-title"><div className="section-heading"><h2 id="glance-title">{t('glanceTitle')}</h2></div>
       <div className="glance-grid">
-        <Tile icon={<CalendarDays size={15}/>} label={t('nextAppointmentLabel')}>{next ? <><strong>{dateLabel(next.practice.iso, language, { weekday: 'short', day: 'numeric', month: 'short' })} · {next.practice.time}</strong>{next.differs && <small>{t('clientTime')}: {next.clientText}</small>}</> : <><strong>{t('noNextAppointment')}</strong><button className="text-link" onClick={actions.onNewAppointment}><Plus size={14}/>{t('newAppointment')}</button></>}</Tile>
+        <Tile icon={<CalendarDays size={15}/>} label={t('nextAppointmentLabel')}>{next ? <><strong>{dateLabel(next.practice.iso, language, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><small>{t('practiceTime')} ({next.practice.tag}): <b>{clockText(next.practice.time, language)}</b></small>{next.differs && <small className="client-line">{t('clientTime')} ({next.client.tag}): <b>{clockText(next.client.time, language)}</b>{next.client.shift ? ` · ${t(next.client.shift > 0 ? 'dayLater' : 'dayEarlier')}` : ''}</small>}</> : <><strong>{t('noNextAppointment')}</strong><button className="text-link" onClick={actions.onNewAppointment}><Plus size={14}/>{t('newAppointment')}</button></>}</Tile>
         <Tile icon={<Check size={15}/>} label={t('lastSessionLabel')}>{o.lastSession ? <><strong>{dateLabel(o.lastSession.date, language, { day: 'numeric', month: 'short', year: 'numeric' })}</strong><small>{ago(o.lastSession.date)}</small></> : <strong>{t('noSessionYet')}</strong>}</Tile>
         <Tile icon={<Wallet size={15}/>} label={t('sessionsTotal')}><strong>{o.sessions.length}</strong>{o.unpaidCents > 0 && <small className="text-rose">{money(o.unpaidCents, language)} {t('openLabel')}</small>}</Tile>
         <Tile icon={<ClipboardList size={15}/>} label={t('latestQuestionnaire')}>{latest ? (() => { const entry = latest.entries.at(-1)!; const total = scoreOf(latest.kind, entry.answers); return <><strong>{t(`${latest.kind}Title` as TextKey).split(' · ')[0]}: {total} / {INSTRUMENTS[latest.kind].max}</strong><small>{t(`sev_${severityOf(latest.kind, total)}` as TextKey)}</small></>; })() : <strong>—</strong>}</Tile>

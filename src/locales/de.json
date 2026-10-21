@@ -488,5 +488,12 @@
   "sessionDiscussedPlaceholder": "Was haben wir besprochen? Themen, Beobachtungen, Vereinbarungen …",
   "deleteSessionPhotosNote": "Zugehörige Fotos werden mitgelöscht.",
   "copiedHomework": "Nachricht kopiert – jetzt in den Messenger einfügen.",
-  "editThisSession": "Sitzung öffnen"
+  "editThisSession": "Sitzung öffnen",
+  "forClient": "Für den Klienten",
+  "forClientSentence": "Für den Klienten ist der Termin um {time} Uhr (Ortszeit {place}).",
+  "practiceAndClient": "Praxis & Klient",
+  "dayEarlier": "am Vortag",
+  "suggestKyivHint": "Dieser Klient bekommt Nachrichten auf Ukrainisch. Lebt er in der Ukraine?",
+  "suggestKyivButton": "Zeitzone Kiew übernehmen",
+  "bothTimes": "Beide Uhrzeiten"
 }

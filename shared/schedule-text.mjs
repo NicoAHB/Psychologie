@@ -14,6 +14,32 @@ const CITIES = {
   'America/Chicago': ['Chicago', 'Чикаго'], 'America/Los_Angeles': ['Los Angeles', 'Лос-Анджелес'], 'Asia/Dubai': ['Dubai', 'Дубай'], 'Asia/Jerusalem': ['Jerusalem', 'Єрусалим'],
   'UTC': ['UTC', 'UTC'],
 };
+// Country of each common zone, so people see "Kiew (Ukraine)" rather than only a city or an offset.
+const COUNTRIES = {
+  'Europe/Berlin': ['DE', 'Deutschland', 'Німеччина'], 'Europe/Kyiv': ['UA', 'Ukraine', 'Україна'], 'Europe/Kiev': ['UA', 'Ukraine', 'Україна'], 'Europe/Vienna': ['AT', 'Österreich', 'Австрія'],
+  'Europe/Zurich': ['CH', 'Schweiz', 'Швейцарія'], 'Europe/Warsaw': ['PL', 'Polen', 'Польща'], 'Europe/Prague': ['CZ', 'Tschechien', 'Чехія'], 'Europe/Budapest': ['HU', 'Ungarn', 'Угорщина'],
+  'Europe/Bucharest': ['RO', 'Rumänien', 'Румунія'], 'Europe/Chisinau': ['MD', 'Moldau', 'Молдова'], 'Europe/London': ['GB', 'Vereinigtes Königreich', 'Велика Британія'], 'Europe/Dublin': ['IE', 'Irland', 'Ірландія'],
+  'Europe/Lisbon': ['PT', 'Portugal', 'Португалія'], 'Europe/Madrid': ['ES', 'Spanien', 'Іспанія'], 'Europe/Paris': ['FR', 'Frankreich', 'Франція'], 'Europe/Rome': ['IT', 'Italien', 'Італія'],
+  'Europe/Amsterdam': ['NL', 'Niederlande', 'Нідерланди'], 'Europe/Brussels': ['BE', 'Belgien', 'Бельгія'], 'Europe/Copenhagen': ['DK', 'Dänemark', 'Данія'], 'Europe/Stockholm': ['SE', 'Schweden', 'Швеція'],
+  'Europe/Oslo': ['NO', 'Norwegen', 'Норвегія'], 'Europe/Helsinki': ['FI', 'Finnland', 'Фінляндія'], 'Europe/Vilnius': ['LT', 'Litauen', 'Литва'], 'Europe/Riga': ['LV', 'Lettland', 'Латвія'],
+  'Europe/Tallinn': ['EE', 'Estland', 'Естонія'], 'Europe/Athens': ['GR', 'Griechenland', 'Греція'], 'Europe/Istanbul': ['TR', 'Türkei', 'Туреччина'], 'Europe/Sofia': ['BG', 'Bulgarien', 'Болгарія'],
+  'Europe/Belgrade': ['RS', 'Serbien', 'Сербія'], 'Europe/Zagreb': ['HR', 'Kroatien', 'Хорватія'], 'Europe/Bratislava': ['SK', 'Slowakei', 'Словаччина'], 'Europe/Luxembourg': ['LU', 'Luxemburg', 'Люксембург'],
+  'Europe/Minsk': ['BY', 'Belarus', 'Білорусь'], 'America/New_York': ['US', 'USA', 'США'], 'America/Toronto': ['CA', 'Kanada', 'Канада'], 'America/Chicago': ['US', 'USA', 'США'],
+  'America/Los_Angeles': ['US', 'USA', 'США'], 'Asia/Dubai': ['AE', 'Vereinigte Arabische Emirate', 'ОАЕ'], 'Asia/Jerusalem': ['IL', 'Israel', 'Ізраїль'],
+};
+/** Two-letter country code of a zone ("UA"), or '' when unknown. */
+export const zoneCountryCode = zone => COUNTRIES[zone]?.[0] ?? '';
+/** Country name in the given language, or '' when unknown. */
+export const zoneCountry = (zone, language) => COUNTRIES[zone]?.[language === 'uk' ? 2 : 1] ?? '';
+export function zonePlace(zone, language) {
+  const country = zoneCountry(zone, language);
+  return country ? `${zoneCity(zone, language)}, ${country}` : zoneCity(zone, language);
+}
+/** Whole days the clock reading of `zone` is ahead of (+1) or behind (-1) `reference` at that instant. */
+export function dayShift(instant, zone, reference) {
+  const a = localParts(instant, zone, 'de').iso; const b = localParts(instant, reference, 'de').iso;
+  return Math.round((Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 864e5);
+}
 export const COMMON_ZONES = Object.keys(CITIES).filter(zone => zone !== 'Europe/Kiev' && zone !== 'UTC');
 
 /** Place name of a zone in the given language ("Europe/Kyiv" -> "Kiew" / "Київ"); unknown zones fall back to the IANA city. */

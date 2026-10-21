@@ -4,7 +4,8 @@ import { useI18n, type TextKey } from '../lib/i18n';
 import { uid, type Appointment, type Client, type Session } from '../lib/types';
 import { addDays, addMonths, appointmentInstant, clientZone, dateLabel, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
 import { ZoneSelect } from './ZoneSelect';
-import { isValidZone, placeTime, utcOffset, zoneCity } from '../lib/zones';
+import { isValidZone, utcOffset, zonePlace } from '../lib/zones';
+import { DualTimeBox } from './DualTime';
 import { deleteClient, deleteSession, feeText, findConflict, suggestedFee } from '../lib/records';
 import { pendingHomework } from '../lib/discussion';
 import { referencedBlobs } from '../lib/blobs';
@@ -66,27 +67,28 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
   const [date, setDate] = useState(appointment?.date || today()); const [time, setTime] = useState(appointment?.time || '10:00');
   const [duration, setDuration] = useState(String(appointment?.duration ?? 50)); const [fee, setFee] = useState(feeText(appointment?.feeCents ?? suggestedFee(data, selected)));
   const [zone, setZone] = useState(appointment?.timeZone ?? practiceZone);
+  const savedClient = data.clients.find(c => c.id === selected);
+  const [theirZoneChoice, setTheirZoneChoice] = useState(clientZone(savedClient, data.settings));
   const [repeat, setRepeat] = useState<'none' | 'weekly' | 'biweekly' | 'monthly'>('none'); const [count, setCount] = useState('8');
   const [following, setFollowing] = useState(false);
   const [feeTouched, setFeeTouched] = useState(!!appointment);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
-  const length = Number(duration); const client = data.clients.find(c => c.id === selected); const theirZone = clientZone(client, data.settings);
+  const length = Number(duration); const client = data.clients.find(c => c.id === selected); const theirZone = isValidZone(theirZoneChoice) ? theirZoneChoice : clientZone(client, data.settings);
   const zones = [...new Set([practiceZone, theirZone])]; const entryZone = zones.includes(zone) ? zone : practiceZone;
   const candidate = { id: appointment?.id ?? '', date, time, duration: length, timeZone: entryZone };
   const repeats = !appointment && repeat !== 'none' ? Math.min(52, Math.max(2, Math.floor(Number(count)) || 2)) : 1;
   const dates = Array.from({ length: repeats }, (_, i) => repeat === 'monthly' ? addMonths(date, i) : addDays(date, i * (repeat === 'biweekly' ? 14 : 7)));
-  let preview = ''; let clashes: Appointment[] = [];
+  let instantNow = ''; let clashes: Appointment[] = [];
   try {
     if (date && /^\d\d:\d\d$/.test(time)) {
-      const instant = appointmentInstant({ date, time, timeZone: entryZone });
-      preview = zones.map(z => `${t(z === practiceZone ? 'practiceTime' : 'clientTime')}: ${placeTime(instant, z, language)}`).join(' · ');
+      instantNow = appointmentInstant({ date, time, timeZone: entryZone });
       if (Number.isInteger(length) && length > 0) clashes = dates.map(d => findConflict(data.appointments, { ...candidate, date: d })).filter((c): c is Appointment => !!c);
     }
   } catch { /* an incomplete date or time simply shows no preview */ }
-  function choose(id: string) { setSelected(id); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
+  function choose(id: string) { setSelected(id); setTheirZoneChoice(clientZone(data.clients.find(c => c.id === id), data.settings)); setZone(practiceZone); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
-    if (!selected || !date || !time || !Number.isInteger(length) || length < 5 || length > 480) { setError('required'); return; }
+    if (!selected || !date || !time || !isValidZone(theirZoneChoice) || !Number.isInteger(length) || length < 5 || length > 480) { setError('required'); return; }
     setBusy(true);
     try {
       const feeCents = parseMoney(fee);
@@ -97,13 +99,14 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
         const edit = (a: Appointment, newDate: string): Appointment => { const moved = a.date !== newDate || a.time !== time || a.timeZone !== entryZone; return { ...a, clientId: selected, date: newDate, time, duration: length, feeCents, timeZone: entryZone, reminderId: moved ? uid() : a.reminderId }; };
         const start = Date.parse(appointmentInstant(appointment));
         await vault.update(d => {
+          const owner = d.clients.find(c => c.id === selected); if (owner && clientZone(owner, d.settings) !== theirZone) owner.timeZone = theirZone; // remember where the client lives
           d.appointments = d.appointments.map(a => a.id === appointment.id ? edit(a, date)
             : following && appointment.seriesId && a.seriesId === appointment.seriesId && a.status === 'scheduled' && Date.parse(appointmentInstant(a)) > start ? edit(a, addDays(a.date, shift)) : a);
         });
       } else {
         const seriesId = repeats > 1 ? uid() : undefined;
         const created = dates.map((d): Appointment => ({ id: uid(), clientId: selected, date: d, time, duration: length, feeCents, timeZone: entryZone, reminderId: uid(), status: 'scheduled', ...seriesId && { seriesId } }));
-        await vault.update(d => { d.appointments.push(...created); });
+        await vault.update(d => { d.appointments.push(...created); const owner = d.clients.find(c => c.id === selected); if (owner && clientZone(owner, d.settings) !== theirZone) owner.timeZone = theirZone; });
       }
       onClose();
     } catch (err) { setError(err instanceof Error && err.message === 'invalidAmount' ? 'invalidAmount' : 'required'); } finally { setBusy(false); }
@@ -111,8 +114,10 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
   return <Modal title={t(appointment ? 'editAppointment' : 'newAppointment')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <Field label={`${t('client')} *`}><select value={selected} onChange={e => choose(e.target.value)} required><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={`${t('date')} *`}><input type="date" value={date} onChange={e => setDate(e.target.value)} required/></Field><Field label={`${t('time')} *`}><input type="time" value={time} onChange={e => setTime(e.target.value)} required/></Field></div>
+    {selected && <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={theirZoneChoice} onChange={setTheirZoneChoice}/>}
+    {client?.language === 'uk' && theirZone === practiceZone && <p className="hint">{t('suggestKyivHint')} <button type="button" className="text-link inline" onClick={() => setTheirZoneChoice('Europe/Kyiv')}>{t('suggestKyivButton')}</button></p>}
     {zones.length > 1 && <Field label={t('timeEnteredIn')}><select value={entryZone} onChange={e => setZone(e.target.value)}>{zones.map(z => <option key={z} value={z}>{t(z === practiceZone ? 'zonePractice' : 'zoneClient')} · {zoneLabel(z, language)}</option>)}</select></Field>}
-    {preview && <p className="zone-preview" aria-live="polite">{preview}</p>}
+    {instantNow && <DualTimeBox instant={instantNow} practiceZone={practiceZone} clientZone={theirZone}/>}
     <div className="form-grid"><Field label={t('duration')}><input type="number" min="5" max="480" value={duration} onChange={e => setDuration(e.target.value)}/></Field><Field label={t('fee')}><input inputMode="decimal" value={fee} onChange={e => { setFee(e.target.value); setFeeTouched(true); }}/></Field></div>
     {!appointment && <div className="form-grid"><Field label={t('repeat')}><select value={repeat} onChange={e => setRepeat(e.target.value as typeof repeat)}>{(['none', 'weekly', 'biweekly', 'monthly'] as const).map(r => <option key={r} value={r}>{t(`repeat${r[0].toUpperCase()}${r.slice(1)}` as TextKey)}</option>)}</select></Field>{repeat !== 'none' && <Field label={t('repeatCount')}><input type="number" min="2" max="52" value={count} onChange={e => setCount(e.target.value)}/></Field>}</div>}
     {appointment?.seriesId && <label className="check-label"><input type="checkbox" checked={following} onChange={e => setFollowing(e.target.checked)}/><span>{t('changeFollowing')}</span></label>}
@@ -121,7 +126,7 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose}/>
   </form></Modal>;
 }
-const zoneLabel = (zone: string, language: 'de' | 'uk') => `${zoneCity(zone, language)} (${utcOffset(zone, Date.now())})`;
+const zoneLabel = (zone: string, language: 'de' | 'uk') => `${zonePlace(zone, language)} (${utcOffset(zone, Date.now())})`;
 export function SessionForm({ vault, clientId, appointment, session, onClose }: { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; onClose: () => void }) {
   const { t, language } = useI18n(); const data = vault.data!;
   const [selected, setSelected] = useState(session?.clientId || appointment?.clientId || clientId || data.clients[0]?.id || '');
