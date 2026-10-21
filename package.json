@@ -20,6 +20,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@electric-sql/pglite": "^0.5.11",
     "@js-temporal/polyfill": "^0.5.1",
     "@playwright/test": "^1.58.0",

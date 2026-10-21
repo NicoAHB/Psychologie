@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildInvoice, incomeCsv, nextInvoiceNumber, paidOn, uninvoiced } from '../src/lib/invoice';
-import { emptyVault, uid, type Client, type Session, type VaultData } from '../src/lib/types';
+import { emptyVault, uid, type Client, type Session } from '../src/lib/types';
 
 const client = (name: string): Client => ({ id: uid(), name, contact: '', preparation: '', telegramChatId: '', language: 'de', reminderConsent: false, createdAt: '2026-01-01', address: 'Hauptstr. 1\n10115 Berlin' });
 const session = (clientId: string, date: string, feeCents: number, paidAt: string | null = null): Session => ({ id: uid(), clientId, date, time: '10:00', feeCents, paidAt, notes: '', tags: [] });

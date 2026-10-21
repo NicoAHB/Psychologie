@@ -46,3 +46,12 @@ Es wurden keine Supabase- oder Telegram-Zugangsdaten bereitgestellt. Die lokale 
 - Produktionsabhängigkeiten: `npm audit --omit=dev` meldete keine Schwachstellen.
 - Supabase und Telegram wurden nicht mit echten Zugangsdaten getestet. Der Smartphone-Test emuliert Chromium; ein separater Test auf einem echten iPad/Safari steht aus.
 - `install_script` und `start_skill` sind als Cloud-Konfigurationsentwurf gespeichert. Die Umgebung wurde nicht veröffentlicht. Entwurf in den Umgebungseinstellungen prüfen und speichern, anschließend über die Oberfläche veröffentlichen. Ein solcher Snapshot ersetzt wegen der Einschränkungen lokaler Commits keinen verifizierten GitHub-Push.
+
+## Qualitätsdurchgang (Fehlerprüfung und Feinschliff)
+
+- Strengere TypeScript-Prüfung (`noUnusedLocals`, `noUnusedParameters`); ungenutzter Code entfernt. Die Meldung zum dauerhaften Speicher in den Geräteeinstellungen wurde nie angezeigt und erscheint jetzt.
+- **Update-Ablauf:** `src/lib/updates.ts` meldet einen wartenden Service Worker, `UpdateBanner` bietet „Jetzt aktualisieren“ an (speichert vorher, lädt danach neu). Der Worker (`scripts/build-sw.mjs`) reagiert auf `SKIP_WAITING`. Test: `tests/browser/update.spec.ts` startet einen eigenen kleinen Server und liefert eine zweite Worker-Version aus.
+- **Absturzseite:** `ErrorBoundary` statt leerer Seite (zweisprachig, kein Datenverlust).
+- **Barrierefreiheit:** Kontraste in Hell- und Dunkelmodus korrigiert (axe-core, WCAG 2.1 AA), Sprunglink, Seitentitel je Bereich. Test: `tests/browser/a11y.spec.ts` (alle Hauptansichten, Wochenansicht, Termin- und Sitzungsformular; Desktop und Handy; hell und dunkel). Neue Farben bitte nicht unter 4,5 : 1 wählen.
+- Zahlungsliste in Finanzen: 100 Zeilen pro Seite mit „Weitere anzeigen“.
+- Bewusst nicht geändert: Der Service Worker lädt alle Dateien (auch PDF-Schriften, rund 3,5 MB) vorab, damit Rechnungs-PDFs offline funktionieren. Mögliche Verkleinerung: DejaVu-Schriften auf Lateinisch/Kyrillisch reduzieren (Risiko: seltene Schriften in Klientennamen).
