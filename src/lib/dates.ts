@@ -1,4 +1,4 @@
-import type { Appointment, Client, Language, Session, Settings } from './types';
+import type { Appointment, Client, Currency, Language, Session, Settings } from './types';
 export const localeFor = (language: Language) => language === 'de' ? 'de-DE' : 'uk-UA';
 const pad = (value: number) => String(value).padStart(2, '0');
 export const today = () => { const now = new Date(); return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`; };
@@ -36,14 +36,13 @@ export const appointmentEnd = (appointment: Pick<Appointment, 'date' | 'time' | 
 /** Chronological order across appointments agreed in different zones. */
 export const byStart = (a: Appointment, b: Appointment) => appointmentStart(a) - appointmentStart(b);
 export const dateLabel = (date: string, language: Language, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }) => new Intl.DateTimeFormat(localeFor(language), options).format(new Date(`${date}T12:00:00`));
-export const money = (cents: number, language: Language) => new Intl.NumberFormat(localeFor(language), { style: 'currency', currency: 'EUR' }).format(cents / 100);
+export const money = (cents: number, language: Language, currency: Currency = 'EUR') => new Intl.NumberFormat(localeFor(language), { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(cents / 100);
 export const appointmentInstant = (appointment: Pick<Appointment, 'date' | 'time' | 'timeZone'>) => zonedInstant(appointment.date, appointment.time, appointment.timeZone);
 export const reminderInstant = (appointment: Pick<Appointment, 'date' | 'timeZone'>) => zonedInstant(addDays(appointment.date, -1), '18:00', appointment.timeZone);
 export const reminderExpiration = (appointment: Pick<Appointment, 'date' | 'timeZone'>) => zonedInstant(appointment.date, '00:00', appointment.timeZone);
 export function parseMoney(input: string): number {
-  if (!/^\d{1,6}([.,]\d{1,2})?$/.test(input.trim())) throw new Error('invalidAmount');
-  const [whole, fraction = ''] = input.trim().replace(',', '.').split('.');
-  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+  if (!/^\d{1,6}$/.test(input.trim())) throw new Error('invalidAmount');
+  return Number(input.trim()) * 100;
 }
 export const tagsFrom = (input: string) => [...new Set(input.split(/[,#\n]+/).map(t => t.trim().replace(/^#+/, '')).filter(Boolean))].slice(0, 12);
 export function monthlyIncome(sessions: Session[], year: number) {

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Digitale Empfehlungskarten · DE / UA · Beispielentwurf</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 48px; background: #e6e8e0; font-family: 'DejaVu Sans', Arial, sans-serif; }
+    main { display: flex; gap: 48px; flex-wrap: wrap; justify-content: center; }
+    .card { position: relative; width: 1080px; height: 1350px; flex-shrink: 0; overflow: hidden; padding: 82px 80px; color: #355849; background: #f7f3ea; }
+    .card::after { content: ''; position: absolute; right: -350px; top: -260px; width: 740px; height: 1120px; border: 2px solid #d9dfd1; border-radius: 50%; transform: rotate(18deg); pointer-events: none; }
+    .kicker { position: relative; z-index: 1; margin: 0; font-size: 21px; letter-spacing: 3px; font-weight: 500; }
+    .top-line { height: 1px; background: #d4dcca; margin-top: 34px; }
+    .headline { position: relative; z-index: 1; max-width: 680px; margin: 107px 0 0; font-family: Georgia, 'DejaVu Serif', serif; font-size: 86px; line-height: 1.15; letter-spacing: -2.8px; font-weight: 400; }
+    .description { position: relative; z-index: 1; margin: 36px 0 0; font-size: 30px; line-height: 1.65; color: #66795f; }
+    .portrait { position: absolute; right: 79px; top: 246px; width: 202px; height: 276px; border: 2px solid #ccd7c3; border-radius: 50% 50% 44% 44%; background: #e9eddf; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 24px; color: #839b7b; z-index: 1; }
+    .portrait svg { width: 78px; height: 96px; }
+    .portrait span { font-size: 14px; letter-spacing: 2px; }
+    .identity { position: absolute; z-index: 2; left: 80px; right: 80px; top: 744px; padding-top: 49px; border-top: 1px solid #d4dcca; }
+    .identity h2 { margin: 0 0 41px; font-size: 39px; line-height: 1.35; font-weight: 400; letter-spacing: -.6px; }
+    .contact { display: flex; align-items: center; gap: 23px; margin: 0 0 24px; font-size: 28px; line-height: 1.5; color: #66795f; }
+    .contact svg { width: 27px; height: 27px; flex-shrink: 0; stroke-width: 1.4; }
+    .footer { position: absolute; bottom: 68px; left: 80px; right: 80px; margin: 0; font-family: Georgia, 'DejaVu Serif', serif; font-size: 29px; font-style: italic; color: #71816a; }
+    .ua { color: #f7f3ea; background: #416556; }
+    .ua::after { border-color: #638372; }
+    .ua .kicker { font-size: 20px; letter-spacing: 2.1px; color: #dce5d4; }
+    .ua .top-line, .ua .identity { border-color: #7c9580; }
+    .ua .top-line { background: #7c9580; }
+    .ua .headline { font-size: 78px; letter-spacing: -2px; }
+    .ua .description, .ua .contact, .ua .footer { color: #d8e3cd; }
+    .ua .portrait { border-color: #799580; background: #527260; color: #becfb0; }
+    .notes { max-width: 1000px; margin: 35px auto 0; color: #5b6e59; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <main>
+    <article id="de" class="card" lang="de" aria-label="Digitale Empfehlungskarte auf Deutsch">
+      <p class="kicker">PSYCHOLOGISCHE BERATUNG</p><div class="top-line"></div>
+      <h1 class="headline">Ein Gespräch.<br>Ein neuer Blick.</h1>
+      <p class="description">Raum für Ihre Gedanken.<br>Begleitung in Ihrem Tempo.</p>
+      <div class="portrait" aria-label="Platzhalter für dein Foto"><svg viewBox="0 0 52 64" fill="none" aria-hidden="true"><circle cx="26" cy="17" r="11" stroke="currentColor" stroke-width="1.2"/><path d="M7 60C7 38 14 34 26 34s19 4 19 26" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg><span>FOTO FOLGT</span></div>
+      <section class="identity"><h2>[Vorname Nachname]</h2>
+        <p class="contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 3h4l2 5-3 2c2 4 3 5 7 7l2-3 4 2v4c-9 3-20-8-16-17Z" stroke-linejoin="round"/></svg><span>[Telefon / Kontakt]</span></p>
+        <p class="contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg><span>[Website]</span></p>
+        <p class="contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2"/></svg><span>[Ort / Online-Angebot]</span></p>
+      </section>
+      <p class="footer">Ein guter Gedanke zum Weitergeben.</p>
+    </article>
+    <article id="uk" class="card ua" lang="uk" aria-label="Digitale Empfehlungskarte auf Ukrainisch">
+      <p class="kicker">ПСИХОЛОГІЧНЕ КОНСУЛЬТУВАННЯ</p><div class="top-line"></div>
+      <h1 class="headline">Поговорити.<br>Знайти опору.</h1>
+      <p class="description">Простір для Ваших думок.<br>Підтримка у Вашому темпі.</p>
+      <div class="portrait" aria-label="Місце для Вашого фото"><svg viewBox="0 0 52 64" fill="none" aria-hidden="true"><circle cx="26" cy="17" r="11" stroke="currentColor" stroke-width="1.2"/><path d="M7 60C7 38 14 34 26 34s19 4 19 26" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg><span>МІСЦЕ ДЛЯ ФОТО</span></div>
+      <section class="identity"><h2>[Ім’я та прізвище]</h2>
+        <p class="contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 3h4l2 5-3 2c2 4 3 5 7 7l2-3 4 2v4c-9 3-20-8-16-17Z" stroke-linejoin="round"/></svg><span>[Телефон / Контакт]</span></p>
+        <p class="contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></svg><span>[Вебсайт]</span></p>
+        <p class="contact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2"/></svg><span>[Місто / Онлайн-формат]</span></p>
+      </section>
+      <p class="footer">Тепла підтримка поруч.</p>
+    </article>
+  </main>
+  <p class="notes">Beispielentwürfe mit Platzhaltern. Je Sprache ein einzelnes PNG mit 1080 × 1350 Pixeln für WhatsApp und Telegram. Erst nach Ergänzung der tatsächlichen Kontaktdaten und des freigegebenen Fotos weitergeben. Die Kontaktdaten einer PNG-Datei sind nicht anklickbar; einen echten Kontaktlink später als Begleittext mitsenden.</p>
+</body>
+</html>

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 async function nav(page: Page, text: string) {
   await expect(page.locator('.app-shell')).toBeVisible();
   const menu = page.getByRole('button', { name: 'Navigation öffnen' });
@@ -27,7 +27,7 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await page.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung' }).fill('Privater Gedanke für das nächste Gespräch');
   await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
   await dialog.getByLabel('Datum', { exact: true }).fill('2025-12-20');
-  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('95,50');
+  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('96');
   await dialog.getByLabel('Bezahlt', { exact: true }).check();
   const year = new Date().getFullYear();
   await dialog.getByLabel('Zahlungseingang am', { exact: true }).fill(`${year}-01-15`);
@@ -49,7 +49,7 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await expect(dialog.locator('img')).toBeVisible(); await dialog.getByRole('button', { name: 'Schließen' }).click();
   await nav(page, 'Finanzen');
   await expect(page.getByRole('heading', { name: 'Ein gutes Gefühl für Ihre Zahlen.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Jan.*95,50/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Jan.*96/ })).toBeVisible();
   await page.getByRole('button', { name: 'Українська' }).click();
   await expect(page.getByRole('heading', { name: 'Ясність у Ваших фінансах.' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'uk');

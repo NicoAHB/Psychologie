@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Camera, Check, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
-import { uid, type Appointment, type Client, type Session } from '../lib/types';
+import { uid, type Appointment, type Client, type Currency, type ExchangeRate, type Session } from '../lib/types';
 import { addDays, addMonths, appointmentInstant, clientZone, dateLabel, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
 import { ZoneSelect } from './ZoneSelect';
 import { isValidZone, utcOffset, zonePlace } from '../lib/zones';
+import { FeeInput } from './money';
+import { billAmount, convertWhole, currencyOf } from '../lib/currency';
 import { DualTimeBox } from './DualTime';
 import { deleteClient, deleteSession, feeText, findConflict, suggestedFee } from '../lib/records';
 import { pendingHomework } from '../lib/discussion';
@@ -22,6 +24,8 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   const [name, setName] = useState(client?.name || '');
   const [contact, setContact] = useState(client?.contact || '');
   const [ukrainian, setUkrainian] = useState(client?.language === 'uk');
+  const [currency, setCurrency] = useState<Currency>(currencyOf(client));
+  const [currencyTouched, setCurrencyTouched] = useState(!!client);
   const [chat, setChat] = useState(client?.telegramChatId || '');
   const [consent, setConsent] = useState(client?.reminderConsent || false);
   const [address, setAddress] = useState(client?.address || '');
@@ -37,7 +41,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     setBusy(true);
     try {
       const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
-      const result: Client = { id: client?.id || uid(), name: name.trim(), contact: contact.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone };
+      const result: Client = { id: client?.id || uid(), name: name.trim(), contact: contact.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency };
       const before = referencedBlobs(vault.data!);
       await vault.update(data => { const index = data.clients.findIndex(c => c.id === result.id); if (index < 0) data.clients.push(result); else data.clients[index] = result; });
       await vault.purgeUnused(before); // a replaced profile picture must not linger encrypted on the device or in the cloud
@@ -55,7 +59,8 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
     <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
     <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={zone} onChange={setZone}/>
-    <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => setUkrainian(e.target.checked)}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
+    <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { setUkrainian(e.target.checked); if (!currencyTouched) setCurrency(e.target.checked ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
+    <Field label={t('billingCurrency')} hint={t('billingCurrencyHint')}><select value={currency} onChange={e => { setCurrency(e.target.value as Currency); setCurrencyTouched(true); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <Field label={t('telegramChatId')} hint={t('chatHelp')}><input value={chat} maxLength={24} inputMode="numeric" onChange={e => setChat(e.target.value)} placeholder={t('chatPlaceholder')}/></Field>
     <label className="check-label"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/><span>{t('reminderConsent')}</span></label>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={client && onDeleted ? () => void removeClient() : undefined} deleteLabel={t('deleteClient')}/>
@@ -65,7 +70,11 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
   const { t, language } = useI18n(); const data = vault.data!; const practiceZone = data.settings.timeZone;
   const [selected, setSelected] = useState(appointment?.clientId || clientId || data.clients[0]?.id || '');
   const [date, setDate] = useState(appointment?.date || today()); const [time, setTime] = useState(appointment?.time || '10:00');
-  const [duration, setDuration] = useState(String(appointment?.duration ?? 50)); const [fee, setFee] = useState(feeText(appointment?.feeCents ?? suggestedFee(data, selected)));
+  const initialNative = currencyOf(data.clients.find(c => c.id === selected)) === 'UAH' && appointment?.billing?.currency === 'UAH';
+  const [duration, setDuration] = useState(String(appointment?.duration ?? 50)); const [fee, setFee] = useState(feeText(initialNative ? appointment!.billing!.amountCents : appointment?.feeCents ?? suggestedFee(data, selected)));
+  const [inputCurrency, setInputCurrency] = useState<Currency>(initialNative ? 'UAH' : 'EUR');
+  const [rate, setRate] = useState<ExchangeRate | undefined>(appointment?.billing?.rate ?? data.settings.exchangeRate);
+  const [pricingChanged, setPricingChanged] = useState(false);
   const [zone, setZone] = useState(appointment?.timeZone ?? practiceZone);
   const savedClient = data.clients.find(c => c.id === selected);
   const [theirZoneChoice, setTheirZoneChoice] = useState(clientZone(savedClient, data.settings));
@@ -85,31 +94,33 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
       if (Number.isInteger(length) && length > 0) clashes = dates.map(d => findConflict(data.appointments, { ...candidate, date: d })).filter((c): c is Appointment => !!c);
     }
   } catch { /* an incomplete date or time simply shows no preview */ }
-  function choose(id: string) { setSelected(id); setTheirZoneChoice(clientZone(data.clients.find(c => c.id === id), data.settings)); setZone(practiceZone); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
+  function choose(id: string) { if (inputCurrency === 'UAH') { try { setFee(feeText(convertWhole(parseMoney(fee), 'UAH', 'EUR', rate))); } catch { setFee(feeText(suggestedFee(data, id))); } } setInputCurrency('EUR'); setPricingChanged(true); setSelected(id); setTheirZoneChoice(clientZone(data.clients.find(c => c.id === id), data.settings)); setZone(practiceZone); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (!selected || !date || !time || !isValidZone(theirZoneChoice) || !Number.isInteger(length) || length < 5 || length > 480) { setError('required'); return; }
     setBusy(true);
     try {
-      const feeCents = parseMoney(fee);
+      const pricing = !pricingChanged && appointment?.billing && appointment.clientId === selected && appointment.billing.currency === currencyOf(client) ? { feeCents: appointment.feeCents, billing: appointment.billing } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
+      const { feeCents, billing } = pricing;
       appointmentInstant({ date, time, timeZone: entryZone });
       if (appointment) {
         // A rescheduled appointment gets a fresh reminder so an already delivered one cannot suppress the new date.
         const shift = daysBetween(appointment.date, date);
-        const edit = (a: Appointment, newDate: string): Appointment => { const moved = a.date !== newDate || a.time !== time || a.timeZone !== entryZone; return { ...a, clientId: selected, date: newDate, time, duration: length, feeCents, timeZone: entryZone, reminderId: moved ? uid() : a.reminderId }; };
+        const edit = (a: Appointment, newDate: string): Appointment => { const moved = a.date !== newDate || a.time !== time || a.timeZone !== entryZone; return { ...a, clientId: selected, date: newDate, time, duration: length, feeCents, billing, timeZone: entryZone, reminderId: moved ? uid() : a.reminderId }; };
         const start = Date.parse(appointmentInstant(appointment));
         await vault.update(d => {
           const owner = d.clients.find(c => c.id === selected); if (owner && clientZone(owner, d.settings) !== theirZone) owner.timeZone = theirZone; // remember where the client lives
+          if (billing.rate) d.settings.exchangeRate = billing.rate;
           d.appointments = d.appointments.map(a => a.id === appointment.id ? edit(a, date)
             : following && appointment.seriesId && a.seriesId === appointment.seriesId && a.status === 'scheduled' && Date.parse(appointmentInstant(a)) > start ? edit(a, addDays(a.date, shift)) : a);
         });
       } else {
         const seriesId = repeats > 1 ? uid() : undefined;
-        const created = dates.map((d): Appointment => ({ id: uid(), clientId: selected, date: d, time, duration: length, feeCents, timeZone: entryZone, reminderId: uid(), status: 'scheduled', ...seriesId && { seriesId } }));
-        await vault.update(d => { d.appointments.push(...created); const owner = d.clients.find(c => c.id === selected); if (owner && clientZone(owner, d.settings) !== theirZone) owner.timeZone = theirZone; });
+        const created = dates.map((d): Appointment => ({ id: uid(), clientId: selected, date: d, time, duration: length, feeCents, billing, timeZone: entryZone, reminderId: uid(), status: 'scheduled', ...seriesId && { seriesId } }));
+        await vault.update(d => { d.appointments.push(...created); if (billing.rate) d.settings.exchangeRate = billing.rate; const owner = d.clients.find(c => c.id === selected); if (owner && clientZone(owner, d.settings) !== theirZone) owner.timeZone = theirZone; });
       }
       onClose();
-    } catch (err) { setError(err instanceof Error && err.message === 'invalidAmount' ? 'invalidAmount' : 'required'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : 'required'); } finally { setBusy(false); }
   }
   return <Modal title={t(appointment ? 'editAppointment' : 'newAppointment')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <Field label={`${t('client')} *`}><select value={selected} onChange={e => choose(e.target.value)} required><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
@@ -118,7 +129,7 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
     {client?.language === 'uk' && theirZone === practiceZone && <p className="hint">{t('suggestKyivHint')} <button type="button" className="text-link inline" onClick={() => setTheirZoneChoice('Europe/Kyiv')}>{t('suggestKyivButton')}</button></p>}
     {zones.length > 1 && <Field label={t('timeEnteredIn')}><select value={entryZone} onChange={e => setZone(e.target.value)}>{zones.map(z => <option key={z} value={z}>{t(z === practiceZone ? 'zonePractice' : 'zoneClient')} · {zoneLabel(z, language)}</option>)}</select></Field>}
     {instantNow && <DualTimeBox instant={instantNow} practiceZone={practiceZone} clientZone={theirZone}/>}
-    <div className="form-grid"><Field label={t('duration')}><input type="number" min="5" max="480" value={duration} onChange={e => setDuration(e.target.value)}/></Field><Field label={t('fee')}><input inputMode="decimal" value={fee} onChange={e => { setFee(e.target.value); setFeeTouched(true); }}/></Field></div>
+    <Field label={t('duration')}><input type="number" min="5" max="480" value={duration} onChange={e => setDuration(e.target.value)}/></Field><FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!appointment?.billing}/>
     {!appointment && <div className="form-grid"><Field label={t('repeat')}><select value={repeat} onChange={e => setRepeat(e.target.value as typeof repeat)}>{(['none', 'weekly', 'biweekly', 'monthly'] as const).map(r => <option key={r} value={r}>{t(`repeat${r[0].toUpperCase()}${r.slice(1)}` as TextKey)}</option>)}</select></Field>{repeat !== 'none' && <Field label={t('repeatCount')}><input type="number" min="2" max="52" value={count} onChange={e => setCount(e.target.value)}/></Field>}</div>}
     {appointment?.seriesId && <label className="check-label"><input type="checkbox" checked={following} onChange={e => setFollowing(e.target.checked)}/><span>{t('changeFollowing')}</span></label>}
     {clashes.length > 0 && <Notice error>{repeats > 1 ? `${t('seriesConflicts')} ${clashes.length}` : t('conflictWarning')} {clashes.slice(0, 3).map(c => `${data.clients.find(x => x.id === c.clientId)?.name} · ${c.date} ${c.time}`).join('; ')}</Notice>}
@@ -131,8 +142,13 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
   const { t, language } = useI18n(); const data = vault.data!;
   const [selected, setSelected] = useState(session?.clientId || appointment?.clientId || clientId || data.clients[0]?.id || '');
   const [date, setDate] = useState(session?.date || appointment?.date || today()); const [time, setTime] = useState(session?.time || appointment?.time || '10:00');
-  const [fee, setFee] = useState(feeText(session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
+  const originalBilling = session?.billing ?? appointment?.billing;
+  const initialNative = currencyOf(data.clients.find(c => c.id === selected)) === 'UAH' && originalBilling?.currency === 'UAH';
+  const [fee, setFee] = useState(feeText(initialNative ? originalBilling!.amountCents : session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
   const [feeTouched, setFeeTouched] = useState(!!(session || appointment));
+  const [inputCurrency, setInputCurrency] = useState<Currency>(initialNative ? 'UAH' : 'EUR');
+  const [rate, setRate] = useState<ExchangeRate | undefined>(originalBilling?.rate ?? data.settings.exchangeRate);
+  const [pricingChanged, setPricingChanged] = useState(false);
   const [paid, setPaid] = useState(!!session?.paidAt); const [paymentDate, setPaymentDate] = useState(session?.paidAt || today());
   const templates = useTemplates(data); const [notes, setNotes] = useState(session?.notes || ''); const [tags, setTags] = useState(session?.tags.map(tag => `#${tag}`).join(', ') || '');
   const [homework, setHomework] = useState(session?.homework || ''); const [homeworkDone, setHomeworkDone] = useState(!!session?.homeworkDone);
@@ -143,7 +159,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
   const previous = selected ? pendingHomework(data, selected, session?.id) : undefined;
   const attached = session ? data.notes.filter(n => n.sessionId === session.id && !removedPhotos.includes(n.id)) : [];
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
-  function choose(id: string) { setSelected(id); setReviewPrevious(false); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); if (!nextTouched) setNextTopics(data.clients.find(c => c.id === id)?.preparation ?? ''); }
+  function choose(id: string) { if (inputCurrency === 'UAH') { try { setFee(feeText(convertWhole(parseMoney(fee), 'UAH', 'EUR', rate))); } catch { setFee(feeText(suggestedFee(data, id))); } } setInputCurrency('EUR'); setPricingChanged(true); setSelected(id); setReviewPrevious(false); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); if (!nextTouched) setNextTopics(data.clients.find(c => c.id === id)?.preparation ?? ''); }
   // Copy the files out at once: the input's FileList is emptied as soon as its value is reset.
   const addFiles = (list: FileList | null) => { const picked = Array.from(list ?? []); if (picked.length) setFiles(current => [...current, ...picked].slice(0, 12)); };
   async function submit(e: FormEvent) {
@@ -153,10 +169,15 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     const before = referencedBlobs(data); const added: string[] = [];
     try {
       const text = homework.trim();
-      const result: Session = { id: session?.id ?? uid(), clientId: selected, date, time, feeCents: parseMoney(fee), paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
+      const pricing = !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
+        ? { feeCents: session?.feeCents ?? appointment!.feeCents, billing: originalBilling } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
+      const originalFeeCents = session?.originalFeeCents ?? appointment?.originalFeeCents;
+      const result: Session = { id: session?.id ?? uid(), clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
+        ...(originalFeeCents !== undefined && { originalFeeCents }),
         ...session?.invoiceId && { invoiceId: session.invoiceId }, ...text && { homework: text, homeworkDone } };
       for (const file of files) added.push(await vault.addImage(await compressImage(file)));
       await vault.update(d => {
+        if (pricing.billing.rate) d.settings.exchangeRate = pricing.billing.rate;
         if (session) { const index = d.sessions.findIndex(s => s.id === session.id); if (index < 0) return; d.sessions[index] = result; }
         else {
           if (appointment && d.sessions.some(s => s.appointmentId === appointment.id)) return;
@@ -169,7 +190,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
         const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
       });
       await vault.purgeUnused([...before, ...added]); onClose();
-    } catch (err) { setError(err instanceof Error && err.message === 'invalidAmount' ? 'invalidAmount' : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
     if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}${data.notes.some(n => n.sessionId === session.id) ? `\n\n${t('deleteSessionPhotosNote')}` : ''}`)) return;
@@ -194,7 +215,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
       <Field label={t('homeworkFor')}><textarea rows={3} value={homework} maxLength={4000} placeholder={t('homeworkPlaceholder')} onChange={e => setHomework(e.target.value)}/></Field>
       {session && homework.trim() && <label className="check-label"><input type="checkbox" checked={homeworkDone} onChange={e => setHomeworkDone(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label>}
       <Field label={t('nextTopicsField')} hint={t('nextTopicsHint')}><textarea rows={3} value={nextTopics} maxLength={30000} onChange={e => { setNextTopics(e.target.value); setNextTouched(true); }}/></Field></div>
-    <div className="form-section"><Field label={t('fee')}><input inputMode="decimal" value={fee} onChange={e => { setFee(e.target.value); setFeeTouched(true); }}/></Field>
+    <div className="form-section"><FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>
       <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
       {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</div>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>

@@ -54,8 +54,8 @@ test('DE and UA dictionaries have identical keys and no empty translations', () 
   assert.ok(Object.values(de).every(value => value.trim())); assert.ok(Object.values(uk).every(value => value.trim()));
 });
 test('money parsing uses integer cents and rejects ambiguous or invalid input', () => {
-  assert.equal(parseMoney('85,90'), 8590); assert.equal(parseMoney('0.01'), 1); assert.equal(parseMoney('100'), 10000);
-  for (const invalid of ['-1', '1.234', '1,2,3', 'abc', '', 'NaN']) assert.throws(() => parseMoney(invalid));
+  assert.equal(parseMoney('85'), 8500); assert.equal(parseMoney('1'), 100); assert.equal(parseMoney('100'), 10000);
+  for (const invalid of ['85,90', '0.01', '-1', '1.234', '1,2,3', 'abc', '', 'NaN']) assert.throws(() => parseMoney(invalid));
 });
 test('income is grouped by payment date, not session date; open sessions excluded', () => {
   const base = { id: uid(), clientId: uid(), date: '2025-12-20', time: '10:00', feeCents: 8500, notes: '', tags: [] };

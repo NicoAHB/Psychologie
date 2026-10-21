@@ -119,3 +119,34 @@ npm run test:e2e
 Für Browserprüfungen: `npx playwright install chromium` oder vorhandenes Chromium über `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` verwenden. Die Tests verwenden erfundene Daten und keine echten Cloud-Zugangsdaten. Live-Supabase und Telegram benötigen eigene Konfiguration; ein lokaler erfolgreicher Test behauptet keine erfolgte Live-Zustellung.
 
 Für statisches Hosting sind empfohlene Sicherheitsheader in `public/_headers` enthalten (Cloudflare Pages/Netlify). Andere Hosts müssen entsprechende Header setzen und SPA-Fallback konfigurieren. Keine externen Skripte, Tracker oder Schrift-CDNs erforderlich. Anwendungsschlüssel schützen gespeicherte und synchronisierte Daten, nicht ein bereits entsperrtes Gerät, kompromittierte Browser-Erweiterungen oder manipulierten Anwendungscode.
+
+## Ganze Beträge, Euro und Hrywnja
+
+- Neue Sitzungs- und Terminbeträge werden als ganze Euro bzw. Hrywnja eingegeben; Cent-Eingaben werden verständlich abgewiesen. Intern bleiben Geldwerte ganzzahlige Untereinheiten, damit Summen und Exporte keine Gleitkommafehler bekommen.
+- Unter **Klienten → Profil bearbeiten → Zahlungswährung** kann unabhängig von der Sprache `EUR` oder `UAH` gewählt werden. Bei neuen ukrainischsprachigen Klienten wird UAH vorgeschlagen; bestehende Profile werden nicht automatisch in eine andere Währung umgestellt.
+- Bei UAH-Sitzungen lässt sich der Betrag in Euro oder Hrywnja eingeben. Der Zielbetrag wird einmal auf die nächste ganze Einheit gerundet (ab einer halben Einheit aufwärts). Die App zeigt den Euro-Vergleich zusätzlich an.
+- Der öffentliche EUR-Kurs der **Nationalbank der Ukraine (NBU)** wird bei Bedarf automatisch geladen. Kurs, Kursdatum und Quelle bleiben sichtbar; manuelle Korrektur und Nutzung eines gespeicherten Kurses sind möglich. Der Kurs selbst darf bis zu sechs Nachkommastellen enthalten. Der Aufruf an `bank.gov.ua` überträgt keinerlei Praxisdaten. Die CSP erlaubt ausschließlich diesen zusätzlichen öffentlichen API-Host.
+- Vereinbarter Originalbetrag und verwendeter Kurs werden mit der Sitzung gespeichert. Spätere Tageskurse ändern diese Beträge nicht. Beim Erstellen einer UAH-Rechnung werden bisherige EUR-Sitzungen mit dem ausgewählten Kurs umgerechnet; bereits vereinbarte UAH-Beträge bleiben erhalten. Die tatsächlich ausgestellte Währung wird auch in die Zahlungsliste übernommen.
+- Unter **Einstellungen → Praxisdaten** stehen zwei unabhängige Bankverbindungen für Deutschland/EUR und Ukraine/UAH zur Verfügung, jeweils mit Kontoinhaber, IBAN, Bank und optional BIC/SWIFT. Die zur Rechnungswährung passende Verbindung wird beim Ausstellen fest in die Rechnung kopiert.
+- Auf einer UAH-Rechnung und ihrem PDF stehen **keine Euro-Vergleichswerte**. Diese sind ausschließlich in der App außerhalb des druckbaren Dokuments sichtbar. Sprache und Rechnungswährung sind voneinander unabhängig.
+- Einnahmen-Diagramme und Gesamtsummen nutzen gerundete Euro-Vergleichswerte zum gespeicherten Vereinbarungskurs. Der CSV-Export enthält zusätzlich Originalbetrag, Originalwährung, Kurs, Kursdatum und Quelle. Tatsächliche Bankgebühren, Abweichungen beim Zahlungseingang und steuerlich vorgeschriebene Umrechnungsverfahren werden dadurch nicht automatisch gebucht.
+
+### Bestehende Rechnungen und Centbeträge
+
+Auf ausdrücklichen Benutzerwunsch werden vorhandene Centbeträge beim Öffnen des Tresors auf ganze Einheiten angepasst. Jede Rechnungsposition wird separat gerundet; die Rechnungssumme ist anschließend die Summe dieser Positionen. Beispiel: zwei Positionen à 85,50 werden jeweils 86 und ergeben 172. Das ändert bestehende Rechnungsbeträge; bereits an Klienten versendete PDFs werden selbstverständlich nicht nachträglich verändert.
+
+Die ursprünglichen Sitzungsbeträge bleiben als `originalFeeCents` und die ursprünglichen Rechnungspositionen/Summen als `originalAmounts` **verschlüsselt** erhalten. Vor dem ersten Schreiben greift zusätzlich die vorhandene Versionssicherung. Die Migration ist wiederholbar, verändert keine bestehenden Währungen oder Bank-Snapshots und erfindet keine früheren Wechselkurse. Vor der Verwendung mit echten Bestandsdaten eine vollständige verschlüsselte Sicherung außerhalb des Browsers aufbewahren.
+
+Die Cloud dieser Aufgabe blockiert den NBU-Host aktuell mit CONNECT 403. `bank.gov.ua` wurde als zusätzliche Domain im Konfigurationsentwurf gespeichert; ein gespeicherter Entwurf ist noch keine angewendete Netzwerkfreigabe. Der automatische Browserablauf und die Ausfallbehandlung werden mit kontrollierten NBU-Antworten getestet. Ein echter Live-Abruf aus dieser Cloud ist erst nach Anwendung der Freigabe prüfbar; die manuelle Kurseingabe steht unabhängig davon bereit.
+
+## Empfehlungskarte und erste Kundengewinnung
+
+- Druckbarer DE-/UA-Musterentwurf: [`public/empfehlungskarte-DE-UA.pdf`](public/empfehlungskarte-DE-UA.pdf), zwei Seiten, Endformat 85 × 55 mm plus jeweils 3 mm Beschnitt.
+- Digitale Karten zum Weiterleiten über **WhatsApp und Telegram**, jeweils als einzelnes Hochformat-PNG mit 1080 × 1350 Pixeln: [Deutsch](public/empfehlungskarte-digital-de.png) und [Ukrainisch](public/empfehlungskarte-digital-uk.png).
+- Visuelle Vorschau: [`public/empfehlungskarte-vorschau.png`](public/empfehlungskarte-vorschau.png).
+- Bearbeitbare HTML-Vorlagen: [Druckkarte](design/empfehlungskarte.html) und [digitale Karten](design/empfehlungskarte-digital.html). Nach Anpassungen mit `node scripts/render-cards.mjs` PDF und PNGs neu erzeugen (verwendet das vorhandene Test-Chromium).
+- Konkreter Vier-Wochen-Plan, Vorstellungsbeiträge und Empfehlungstexte in beiden Sprachen: [`docs/klientengewinnung.md`](docs/klientengewinnung.md).
+
+Zum Teilen die gewünschte PNG-Datei auf dem Smartphone speichern und in WhatsApp oder Telegram als Bild anhängen. Als **Dokument/Datei** versenden, wenn die unveränderte Auflösung erhalten bleiben soll. Nach der Personalisierung den tatsächlichen Kontaktlink als Nachricht ergänzen; Text und Links innerhalb einer PNG-Datei sind nicht anklickbar.
+
+Name, Kontakt, tatsächliche Qualifikationen, Beratungssprachen, Region und Foto sind noch Platzhalter. Die Karten werden erst nach Ergänzung dieser Angaben für die tatsächliche Verwendung freigegeben. Die visuelle Illustration ist ein Beispiel; die PDF-Datei enthält die exakt gesetzten Texte. Ein künftiger QR-Code verweist auf die öffentliche Kontakt-/Buchungsseite und niemals auf die private Verwaltungs-App.

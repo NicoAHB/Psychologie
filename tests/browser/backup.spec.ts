@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 async function nav(page: Page, text: string) {
   await expect(page.locator('.app-shell')).toBeVisible();
   const menu = page.getByRole('button', { name: 'Navigation öffnen' });

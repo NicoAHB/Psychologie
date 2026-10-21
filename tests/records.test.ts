@@ -47,7 +47,7 @@ test('fee suggestion follows the latest session or appointment of that client', 
   const { data, ids } = sample();
   assert.equal(suggestedFee(data, ids.b), 7000 /* B's session on 2026-05-05 is newer than the appointment on 05-04 */);
   assert.equal(suggestedFee(data, uid()), 8500); assert.equal(suggestedFee(emptyVault() as VaultData, ids.a, 1234), 1234);
-  assert.equal(feeText(9050), '90,50'); assert.equal(feeText(8500), '85,00');
+  assert.equal(feeText(9050), '91'); assert.equal(feeText(8500), '85');
 });
 test('deleting a client also removes their invoices and questionnaires', () => {
   const { data, ids } = sample();

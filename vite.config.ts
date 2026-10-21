@@ -3,11 +3,11 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 // GitHub Pages ignores public/_headers, so the production page carries its own Content-Security-Policy.
-// Only the Supabase host is allowed outside the origin; dev builds stay unrestricted for Vite's HMR.
+// Only the Supabase host and the public NBU exchange-rate API are allowed outside the origin; dev builds stay unrestricted for Vite's HMR.
 const contentSecurityPolicy = (supabase: string): Plugin => {
   const origin = (() => { try { return new URL(supabase).origin; } catch { return ''; } })();
   const policy = ["default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' blob: data:",
-    `connect-src 'self'${origin ? ` ${origin}` : ''}`, "object-src 'none'", "base-uri 'self'", "form-action 'self'"].join('; ');
+    `connect-src 'self' https://bank.gov.ua${origin ? ` ${origin}` : ''}`, "object-src 'none'", "base-uri 'self'", "form-action 'self'"].join('; ');
   return { name: 'praxisraum-csp', apply: 'build', transformIndexHtml: () => [
     { tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: policy }, injectTo: 'head-prepend' },
     { tag: 'meta', attrs: { name: 'referrer', content: 'no-referrer' }, injectTo: 'head-prepend' }] };

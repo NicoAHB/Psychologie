@@ -4,7 +4,7 @@ import {
   decryptBytes, decryptVault, deriveBits, deriveKey, encryptBytes, encryptVault, importDataKey, passphraseSalt, randomKeyBytes, secretKek,
   unwrapDataKey, validateEnvelope, wrapDataKey, wrapWithPassphrase,
 } from './crypto';
-import { emptyVault, uid, type EncryptedBlob, type PasskeyWrap, type VaultData, type VaultEnvelope, type Wraps } from './types';
+import { emptyVault, normalizeVault, uid, type EncryptedBlob, type PasskeyWrap, type VaultData, type VaultEnvelope, type Wraps } from './types';
 import { demoVault } from './demo';
 import { downloadBlob } from './cloud';
 import { fetchMerged } from './syncMerge';
@@ -78,8 +78,10 @@ export function useVault() {
   const flush = useCallback(async () => { await queue.current; if (failure.current) throw new Error('storageError'); }, []);
 
   const open = async (dataKey: CryptoKey, envelopeValue: VaultEnvelope) => {
-    const value = await decryptVault(dataKey, envelopeValue);
+    const original = await decryptVault(dataKey, envelopeValue, false);
+    const value = normalizeVault(original);
     key.current = dataKey; current.current = value; setData(value); generationRef.current = 0; setGeneration(0);
+    if (JSON.stringify(original) !== JSON.stringify(value)) { await persist(value); bump(); }
   };
   const create = async (passphrase: string) => {
     const raw = randomKeyBytes(); const vaultId = uid();

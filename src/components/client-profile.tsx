@@ -1,3 +1,4 @@
+import { BillingMoney } from './money';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
@@ -83,7 +84,7 @@ function Discussed({ vault, client, tag, setTag, actions }: { vault: VaultContro
         {entry.item.notes && <p className="pre-line">{entry.item.notes}</p>}
         {attached(entry.item).length > 0 && <div className="photo-strip">{attached(entry.item).map(n => <button key={n.id} className="note-thumbnail" aria-label={t('viewPhoto')} onClick={() => actions.onPhoto(n.blobId)}><ImageView id={n.blobId} vault={vault} alt={t('photoNote')}/><span>{t('viewPhoto')}<ArrowRight size={15}/></span></button>)}</div>}
         {entry.item.homework && <div className={`homework-note ${entry.item.homeworkDone ? 'is-done' : ''}`}><strong><Home size={14}/> {t('homework')}{entry.item.homeworkDone ? ` · ${t('homeworkReviewed')}` : ''}</strong><p className="pre-line">{entry.item.homework}</p></div>}
-        <div className="session-payment"><span>{money(entry.item.feeCents, language)}</span>{entry.item.invoiceId && <span className="tag-chip">{data.invoices.find(i => i.id === entry.item.invoiceId)?.number}</span>}<PaymentBadge session={entry.item} onClick={() => actions.onPayment(entry.item)}/></div></>
+        <div className="session-payment"><BillingMoney feeCents={entry.item.feeCents} billing={entry.item.billing}/>{entry.item.invoiceId && <span className="tag-chip">{data.invoices.find(i => i.id === entry.item.invoiceId)?.number}</span>}<PaymentBadge session={entry.item} onClick={() => actions.onPayment(entry.item)}/></div></>
         : <><p>{entry.item.caption}</p><button className="note-thumbnail" aria-label={t('viewPhoto')} onClick={() => actions.onPhoto(entry.item.blobId)}><ImageView id={entry.item.blobId} vault={vault} alt={t('photoNote')}/><span>{t('viewPhoto')}<ArrowRight size={15}/></span></button></>}
       {entry.item.tags.length > 0 && <div className="entry-tags">{entry.item.tags.map(value => <button className="tag-chip" key={value} onClick={() => setTag(value)}>#{value}</button>)}</div>}
     </article>)}{tag && !entries.some(e => e.item.tags.includes(tag)) && <p>{t('noTagResults')}</p>}</div>}</section>;
@@ -102,7 +103,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
       {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
-      {tab === 'finances' && <section className="card"><div className="section-heading"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div></div><div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, i) => <div key={label}><span>{t(label)}</span><strong className={i === 2 ? 'text-rose' : ''}>{sum(s => i === 0 || (i === 1 ? !!s.paidAt : !s.paidAt))}</strong></div>)}</div></section>}
+      {tab === 'finances' && <section className="card"><div className="section-heading"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div></div><div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, i) => <div key={label}><span>{t(label)}</span><strong className={i === 2 ? 'text-rose' : ''}>{sum(s => i === 0 || (i === 1 ? !!s.paidAt : !s.paidAt))}</strong></div>)}</div>{data.sessions.some(s => s.clientId === client.id && s.billing?.currency === 'UAH') && <p className="hint">{t('agreedUahTotal')}: <strong>{money(data.sessions.filter(s => s.clientId === client.id && s.billing?.currency === 'UAH').reduce((total, s) => total + s.billing!.amountCents, 0), language, 'UAH')}</strong><br/>{t('financeCurrencyHint')}</p>}</section>}
     </div>
   </div>;
 }

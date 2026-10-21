@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 import { readFile } from 'node:fs/promises';
 async function nav(page: Page, text: string) {
   await expect(page.locator('.app-shell')).toBeVisible();

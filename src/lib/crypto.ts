@@ -58,12 +58,12 @@ export function validateEnvelope(value: unknown): asserts value is VaultEnvelope
     !/^[0-9a-f-]{36}$/i.test(v.vaultId) || fromBase64(v.salt).length !== 16 ||
     fromBase64(v.payload?.iv ?? '').length !== 12 || fromBase64(v.payload?.ciphertext ?? '').length < 16) throw new Error('invalidBackup');
 }
-export async function decryptVault(key: CryptoKey, envelope: VaultEnvelope): Promise<VaultData> {
+export async function decryptVault(key: CryptoKey, envelope: VaultEnvelope, wholeAmounts = true): Promise<VaultData> {
   validateEnvelope(envelope);
   const value = JSON.parse(new TextDecoder().decode(await decryptBytes(key, envelope.payload, `praxisraum:v1:${envelope.vaultId}`)));
   if (value.schema !== 1 || !Array.isArray(value.clients) || !Array.isArray(value.appointments) ||
     !Array.isArray(value.sessions) || !Array.isArray(value.notes) || !value.settings) throw new Error('invalidBackup');
-  return normalizeVault(value);
+  return normalizeVault(value, wholeAmounts);
 }
 export async function encryptReminder(publicPem: string, value: unknown, id: string) {
   const pem = publicPem.replaceAll('\\n', '\n').replace(/-----[^-]+-----|\s/g, '');

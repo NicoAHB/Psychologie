@@ -34,4 +34,4 @@ export function suggestedFee(data: VaultData, clientId: string, fallback = 8500)
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))[0];
   return latest?.feeCents ?? fallback;
 }
-export const feeText = (cents: number) => (cents / 100).toFixed(2).replace('.', ',');
+export const feeText = (cents: number) => String(Math.round(cents / 100));

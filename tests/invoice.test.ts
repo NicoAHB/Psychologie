@@ -33,8 +33,8 @@ test('only sessions without an invoice are offered, oldest first; paid status ne
 });
 test('CSV export lists income by payment date, pseudonymises clients by default and defuses formulas', () => {
   const { data } = sample(); const csv = incomeCsv(data, 2026, false, 'de');
-  assert.ok(csv.startsWith('﻿Zahlungsdatum;Sitzungsdatum;Klient;Rechnung;Betrag (EUR)\r\n'));
-  assert.deepEqual(csv.trim().split('\r\n').slice(1), ['2026-02-01;2026-01-10;Klient 1;;85,00', '2026-03-05;2026-03-02;Klient 2;;70,50']);
+  assert.ok(csv.startsWith('﻿Zahlungsdatum;Sitzungsdatum;Klient;Rechnung;Euro-Vergleich (EUR);Originalbetrag;Originalwährung;Wechselkurs EUR → UAH;Kursdatum;Kursquelle\r\n'));
+  assert.deepEqual(csv.trim().split('\r\n').slice(1), ['2026-02-01;2026-01-10;Klient 1;;85;85;EUR;;;', '2026-03-05;2026-03-02;Klient 2;;71;71;EUR;;;']);
   const named = incomeCsv(data, 2026, true, 'de');
   assert.ok(named.includes(`"'=HYPERLINK(""x"")"`) || named.includes("'=HYPERLINK"), 'formula prefix is neutralised'); assert.ok(named.includes('"Boris; ""B"""'));
   assert.equal(incomeCsv(data, 2025, true, 'de').trim().split('\r\n').length, 1);

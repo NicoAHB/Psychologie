@@ -1,0 +1,125 @@
+import { test, expect, type Page } from './fixtures';
+import { deriveKey, encryptVault, randomSalt, decryptVault } from '../../src/lib/crypto';
+import { emptyVault, uid } from '../../src/lib/types';
+
+async function nav(page: Page, label: string) {
+  await expect(page.locator('.app-shell')).toBeVisible();
+  const menu = page.getByRole('button', { name: 'Navigation öffnen' }); if (await menu.isVisible()) await menu.click();
+  await page.getByRole('navigation').getByRole('button', { name: label, exact: true }).click();
+}
+async function create(page: Page) {
+  await page.goto('/'); await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
+  await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
+  await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
+  await expect(page.locator('.app-shell')).toBeVisible();
+}
+async function ukrainianClient(page: Page) {
+  await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
+  const dialog = page.getByRole('dialog'); await dialog.getByLabel('Name *', { exact: true }).fill('Олена Приклад');
+  await dialog.getByLabel('Erinnerungen auf Ukrainisch senden').check();
+  await expect(dialog.getByLabel('Zahlungswährung', { exact: true })).toHaveValue('UAH');
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+}
+test('whole EUR input, official NBU rate, two accounts and UAH-only invoice including printed PDF', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (/Content Security Policy|violates/i.test(message.text())) errors.push(message.text()); });
+  await create(page); await nav(page, 'Einstellungen');
+  await page.getByLabel('Name der Praxis / Ihr Name').fill('Praxis Beispiel');
+  await page.getByLabel('IBAN', { exact: true }).fill('DE89 3704 0044 0532 0130 00');
+  await page.getByLabel('Bank', { exact: true }).fill('Testbank Deutschland');
+  await page.getByLabel('IBAN (Ukraine)', { exact: true }).fill('UA12 3456 7890 1234 5678 9012 3456 7');
+  await page.getByLabel('Bank (Ukraine)', { exact: true }).fill('Тестовий банк України');
+  await page.getByLabel('Kontoinhaber/in (Ukraine)', { exact: true }).fill('Ім’я Приклад');
+  await expect(page.getByLabel('Wechselkurs EUR → UAH', { exact: true })).toHaveValue('48,1256');
+  await page.getByRole('button', { name: 'Praxisdaten speichern' }).click();
+  await expect(page.getByText('Praxisdaten gespeichert.', { exact: true })).toBeVisible();
+  await ukrainianClient(page);
+  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('Betrag eingeben in', { exact: true })).toHaveValue('EUR');
+  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('85,50');
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('ganzen Betrag');
+  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('85');
+  await expect(dialog.locator('.currency-preview')).toContainText(/4[.\s\u00a0\u202f]?091/);
+  await expect(dialog.locator('.currency-preview')).toContainText('85');
+  await dialog.getByLabel('Betrag eingeben in', { exact: true }).selectOption('UAH');
+  await expect(dialog.getByLabel('Betrag pro Sitzung (UAH)')).toHaveValue('4091');
+  await dialog.getByLabel('Betrag eingeben in', { exact: true }).selectOption('EUR');
+  await expect(dialog.getByLabel('Betrag pro Sitzung (€)')).toHaveValue('85');
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+  await page.getByRole('tab', { name: 'Besprochen' }).click();
+  await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
+  await expect(dialog.getByLabel('Betrag eingeben in', { exact: true })).toHaveValue('UAH');
+  await expect(dialog.getByLabel('Betrag pro Sitzung (UAH)')).toHaveValue('4091');
+  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Vereinbarten Betrag beibehalten');
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+  await nav(page, 'Finanzen');
+  await expect(page.locator('.billing-money').first()).toContainText(/4[.\s\u00a0\u202f]?091/);
+  await expect(page.locator('.billing-money').first()).toContainText('85');
+  await page.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
+  await expect(dialog.getByLabel('Rechnungswährung')).toHaveValue('UAH');
+  await dialog.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
+  await expect(dialog.locator('.invoice-sheet')).toBeVisible();
+  await expect(dialog.locator('.invoice-sheet')).toContainText('Тестовий банк України');
+  await expect(dialog.locator('.invoice-sheet')).not.toContainText('Testbank Deutschland');
+  await expect(dialog.locator('.invoice-sheet')).not.toContainText('EUR');
+  await expect(dialog.locator('.invoice-sheet')).not.toContainText('€');
+  await expect(dialog.locator('.invoice-sheet')).toContainText(/₴|грн|UAH/);
+  await expect(dialog.locator('.notice')).toContainText('85');
+  await expect(page.locator('#print-root')).not.toContainText('EUR');
+  await expect(page.locator('#print-root')).not.toContainText('€');
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('#print-root .invoice-sheet')).toBeVisible();
+  const pdf = await page.pdf({ format: 'A4' }); expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  await page.emulateMedia({ media: 'screen' });
+  expect(errors).toEqual([]);
+});
+test('NBU outage is localized; manual rate and inputs survive the DE/UA switch', async ({ page }) => {
+  await page.route('https://bank.gov.ua/**', route => route.fulfill({ status: 503, body: '' }));
+  await create(page); await ukrainianClient(page);
+  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText(/Tageskurs ist gerade nicht erreichbar/)).toBeVisible();
+  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('85');
+  await dialog.getByRole('button', { name: 'Українська', exact: true }).click();
+  await expect(dialog.getByLabel('Вартість сесії (€)')).toHaveValue('85');
+  await expect(dialog.getByText(/Щоденний курс зараз недоступний/)).toBeVisible();
+  await dialog.getByLabel('Курс EUR → UAH', { exact: true }).fill('48,5');
+  await expect(dialog.locator('.currency-preview')).toContainText(/4[.\s\u00a0\u202f]?123/);
+  await dialog.getByRole('button', { name: 'Зберегти', exact: true }).click(); await expect(dialog).not.toBeVisible();
+});
+test('opening a legacy vault migrates old invoices and fees to whole amounts and encrypts the originals', async ({ page }) => {
+  const salt = randomSalt(); const key = await deriveKey('a very strong test passphrase', salt);
+  const data = emptyVault(); const id = uid(); const sessionId = uid();
+  data.clients.push({ id, name: 'Altbestand', createdAt: '2026-01-01', contact: '', preparation: '', telegramChatId: '', language: 'de', reminderConsent: false });
+  data.sessions.push({ id: sessionId, clientId: id, date: '2026-01-01', time: '10:00', feeCents: 8550, paidAt: null, notes: '', tags: [] });
+  data.invoices.push({ id: uid(), number: '2026-001', clientId: id, issuedAt: '2026-01-02', recipient: { name: 'Altbestand', address: '' }, sender: data.settings.practice, language: 'de', totalCents: 8550, lines: [{ sessionId, date: '2026-01-01', description: 'Beratung', amountCents: 8550 }] });
+  const envelope = await encryptVault(key, data, uid(), salt);
+  await page.goto('/'); await expect(page.getByRole('button', { name: 'Mit Beispieldaten entdecken' })).toBeVisible();
+  await page.evaluate(async envelope => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('praxisraum', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    await new Promise<void>((resolve, reject) => { const tx = db.transaction('vault', 'readwrite'); tx.objectStore('vault').put(envelope, 'primary'); tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => reject(tx.error); });
+  }, envelope);
+  await page.reload(); await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
+  await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
+  await expect(page.locator('.app-shell')).toBeVisible();
+  await expect(page.locator('.sync-bar')).toContainText('Auf diesem Gerät gespeichert');
+  await nav(page, 'Klienten');
+  const entry = page.locator('.directory-list').getByRole('button', { name: /Altbestand/ });
+  if (await entry.isVisible()) await entry.click();
+  await page.getByRole('tab', { name: 'Besprochen' }).click();
+  await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Notiz nach der Migration');
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+  const stored = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>(resolve => { const r = indexedDB.open('praxisraum', 1); r.onsuccess = () => resolve(r.result); });
+    return new Promise<import('../../src/lib/types').VaultEnvelope>(resolve => { const r = db.transaction('vault').objectStore('vault').get('primary'); r.onsuccess = () => { db.close(); resolve(r.result); }; });
+  });
+  const restored = await decryptVault(key, stored, false);
+  expect(restored.sessions[0].feeCents).toBe(8600);
+  expect(restored.invoices[0].totalCents).toBe(8600);
+  expect(restored.invoices[0].originalAmounts?.totalCents).toBe(8550);
+  expect(restored.sessions[0].originalFeeCents).toBe(8550);
+});

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('GitHub Pages project path: installable manifest, usable app and offline reload', async ({ page, context }) => {
   test.skip(!process.env.VITE_BASE_PATH, 'This check targets the project-path build.');

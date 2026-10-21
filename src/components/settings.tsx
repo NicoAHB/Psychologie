@@ -3,7 +3,8 @@ import { Briefcase, CalendarDays, Cloud, FileText, Leaf, Trash2 } from 'lucide-r
 import { uid } from '../lib/types';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { isValidZone } from '../lib/zones';
-import type { PracticeProfile } from '../lib/types';
+import { ExchangeRateField } from './money';
+import type { ExchangeRate, PracticeProfile } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Notice, PageHeading } from './ui';
 import { CloudAuth } from './CloudAuth';
@@ -22,18 +23,20 @@ function TemplatesCard({ vault }: { vault: VaultController }) {
 }
 function PracticeCard({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const stored = vault.data!.settings.practice;
-  const [draft, setDraft] = useState<PracticeProfile>(stored); const [saved, setSaved] = useState(false);
+  const [draft, setDraft] = useState<PracticeProfile>(stored); const [rate, setRate] = useState<ExchangeRate | undefined>(vault.data!.settings.exchangeRate); const [saved, setSaved] = useState(false);
   const field = (key: keyof PracticeProfile, label: TextKey, props: { multiline?: boolean; hint?: TextKey; placeholder?: TextKey; max?: number } = {}) =>
     <Field label={t(label)} hint={props.hint && t(props.hint)}>{props.multiline
-      ? <textarea rows={3} maxLength={props.max ?? 400} value={draft[key]} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setSaved(false); }}/>
-      : <input maxLength={props.max ?? 120} value={draft[key]} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setSaved(false); }}/>}</Field>;
+      ? <textarea rows={3} maxLength={props.max ?? 400} value={draft[key] ?? ''} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setSaved(false); }}/>
+      : <input maxLength={props.max ?? 120} value={draft[key] ?? ''} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setSaved(false); }}/>}</Field>;
   return <section className="card settings-card settings-wide"><span className="settings-icon tone-beige"><Briefcase size={24}/></span><h2>{t('practiceProfile')}</h2><p>{t('practiceDisclaimer')}</p>
     <div className="form-grid">{field('name', 'practiceName')}{field('taxId', 'practiceTaxId')}</div>
     {field('address', 'practiceAddress', { multiline: true })}
-    <div className="form-grid">{field('iban', 'practiceIban', { max: 42 })}{field('bank', 'practiceBank')}</div>
+    <fieldset className="bank-account"><legend>{t('bankGermany')}</legend><div className="form-grid">{field('accountHolder', 'accountHolder')}{field('bank', 'practiceBank')}</div><div className="form-grid">{field('iban', 'practiceIban', { max: 42 })}{field('bic', 'bankBic', { max: 11 })}</div></fieldset>
+    <fieldset className="bank-account"><legend>{t('bankUkraine')}</legend><div className="form-grid">{field('accountHolderUa', 'accountHolderUa')}{field('bankUa', 'practiceBankUa')}</div><div className="form-grid">{field('ibanUa', 'practiceIbanUa', { max: 42 })}{field('bicUa', 'bankBicUa', { max: 11 })}</div></fieldset>
+    <div className="form-section"><h3>{t('exchangeRateTitle')}</h3><p className="hint">{t('exchangeRatePrivacy')}</p><ExchangeRateField value={rate} onChange={value => { setRate(value); setSaved(false); }}/></div>
     <div className="form-grid">{field('serviceName', 'practiceService')}{field('invoicePrefix', 'practicePrefix', { max: 10 })}</div>
     {field('taxNote', 'practiceTaxNote', { multiline: true, placeholder: 'practiceTaxNotePlaceholder', max: 600 })}
-    <div className="button-row"><button className="btn btn-primary" disabled={vault.demo} onClick={() => { void vault.update(d => { d.settings.practice = { ...draft, name: draft.name.trim(), iban: draft.iban.replace(/\s+/g, ' ').trim() }; }).then(() => setSaved(true)).catch(() => {}); }}>{t('practiceSave')}</button>{saved && <span className="hint" role="status">{t('practiceSaved')}</span>}</div></section>;
+    <div className="button-row"><button className="btn btn-primary" disabled={vault.demo} onClick={() => { void vault.update(d => { d.settings.practice = { ...draft, name: draft.name.trim(), iban: draft.iban.replace(/\s+/g, ' ').trim(), ibanUa: draft.ibanUa?.replace(/\s+/g, ' ').trim() }; d.settings.exchangeRate = rate; }).then(() => setSaved(true)).catch(() => {}); }}>{t('practiceSave')}</button>{saved && <span className="hint" role="status">{t('practiceSaved')}</span>}</div></section>;
 }
 
 export function SettingsPage({ vault, auto, onSync, syncing, onRestore }: { vault: VaultController; auto: AutoBackup; onSync: () => Promise<void>; syncing: boolean; onRestore: () => Promise<void> }) {

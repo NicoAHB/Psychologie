@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixtures';
 import { readFile } from 'node:fs/promises';
 async function nav(page: Page, text: string) {
   await expect(page.locator('.app-shell')).toBeVisible();
@@ -34,7 +34,7 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await dialog.getByRole('button', { name: 'Rechnung erstellen' }).click();
   await expect(dialog.getByRole('heading', { name: /Rechnung \d{4}-001/, level: 2 })).toBeVisible();
   await expect(dialog.locator('.invoice-sheet')).toContainText('Praxis Dr. Muster'); await expect(dialog.locator('.invoice-sheet')).toContainText('Lindenallee 3');
-  await expect(dialog.locator('.invoice-sheet')).toContainText('85,00'); await expect(dialog.locator('.invoice-sheet')).toContainText('dankend erhalten');
+  await expect(dialog.locator('.invoice-sheet')).toContainText('85'); await expect(dialog.locator('.invoice-sheet')).toContainText('dankend erhalten');
   await expect(page.locator('#print-root .invoice-sheet')).toHaveCount(1);
   await page.emulateMedia({ media: 'print' });
   await expect(page.locator('#print-root .invoice-sheet')).toBeVisible(); await expect(page.locator('#root')).toBeHidden();
@@ -46,7 +46,7 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await page.getByRole('button', { name: 'Einnahmen als CSV (Steuerberatung)' }).click();
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: /Einnahmen als CSV.*\d{4}/ }).click();
   const csv = await readFile((await (await download).path())!, 'utf8');
-  expect(csv).toMatch(/Zahlungsdatum;Sitzungsdatum;Klient;Rechnung;Betrag \(EUR\)/); expect(csv).toContain('Klient 1'); expect(csv).toContain('85,00'); expect(csv).not.toContain('Mustermann');
+  expect(csv).toMatch(/Zahlungsdatum;Sitzungsdatum;Klient;Rechnung;Euro-Vergleich \(EUR\)/); expect(csv).toContain('Klient 1'); expect(csv).toContain(';85;85;EUR;'); expect(csv).not.toContain('Mustermann');
 
   await page.keyboard.press('Control+k');
   await dialog.getByLabel('Alles durchsuchen').fill('grubeln schlaf');
