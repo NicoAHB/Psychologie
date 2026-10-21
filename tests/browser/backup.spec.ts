@@ -48,6 +48,7 @@ test('version history brings back a deleted session; deleting a whole client wip
   const dialog = page.getByRole('dialog');
   await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
   await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Wichtige Notiz, die verschwindet'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+  await page.getByRole('tab', { name: 'Besprochen' }).click();
   await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click(); await dialog.getByRole('button', { name: 'Sitzung löschen' }).click(); await expect(dialog).not.toBeVisible();
   await expect(page.getByText('Wichtige Notiz, die verschwindet')).toHaveCount(0);
   await nav(page, 'Einstellungen');
