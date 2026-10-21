@@ -4,6 +4,7 @@ import { bankFor } from './currency';
 import { dateLabel, money } from './dates';
 import { translate, type TextKey } from './i18n';
 import type { Invoice } from './types';
+import { invoiceTitleKey, isCancellation } from './invoice';
 
 /** Local, searchable A4 export with embedded Cyrillic fonts. No clinical notes or internal EUR comparison. */
 export async function invoicePdf(invoice: Invoice, paid: string | null, regularBytes: Uint8Array, boldBytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
@@ -44,15 +45,19 @@ export async function invoicePdf(invoice: Invoice, paid: string | null, regularB
     const title = T('invoiceAmount'); draw(title, right - 8 - regular.widthOfTextAtSize(title, 8), y - 8, 8, regular, muted); y -= 37;
   }
   newPage();
-  paragraph(T('invoiceTitle'), 28, bold, sage); y -= 4;
+  paragraph(T(invoiceTitleKey(invoice)), 28, bold, sage); y -= 4;
   paragraph(`${T('invoiceNumber')}: ${invoice.number}`, 10, bold);
-  paragraph(`${T('invoiceDate')}: ${date(invoice.issuedAt)}`, 10, regular, muted); y -= 19;
+  paragraph(`${T('invoiceDate')}: ${date(invoice.issuedAt)}`, 10, regular, muted);
+  if (invoice.dueOn && !isCancellation(invoice)) paragraph(`${T('invoiceDueOn')}: ${date(invoice.dueOn)}`, 10, regular, muted);
+  y -= 19;
   if (invoice.sender.name) paragraph(invoice.sender.name, 16, bold);
   if (invoice.sender.address) paragraph(invoice.sender.address, 9.5, regular, muted);
   if (invoice.sender.taxId) paragraph(`${T('invoiceTaxId')}: ${invoice.sender.taxId}`, 9, regular, muted);
   y -= 24;
   paragraph(T('invoiceRecipient').toLocaleUpperCase(invoice.language), 8, regular, muted); y -= 5;
   paragraph(invoice.recipient.name, 14, bold); if (invoice.recipient.address) paragraph(invoice.recipient.address, 10); y -= 24;
+  const reference = invoice.cancels ?? invoice.replaces;
+  if (reference) { paragraph(T(invoice.cancels ? 'invoiceCancels' : 'invoiceReplaces').replace('{number}', reference.number).replace('{date}', date(reference.issuedAt)), 10, bold, sage); if (invoice.correctionReason) paragraph(invoice.correctionReason, 9, regular, muted); y -= 16; }
   tableHead();
   for (const item of invoice.lines) {
     const descriptions = wrap(item.description, 10, 258); const price = wrap(amount(item.amountCents), 10, 122, bold); const height = Math.max(descriptions.length, price.length) * 16 + 18;
@@ -72,7 +77,9 @@ export async function invoicePdf(invoice: Invoice, paid: string | null, regularB
   for (const text of totals) { draw(text, right - 8 - bold.widthOfTextAtSize(text, 18), y, 18, bold, sage); y -= 24; }
   y -= 18;
   if (invoice.sender.taxNote) { paragraph(invoice.sender.taxNote, 9, regular, muted); y -= 14; }
-  if (paid) {
+  if (isCancellation(invoice)) {
+    paragraph(T('invoiceCancellationNote'), 10, regular, sage);
+  } else if (paid) {
     paragraph(T('invoicePaid').replace('{date}', date(paid)), 11, bold, sage);
   } else if (account.iban) {
     ensure(135); paragraph(T('invoicePaymentDetails'), 12, bold, sage); y -= 6;
@@ -90,6 +97,6 @@ export async function invoicePdf(invoice: Invoice, paid: string | null, regularB
     const footer = `${invoice.number} · ${i + 1} / ${pages.length}`;
     p.drawText(footer, { x: right - regular.widthOfTextAtSize(footer, 8), y: 32, size: 8, font: regular, color: muted });
   });
-  pdf.setTitle(`${T('invoiceTitle')} ${invoice.number}`); pdf.setCreator('Praxisraum'); pdf.setProducer('Praxisraum');
+  pdf.setTitle(`${T(invoiceTitleKey(invoice))} ${invoice.number}`); pdf.setCreator('Praxisraum'); pdf.setProducer('Praxisraum');
   return new Uint8Array(await pdf.save());
 }

@@ -1,0 +1,19 @@
+import { test, expect } from './fixtures';
+import { addDays, today } from '../../src/lib/dates';
+import { mondayOf } from '../../src/lib/calendar';
+import { uid } from '../../src/lib/types';
+import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
+
+test('multi-day vacations are visible, persisted and translated; timed unavailability warns in the appointment form', async ({ page }, testInfo) => {
+  const { data, client } = workflowData(); data.invoices = []; data.sessions = []; const from = mondayOf(addDays(today(), 7));
+  data.appointments.push({ id: uid(), clientId: client.id, date: addDays(from, 1), time: '14:00', duration: 50, feeCents: 8500, timeZone: 'Europe/Kyiv', reminderId: uid(), status: 'scheduled' }); const read = await seedWorkflow(page, data); const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await nav(page, 'Termine'); await page.getByRole('button', { name: 'Abwesenheit eintragen', exact: true }).click(); const dialog = page.locator('dialog[open]').last();
+  await dialog.getByLabel('Bezeichnung / Notiz').fill('Urlaub am Meer'); await dialog.getByLabel('Von', { exact: true }).fill(from); await dialog.getByLabel('Bis einschließlich').fill(addDays(from, 2)); await expect(dialog.getByRole('alert')).toContainText('bereits Termine');
+  await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(page.locator('.absence-banner')).toHaveCount(3); await expect(page.locator('.week-card')).toContainText('Urlaub am Meer'); const stored = await read(); expect(stored.availability[0].untilDate).toBe(addDays(from, 2)); expect(stored.appointments).toHaveLength(1);
+  await page.screenshot({ path: `/tmp/praxisraum-calendar-${testInfo.project.name}.png`, fullPage: true });
+  await page.locator('.topbar').getByRole('button', { name: 'Sperren', exact: true }).click(); await unlock(page); await nav(page, 'Termine'); await expect(page.locator('.availability-list')).toContainText('Urlaub am Meer');
+  await page.locator('.availability-list').getByRole('button', { name: 'Abwesenheit bearbeiten: Urlaub am Meer', exact: true }).click(); await dialog.getByRole('checkbox', { name: 'Ganztägig' }).uncheck(); await dialog.getByLabel('Bis einschließlich').fill(from); await dialog.getByLabel('Ab Uhrzeit').fill('09:00'); await dialog.getByLabel('Bis Uhrzeit').fill('12:00');
+  await dialog.getByRole('button', { name: 'Українська', exact: true }).click(); await expect(dialog.getByLabel('Назва / нотатка')).toHaveValue('Urlaub am Meer'); await expect(dialog.getByLabel('З часу')).toHaveValue('09:00'); await dialog.getByRole('button', { name: 'Deutsch', exact: true }).click(); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Termin anlegen', exact: true }).click(); await dialog.getByLabel('Datum *').fill(from); await dialog.getByLabel('Uhrzeit *').fill('10:00'); await expect(dialog.getByRole('alert')).toContainText('eingetragenen Abwesenheit'); await dialog.getByLabel('Uhrzeit *').fill('13:00'); await expect(dialog.getByText('Dieser Termin überschneidet sich mit einer eingetragenen Abwesenheit.', { exact: false })).toHaveCount(0); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await page.getByRole('button', { name: 'Liste', exact: true }).click(); await page.locator('.availability-list').getByRole('button', { name: 'Abwesenheit bearbeiten: Urlaub am Meer', exact: true }).click(); page.on('dialog', d => void d.accept()); await dialog.getByRole('button', { name: 'Abwesenheit löschen', exact: true }).click(); await expect(page.locator('.availability-list')).toContainText('Keine Abwesenheiten für diese Auswahl.'); expect((await read()).appointments).toHaveLength(2); expect(errors).toEqual([]);
+});

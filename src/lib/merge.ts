@@ -1,6 +1,7 @@
 import type { PasskeyWrap, VaultData, VaultEnvelope } from './types';
+import { reconcileBillingLinks } from './invoice';
 
-const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents'] as const;
+const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability'] as const;
 type Collection = typeof COLLECTIONS[number];
 type Record_ = { id: string; updatedAt?: number };
 const TOMBSTONE_DAYS = 400;
@@ -77,6 +78,7 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
   const clientIds = new Set(merged.clients.map(c => c.id));
   for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents'] as const)
     (merged[name] as { clientId: string }[]) = (merged[name] as { clientId: string }[]).filter(r => clientIds.has(r.clientId));
+  reconcileBillingLinks(merged);
   return merged;
 }
 /** Invoice numbers must be unique for the tax office; two offline devices can still pick the same one. */

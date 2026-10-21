@@ -89,9 +89,15 @@ const legacyPayload = { advisorChatId: '111', clientChatId: '222', language: 'uk
 
 test('browser public-key reminder encryption interoperates with the private-key Node worker', async () => {
   const id = uid(); const encrypted = await encryptReminder(publicPem, payload, id);
-  assert.equal(JSON.stringify(encrypted).includes('222'), false);
+  // Random base64 may contain a short chat-id substring. Check the wire format and authenticated decryption instead.
+  assert.deepEqual(Object.keys(encrypted).sort(), ['version', 'wrappedKey', 'iv', 'ciphertext'].sort());
+  assert.equal(Buffer.from(encrypted.wrappedKey, 'base64').length, 384);
+  assert.equal(Buffer.from(encrypted.iv, 'base64').length, 12);
+  assert.equal(Buffer.from(encrypted.ciphertext, 'base64').length, new TextEncoder().encode(JSON.stringify(payload)).length + 16);
   assert.deepEqual(await decryptJob(privatePem, encrypted, id), payload);
   await assert.rejects(() => decryptJob(privatePem, encrypted, uid()));
+  const corrupted = Buffer.from(encrypted.ciphertext, 'base64'); corrupted[0] ^= 1;
+  await assert.rejects(() => decryptJob(privatePem, { ...encrypted, ciphertext: corrupted.toString('base64') }, id));
 });
 test('Telegram messages name date, place and UTC offset so no time zone can be misread', () => {
   assert.equal(reminderText('client', payload), 'Нагадування про Вашу зустріч: вівторок, 14 липня 2026 р., 15:00 (Київ, UTC+3). Для довідки — Берлін: 14:00 (UTC+2).');

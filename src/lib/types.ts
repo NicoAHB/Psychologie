@@ -28,6 +28,11 @@ export interface Appointment extends Stamped {
   timeZone: string; reminderId: string; status: 'scheduled' | 'completed' | 'cancelled';
   seriesId?: string;
 }
+export interface CalendarAbsence extends Stamped {
+  id: string; kind: 'vacation' | 'unavailable'; title: string;
+  fromDate: string; untilDate: string; allDay: boolean;
+  startTime?: string; endTime?: string; timeZone: string;
+}
 export interface Session extends Stamped {
   id: string; clientId: string; date: string; time: string; feeCents: number;
   paidAt: string | null; notes: string; tags: string[]; appointmentId?: string;
@@ -47,6 +52,13 @@ export interface Invoice extends Stamped {
   /** Snapshots: later edits of the client or practice profile never alter an issued invoice. */
   recipient: { name: string; address: string }; sender: PracticeProfile; language: Language;
   currency?: Currency; totalEuroCents?: number; paymentAccount?: BankAccount;
+  dueOn?: string;
+  kind?: 'invoice' | 'cancellation';
+  cancels?: { id: string; number: string; issuedAt: string };
+  replaces?: { id: string; number: string; issuedAt: string };
+  correctionReason?: string;
+  /** Payment state of the original at reversal time, unaffected by later payments on a replacement. */
+  paymentSnapshot?: { sessionId: string; paidAt: string | null }[];
   /** Retained inside the encrypted vault when a previous cent-valued invoice is rounded. */
   originalAmounts?: { totalCents: number; lines: { sessionId: string; amountCents: number }[] };
 }
@@ -55,11 +67,13 @@ export interface DocumentFile { blobId: string; fileName: string; mimeType: stri
 export interface EmailDelivery {
   id: string; recipient: string; requestedAt: string; subject: string; body: string;
   acceptedAt?: string; providerId?: string;
+  purpose?: 'invoice' | 'paymentReminder';
 }
 export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: string; uploadedAt: string }
 export interface TelegramDelivery {
   id: string; recipient: string; requestedAt: string; text: string;
   acceptedAt?: string; messageId?: number;
+  purpose?: 'invoice' | 'paymentReminder';
 }
 export interface ClientDocument extends Stamped {
   id: string; clientId: string; title: string; file: DocumentFile; createdAt: string;
@@ -67,6 +81,7 @@ export interface ClientDocument extends Stamped {
   deliveries: EmailDelivery[]; returns: DocumentReturn[];
   /** Each generated invoice copy preserves its payment status at the time of export. */
   invoiceId?: string; invoicePaidOn?: string | null; telegramDeliveries?: TelegramDelivery[];
+  returnDueOn?: string; returnClosedAt?: string;
 }
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;
@@ -84,6 +99,7 @@ export interface Settings {
 export interface VaultData {
   schema: 1; clients: Client[]; appointments: Appointment[]; sessions: Session[]; notes: PhotoNote[];
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
+  availability: CalendarAbsence[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
   settings: Settings;
@@ -102,14 +118,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], availability: value.availability ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

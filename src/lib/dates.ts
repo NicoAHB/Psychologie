@@ -1,6 +1,7 @@
 import type { Appointment, Client, Currency, Language, Session, Settings } from './types';
 export const localeFor = (language: Language) => language === 'de' ? 'de-DE' : 'uk-UA';
 const pad = (value: number) => String(value).padStart(2, '0');
+export const isIsoDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 export const today = () => { const now = new Date(); return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`; };
 export function addDays(date: string, count: number): string {
   const [year, month, day] = date.split('-').map(Number);

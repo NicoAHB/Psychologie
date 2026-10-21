@@ -1,6 +1,7 @@
 import { alsoLine, fullWhen } from '../../shared/schedule-text.mjs';
 import { appointmentEnd, appointmentInstant, byStart, clientZone, daysBetween, today } from './dates';
 import { translate } from './i18n';
+import { isSessionVoided } from './invoice';
 import type { Appointment, Client, Session, Settings, VaultData } from './types';
 
 export interface ClientOverview {
@@ -20,7 +21,7 @@ export function overviewOf(data: VaultData, clientId: string, now = Date.now()):
     nextAppointment: data.appointments.filter(a => a.clientId === clientId && a.status === 'scheduled' && appointmentEnd(a) >= now).sort(byStart)[0],
     openHomework: sessions.filter(s => s.homework?.trim() && !s.homeworkDone),
     threads: [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8),
-    unpaidCents: sessions.filter(s => !s.paidAt).reduce((sum, s) => sum + s.feeCents, 0),
+    unpaidCents: sessions.filter(s => !s.paidAt && !isSessionVoided(data, s)).reduce((sum, s) => sum + s.feeCents, 0),
   };
 }
 /** The newest homework that has not been reviewed yet, so the next session can start by asking about it. */

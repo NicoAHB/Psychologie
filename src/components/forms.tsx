@@ -1,3 +1,5 @@
+import { conflictsWithAbsence } from '../lib/availability';
+import { isSessionVoided } from '../lib/invoice';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Camera, Check, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
@@ -98,6 +100,7 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
     }
   } catch { /* an incomplete date or time simply shows no preview */ }
   function choose(id: string) { if (inputCurrency === 'UAH') { try { setFee(feeText(convertWhole(parseMoney(fee), 'UAH', 'EUR', rate))); } catch { setFee(feeText(suggestedFee(data, id))); } } setInputCurrency('EUR'); setPricingChanged(true); setSelected(id); setTheirZoneChoice(clientZone(data.clients.find(c => c.id === id), data.settings)); setZone(practiceZone); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
+  const absenceConflicts = data.availability.filter(block => dates.some(day => conflictsWithAbsence({ ...candidate, date: day, status: 'scheduled' }, block)));
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (!selected || !date || !time || !isValidZone(theirZoneChoice) || !Number.isInteger(length) || length < 5 || length > 480) { setError('required'); return; }
@@ -131,6 +134,7 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
     {selected && <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={theirZoneChoice} onChange={setTheirZoneChoice}/>}
     {client?.language === 'uk' && theirZone === practiceZone && <p className="hint">{t('suggestKyivHint')} <button type="button" className="text-link inline" onClick={() => setTheirZoneChoice('Europe/Kyiv')}>{t('suggestKyivButton')}</button></p>}
     {zones.length > 1 && <Field label={t('timeEnteredIn')}><select value={entryZone} onChange={e => setZone(e.target.value)}>{zones.map(z => <option key={z} value={z}>{t(z === practiceZone ? 'zonePractice' : 'zoneClient')} · {zoneLabel(z, language)}</option>)}</select></Field>}
+    {absenceConflicts.length > 0 && <Notice error>{t('availabilityAppointmentConflict')} {absenceConflicts.map(a => a.title || t(a.kind === 'vacation' ? 'availabilityVacation' : 'availabilityAway')).join(' · ')}</Notice>}
     {instantNow && <DualTimeBox instant={instantNow} practiceZone={practiceZone} clientZone={theirZone}/>}
     <Field label={t('duration')}><input type="number" min="5" max="480" value={duration} onChange={e => setDuration(e.target.value)}/></Field><FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!appointment?.billing}/>
     {!appointment && <div className="form-grid"><Field label={t('repeat')}><select value={repeat} onChange={e => setRepeat(e.target.value as typeof repeat)}>{(['none', 'weekly', 'biweekly', 'monthly'] as const).map(r => <option key={r} value={r}>{t(`repeat${r[0].toUpperCase()}${r.slice(1)}` as TextKey)}</option>)}</select></Field>{repeat !== 'none' && <Field label={t('repeatCount')}><input type="number" min="2" max="52" value={count} onChange={e => setCount(e.target.value)}/></Field>}</div>}
@@ -145,6 +149,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
   const { t, language } = useI18n(); const data = vault.data!;
   const [selected, setSelected] = useState(session?.clientId || appointment?.clientId || clientId || data.clients[0]?.id || '');
   const [date, setDate] = useState(session?.date || appointment?.date || today()); const [time, setTime] = useState(session?.time || appointment?.time || '10:00');
+  const lockedPricing = !!session?.invoiceId && !isSessionVoided(data, session);
   const originalBilling = session?.billing ?? appointment?.billing;
   const initialNative = currencyOf(data.clients.find(c => c.id === selected)) === 'UAH' && originalBilling?.currency === 'UAH';
   const [fee, setFee] = useState(feeText(initialNative ? originalBilling!.amountCents : session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
@@ -172,7 +177,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     const before = referencedBlobs(data); const added: string[] = [];
     try {
       const text = homework.trim();
-      const pricing = !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
+      const pricing = lockedPricing && session ? { feeCents: session.feeCents, billing: session.billing ?? { currency: 'EUR' as const, amountCents: session.feeCents } } : !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
         ? { feeCents: session?.feeCents ?? appointment!.feeCents, billing: originalBilling } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
       const originalFeeCents = session?.originalFeeCents ?? appointment?.originalFeeCents;
       const result: Session = { id: session?.id ?? uid(), clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
@@ -201,7 +206,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     try { await vault.remove(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
   return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => { if (!busy) onClose(); }} wide><form onSubmit={submit} noValidate>
-    <Field label={t('client')}><select value={selected} disabled={!!appointment} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+    <Field label={t('client')}><select value={selected} disabled={!!appointment || lockedPricing} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
     <div className="form-section"><h3>{t('discussedTitle')}</h3>
       <Field label={t('insertTemplate')}><select value="" onChange={e => { const chosen = templates.find(x => x.id === e.target.value); if (chosen) setNotes(withTemplate(notes, chosen.body)); }}><option value="">—</option>{templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
@@ -218,7 +223,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
       <Field label={t('homeworkFor')}><textarea rows={3} value={homework} maxLength={4000} placeholder={t('homeworkPlaceholder')} onChange={e => setHomework(e.target.value)}/></Field>
       {session && homework.trim() && <label className="check-label"><input type="checkbox" checked={homeworkDone} onChange={e => setHomeworkDone(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label>}
       <Field label={t('nextTopicsField')} hint={t('nextTopicsHint')}><textarea rows={3} value={nextTopics} maxLength={30000} onChange={e => { setNextTopics(e.target.value); setNextTouched(true); }}/></Field></div>
-    <div className="form-section"><FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>
+    <div className="form-section">{lockedPricing ? <Notice>{t('invoiceSessionPricingLocked')}</Notice> : <FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>}
       <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
       {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</div>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>

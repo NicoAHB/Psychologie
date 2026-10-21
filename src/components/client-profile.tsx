@@ -13,6 +13,7 @@ import { Avatar, Empty, ImageView, Notice, PaymentBadge } from './ui';
 import { AssessmentsSection } from './assessments';
 import { DocumentsSection } from './documents';
 import { InvoiceForm, InvoiceView } from './invoices';
+import { isSessionVoided, uninvoiced } from '../lib/invoice';
 import { clockText } from './DualTime';
 
 export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances';
@@ -98,21 +99,21 @@ function ClientFinances({ vault, client, actions }: { vault: VaultController; cl
   const sessions = data.sessions.filter(s => s.clientId === client.id).sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
   const sum = (filter: (s: Session) => boolean) => money(sessions.filter(filter).reduce((total, s) => total + s.feeCents, 0), language);
   const invoice = data.invoices.find(i => i.id === invoiceId);
-  return <section className="card client-finances"><div className="section-heading flex-wrap"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div><button className="btn btn-secondary btn-small" disabled={!sessions.some(s => !s.invoiceId)} onClick={() => setCreating(true)}>{t('createInvoice')}</button></div>
-    <div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, index) => <div key={label}><span>{t(label)}</span><strong className={index === 2 ? 'text-rose' : ''}>{sum(s => index === 0 || (index === 1 ? !!s.paidAt : !s.paidAt))}</strong></div>)}</div>
+  return <section className="card client-finances"><div className="section-heading flex-wrap"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div><button className="btn btn-secondary btn-small" disabled={!uninvoiced(data, client.id).length} onClick={() => setCreating(true)}>{t('createInvoice')}</button></div>
+    <div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, index) => <div key={label}><span>{t(label)}</span><strong className={index === 2 ? 'text-rose' : ''}>{sum(s => index === 1 ? !!s.paidAt : !isSessionVoided(data, s) && (index === 0 || !s.paidAt))}</strong></div>)}</div>
     <p className="hint">{t('financeCurrencyHint')}</p>
-    {sessions.some(s => s.billing?.currency === 'UAH') && <p className="hint">{t('agreedUahTotal')}: <strong>{money(sessions.filter(s => s.billing?.currency === 'UAH').reduce((total, s) => total + s.billing!.amountCents, 0), language, 'UAH')}</strong></p>}
+    {sessions.some(s => s.billing?.currency === 'UAH') && <p className="hint">{t('agreedUahTotal')}: <strong>{money(sessions.filter(s => s.billing?.currency === 'UAH' && !isSessionVoided(data, s)).reduce((total, s) => total + s.billing!.amountCents, 0), language, 'UAH')}</strong></p>}
     {sessions.length ? <div className="table-scroll"><table><thead><tr><th>{t('date')}</th><th>{t('invoiceAmount')}</th><th>{t('paymentDate')}</th><th>{t('paymentStatus')}</th><th>{t('invoiceTitle')}</th></tr></thead><tbody>{sessions.map(s => <tr key={s.id}>
       <td>{dateLabel(s.date, language, { day: '2-digit', month: '2-digit', year: 'numeric' })}<small className="session-clock">{clockText(s.time, language)}</small></td>
       <td><BillingMoney feeCents={s.feeCents} billing={s.billing}/></td><td>{s.paidAt ? dateLabel(s.paidAt, language, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</td>
-      <td><PaymentBadge session={s} onClick={() => actions.onPayment(s)}/></td><td>{s.invoiceId ? <button className="table-client" onClick={() => setInvoiceId(s.invoiceId)}>{data.invoices.find(i => i.id === s.invoiceId)?.number ?? '—'}</button> : '—'}</td>
+      <td>{isSessionVoided(data, s) ? <span className="payment-badge is-voided">{t('invoiceVoidedCharge')}{s.paidAt ? ` · ${t('paid')}` : ''}</span> : <PaymentBadge session={s} onClick={() => actions.onPayment(s)}/>}</td><td>{s.invoiceId ? <button className="table-client" onClick={() => setInvoiceId(s.invoiceId)}>{data.invoices.find(i => i.id === s.invoiceId)?.number ?? '—'}</button> : '—'}</td>
     </tr>)}</tbody></table></div> : <p className="hint">{t('noSessions')}</p>}
     {creating && <InvoiceForm vault={vault} clientId={client.id} onClose={() => setCreating(false)} onCreated={invoice => { setCreating(false); setInvoiceId(invoice.id); }}/>}
     {invoice && <InvoiceView vault={vault} invoice={invoice} onClose={() => setInvoiceId(undefined)}/>}
   </section>;
 }
 
-export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions }) {
+export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string }) {
   const { t, language } = useI18n(); const data = vault.data!;
   const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
   return <div className="profile-content">
@@ -124,7 +125,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
       {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
-      {tab === 'documents' && <DocumentsSection vault={vault} client={client}/>}
+      {tab === 'documents' && <DocumentsSection vault={vault} client={client} focusId={focusDocumentId}/>}
       {tab === 'finances' && <ClientFinances vault={vault} client={client} actions={actions}/>}
     </div>
   </div>;

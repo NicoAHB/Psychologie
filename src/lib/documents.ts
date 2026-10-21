@@ -19,12 +19,12 @@ export async function inspectDocument(file: File): Promise<{ bytes: Uint8Array<A
   return { bytes, fileName: file.name, mimeType };
 }
 /** Retry an uncertain request with exactly the same id and contents; a confirmed resend gets a new id. */
-export function prepareDelivery(document: ClientDocument, recipient: string, subject: string, body: string, now = new Date().toISOString()): EmailDelivery {
+export function prepareDelivery(document: ClientDocument, recipient: string, subject: string, body: string, now = new Date().toISOString(), purpose: EmailDelivery['purpose'] = 'invoice'): EmailDelivery {
   if (!validEmail(recipient) || !subject.trim() || subject.length > 180 || /[\r\n]/.test(subject) || body.length > 12000) throw new Error('invalidClientEmail');
-  const pending = document.deliveries.find(d => !d.acceptedAt && d.recipient === recipient && d.subject === subject && d.body === body);
+  const pending = document.deliveries.find(d => !d.acceptedAt && d.recipient === recipient && d.subject === subject && d.body === body && (d.purpose ?? 'invoice') === purpose);
   // Resend retains idempotency keys for 24h. Never blindly repeat an uncertain request after that window.
   if (pending && Date.parse(now) - Date.parse(pending.requestedAt) >= 23 * 3600000) throw new Error('emailRetryExpired');
-  return pending ?? { id: uid(), recipient, requestedAt: now, subject, body };
+  return pending ?? { id: uid(), recipient, requestedAt: now, subject, body, ...(purpose === 'paymentReminder' && { purpose }) };
 }
 const env: Partial<Record<string, string>> = import.meta.env ?? {};
 export const emailConfigured = cloudConfigured && env.VITE_EMAIL_ENABLED === 'true';

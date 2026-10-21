@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: Zahlungsziele, vorbereitete Zahlungserinnerungen auf DE/UA, verknüpfte Storno- und Ersatzrechnungen, eine zentrale Rücklaufübersicht sowie auffällige Urlaubs- und Abwesenheitseinträge im Kalender. Bedienung und Grenzen: [Rechnungen und Abwesenheiten](docs/rechnungen-und-abwesenheiten.md).
+
 Eine lokale, verschlüsselte Praxis-PWA mit deutscher und ukrainischer Oberfläche, Klientenprofilen einschließlich Profilbildern, Sitzungsvorbereitung, Fotonotizen mit Tags, Terminen und Einnahmenübersicht.
 
 Der Sonnen-/Mond-Schalter neben der Sprachauswahl wechselt sofort zwischen Hell und Dunkel, auch auf dem Sperrbildschirm. Unter **Einstellungen → Darstellung → Farbschema** lässt sich zusätzlich die Geräteeinstellung verwenden (Standard). Die Auswahl bleibt lokal auf dem Gerät gespeichert, unabhängig vom Tresor. Im Darkmodus nutzt die App eine dunkelblaue Palette mit dezenten Glasflächen, deckenden Eingabefeldern und getrennten Farben für bezahlte/offene Beträge. Bei reduzierter Transparenz oder fehlender Browserunterstützung werden deckende Flächen verwendet. Der Darkmodus gilt für die Bildschirmoberfläche; Rechnungsdruck und erzeugte PDFs behalten ihre Papierfarben.
