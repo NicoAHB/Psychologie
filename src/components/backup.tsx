@@ -1,0 +1,55 @@
+import { useEffect, useState } from 'react';
+import { Download, HardDriveDownload, History, Share2, ShieldCheck } from 'lucide-react';
+import { useI18n, type TextKey } from '../lib/i18n';
+import { today } from '../lib/dates';
+import { downloadText } from '../lib/files';
+import { markBackup } from '../lib/backupState';
+import type { SnapshotEntry } from '../lib/history';
+import type { AutoBackup } from '../lib/useAutoBackup';
+import type { VaultController } from '../lib/useVault';
+import { Notice } from './ui';
+
+/** Hand the backup to the share sheet (iPad: "Save to Files"); falls back to a normal download. */
+export async function saveBackupCopy(vault: VaultController, preferShare: boolean): Promise<'download' | 'share' | undefined> {
+  const backup = await vault.exportBackup(); if (!backup) return;
+  const name = `praxisraum-${today()}.encrypted.json`; const text = JSON.stringify(backup);
+  const file = new File([text], name, { type: 'application/json' });
+  let kind: 'download' | 'share' = 'download';
+  if (preferShare && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Praxisraum' }); kind = 'share'; }
+  else downloadText(name, text, 'application/json');
+  await markBackup(backup.envelope.vaultId, kind);
+  return kind;
+}
+export function BackupCard({ vault, auto }: { vault: VaultController; auto: AutoBackup }) {
+  const { t, language } = useI18n(); const [message, setMessage] = useState<TextKey>(); const [busy, setBusy] = useState(false);
+  const canShare = typeof navigator.canShare === 'function' && typeof File === 'function';
+  const run = async (share: boolean) => {
+    setBusy(true); setMessage(undefined);
+    try { if (await saveBackupCopy(vault, share)) setMessage('backupSuccess'); } catch (err) { if ((err as Error).name !== 'AbortError') setMessage('imageError'); } finally { setBusy(false); }
+  };
+  const time = (at: number) => new Date(at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA');
+  return <section className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><p>{t('securityText')}</p>
+    <div className="button-row"><button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(false)}><Download size={17}/>{t(busy ? 'working' : 'exportBackup')}</button>
+      {canShare && <button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(true)}><Share2 size={17}/>{t('shareBackup')}</button>}</div>
+    <p className="hint">{t('backupHelp')}</p>{message && <Notice>{t(message)}</Notice>}
+    <h3 className="mini-heading">{t('autoBackup')}</h3>
+    {!auto.supported ? <p className="hint">{t('autoBackupUnsupported')}</p> : <>
+      <p className="hint">{t('autoBackupText')}</p>
+      {auto.file ? <>
+        <p className="hint">{t('autoBackupFile')} <strong>{auto.file.name}</strong>{auto.status === 'ok' && auto.lastAt ? ` · ${t('autoBackupOk')} ${time(auto.lastAt)}` : ''}{auto.status === 'working' ? ` · ${t('autoBackupWorking')}` : ''}</p>
+        {auto.status === 'needsPermission' && <Notice>{t('autoBackupNeedsPermission')}</Notice>}{auto.status === 'error' && <Notice error>{t('autoBackupError')}</Notice>}
+        <div className="button-row"><button className="btn btn-secondary" onClick={() => void auto.now()}><HardDriveDownload size={17}/>{t(auto.status === 'needsPermission' ? 'autoBackupResume' : 'autoBackupNow')}</button><button className="btn btn-ghost" onClick={() => void auto.disable()}>{t('autoBackupOff')}</button></div></>
+        : <button className="btn btn-secondary" disabled={vault.demo} onClick={() => void auto.enable().catch(() => {})}><HardDriveDownload size={17}/>{t('autoBackupSetup')}</button>}</>}
+  </section>;
+}
+export function HistoryCard({ vault }: { vault: VaultController }) {
+  const { t, language } = useI18n(); const [entries, setEntries] = useState<SnapshotEntry[]>([]); const [done, setDone] = useState(false);
+  const refresh = () => { void vault.history().then(setEntries).catch(() => {}); };
+  useEffect(refresh, [vault.generation]);
+  if (vault.demo) return null;
+  const label = (e: SnapshotEntry) => `${new Date(e.at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA')} · ${t(e.reason === 'delete' ? 'historyReasonDelete' : 'historyReasonAuto')}`;
+  return <section className="card settings-card"><span className="settings-icon tone-beige"><History size={24}/></span><h2>{t('history')}</h2><p>{t('historyText')}</p>
+    {entries.length ? <ul className="passkey-list">{entries.slice(0, 10).map(e => <li key={e.at}><span>{label(e)}</span><button className="btn btn-secondary btn-small" onClick={() => { if (window.confirm(t('historyConfirm'))) void vault.restoreSnapshot(e.at).then(() => { setDone(true); refresh(); }).catch(() => {}); }}>{t('historyRestore')}</button></li>)}</ul> : <p className="hint">{t('historyEmpty')}</p>}
+    {done && <Notice>{t('historyRestored')}</Notice>}
+    {entries.length > 0 && <button className="btn btn-ghost" onClick={() => { void vault.clearHistory().then(refresh); }}>{t('historyClear')}</button>}</section>;
+}

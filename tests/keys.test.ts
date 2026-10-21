@@ -53,3 +53,13 @@ test('vault history keeps one snapshot per window, always snapshots before delet
   for (let i = 0; i < SNAPSHOT_LIMIT + 5; i++) await recordSnapshot(envelope, true, t0 + 10 * SNAPSHOT_WINDOW_MS + i);
   const kept = await listSnapshots(vaultId); assert.equal(kept.length, SNAPSHOT_LIMIT); assert.equal(await readSnapshot(vaultId, t0), undefined);
 });
+import { backupNeeded, latestChange } from '../src/lib/backupState';
+test('the backup reminder appears when nothing was ever saved elsewhere, or when the last copy is old and data changed since', () => {
+  const day = 864e5; const now = 100 * day;
+  assert.deepEqual(backupNeeded(undefined, 0, false, now), { needed: false, days: 0 });
+  assert.equal(backupNeeded(undefined, 5, true, now).needed, true);
+  assert.equal(backupNeeded({ at: now - 2 * day, kind: 'auto' }, now - day, true, now).needed, false);
+  assert.deepEqual(backupNeeded({ at: now - 9 * day, kind: 'download' }, now - 8 * day, true, now), { needed: true, days: 9 });
+  assert.equal(backupNeeded({ at: now - 9 * day, kind: 'download' }, now - 20 * day, true, now).needed, false, 'old copy but nothing changed since');
+  assert.equal(latestChange({ clients: [{ updatedAt: 5 }], appointments: [], sessions: [{ updatedAt: 9 }], notes: [], invoices: [{}] }), 9);
+});

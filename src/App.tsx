@@ -12,6 +12,10 @@ import { AppointmentRow, AppointmentsPage } from './components/appointments';
 import { SettingsPage } from './components/settings';
 import { CsvExport, InvoiceForm, InvoiceList, InvoiceView } from './components/invoices';
 import { SearchModal } from './components/SearchModal';
+import { PassphraseReset } from './components/security';
+import { useAutoBackup } from './lib/useAutoBackup';
+import { backupNeeded, hasRecords, latestChange, markBackup, readBackupState, type BackupState } from './lib/backupState';
+import { saveBackupCopy } from './components/backup';
 import { appointmentEnd, byStart } from './lib/dates';
 import { AppointmentForm, ClientForm, NoteForm, PaymentForm, SessionForm } from './components/forms';
 import { IncomeChart } from './components/IncomeChart';
@@ -24,10 +28,17 @@ export default function App() {
   const [form, setForm] = useState<Form>(); const [mobileNav, setMobileNav] = useState(false);
   const [online, setOnline] = useState(navigator.onLine); const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<TextKey>(); const [lastSyncedGeneration, setLastSyncedGeneration] = useState(-1);
+  const auto = useAutoBackup(vault);
+  const [backupInfo, setBackupInfo] = useState<BackupState | null>(); // undefined = not read yet, null = no copy yet
   const [searching, setSearching] = useState(false); const [search, setSearch] = useState(''); const [tag, setTag] = useState(''); const [photo, setPhoto] = useState<string>();
   const syncBusy = useRef(false); const currentVault = useRef(vault); currentVault.current = vault;
   const navigate = (next: Route) => { setRoute(next); setMobileNav(false); setSearch(''); setTag(''); };
   const openClient = (id: string) => { setSelectedId(id); navigate('clients'); };
+  useEffect(() => {
+    const id = vault.envelope?.vaultId; if (!vault.data || vault.demo || !id) { setBackupInfo(undefined); return; }
+    const read = () => { void readBackupState(id).then(state => setBackupInfo(state ?? null)).catch(() => {}); };
+    read(); window.addEventListener('praxisraum-backup', read); return () => window.removeEventListener('praxisraum-backup', read);
+  }, [!!vault.data, vault.demo, vault.envelope?.vaultId]);
   useEffect(() => {
     const shortcut = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && currentVault.current.data) { e.preventDefault(); setSearching(true); } };
     window.addEventListener('keydown', shortcut); return () => window.removeEventListener('keydown', shortcut);
@@ -54,7 +65,7 @@ export default function App() {
         envelope = await readVault(); if (!envelope) throw new Error('storageError');
         await syncVault(envelope, merged.data); synced = merged.generation;
       }
-      setLastSyncedGeneration(synced); setSyncMessage('synced');
+      setLastSyncedGeneration(synced); setSyncMessage('synced'); void markBackup(envelope.vaultId, 'cloud').catch(() => {});
     } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); }
   }, [user]);
   useEffect(() => {
@@ -76,6 +87,7 @@ export default function App() {
   const data = vault.data;
   const selected = data.clients.find(c => c.id === selectedId);
   const future = data.appointments.filter(a => a.status === 'scheduled' && appointmentEnd(a) >= new Date(`${today()}T00:00:00`).getTime()).sort(byStart);
+  const backupNag = backupInfo === undefined ? { needed: false, days: 0 } : backupNeeded(backupInfo ?? undefined, latestChange(data), hasRecords(data));
   const now = new Date(); const year = now.getFullYear(); const month = now.getMonth();
   const income = monthlyIncome(data.sessions, year)[month]; const open = data.sessions.filter(s => !s.paidAt).reduce((n, s) => n + s.feeCents, 0);
   const menuItems: { id: Route; icon: ReactNode }[] = [{ id: 'overview', icon: <LayoutDashboard size={20}/> }, { id: 'clients', icon: <Users size={20}/> }, { id: 'appointments', icon: <CalendarDays size={20}/> }, { id: 'finances', icon: <Wallet size={20}/> }, { id: 'settings', icon: <Settings2 size={20}/> }];
@@ -89,7 +101,7 @@ export default function App() {
   return <div className="app-shell">{mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label={t('close')}/>}
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><Logo/><button className="icon-btn mobile-only" aria-label={t('close')} onClick={() => setMobileNav(false)}><X size={20}/></button></div><p className="sidebar-tagline">{t('tagline')}</p><span className="nav-eyebrow">{t('workspace')}</span><nav aria-label={t('workspace')}>{menuItems.map(item => <button className={`nav-item ${route === item.id ? 'active' : ''}`} key={item.id} aria-current={route === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.icon}<span>{t(item.id)}</span>{item.id === 'clients' && data.clients.length > 0 && <small aria-hidden="true">{data.clients.length}</small>}</button>)}</nav><div className="sidebar-bottom"><div className="privacy-card"><ShieldCheck size={23}/><h3>{t('helpTitle')}</h3><p>{t('helpText')}</p><span className="privacy-dot"/></div><div className="practitioner"><span className="practitioner-avatar"><Leaf size={20}/></span><div><strong>{t('workspace')}</strong><small>{t(vault.demo ? 'demoBadge' : 'localOnly')}</small></div><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></div></aside>
     <div className="main-shell"><header className="topbar"><div className="breadcrumb"><button className="icon-btn mobile-only" aria-label={t('openNav')} onClick={() => setMobileNav(true)}><Menu size={22}/></button><span className="desktop-only">{t('workspace')}</span><ChevronRight className="desktop-only" size={14}/><strong>{t(route)}</strong></div><div className="header-actions"><span className="header-status desktop-only">{online ? <span className="status-dot"/> : <WifiOff size={14}/>} {t(online ? 'localSecure' : 'offline')}</span><button className="icon-btn" aria-label={t('searchEverything')} title={`${t('searchEverything')} (Ctrl+K)`} onClick={() => setSearching(true)}><Search size={19}/></button><LanguageSwitch/><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></header>
-      <main className="page-content" id="main-content">{vault.demo && <Notice>{t('demoNotice')}</Notice>}{vault.storageError && <Notice error>{t('storageError')}<button className="text-link" onClick={() => void vault.retry().catch(() => {})}>{t('retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
+      <main className="page-content" id="main-content">{vault.demo && <Notice>{t('demoNotice')}</Notice>}{route === 'overview' && !vault.demo && backupNag.needed && <Notice error>{t(backupInfo ? 'backupBannerOld' : 'backupBannerNever').replace('{days}', String(backupNag.days))}<button className="text-link" onClick={() => void saveBackupCopy(vault, typeof navigator.canShare === 'function').catch(() => {})}>{t('backupNow')}</button></Notice>}{vault.storageError && <Notice error>{t('storageError')}<button className="text-link" onClick={() => void vault.retry().catch(() => {})}>{t('retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
       {route === 'overview' && <><PageHeading title={t('greeting')} subtitle={t('overviewSubtitle')} action={<button className="btn btn-primary" onClick={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })}><Plus size={18}/>{t('newAppointment')}</button>}/><div className="stats-grid"><Stat icon={<Users size={20}/>} label={t('activeClients')} value={String(data.clients.length)} tone="sage"/><Stat icon={<CalendarDays size={20}/>} label={t('upcomingCount')} value={String(future.length)} tone="blue"/><Stat icon={<TrendingUp size={20}/>} label={t('receivedMonth')} value={money(income, language)} tone="beige"/><Stat icon={<CircleDollarSign size={20}/>} label={t('openAmount')} value={money(open, language)} tone="rose"/></div>
         <section className="hero-card"><div><span className="eyebrow">{t('heroEyebrow')}</span><h2>{t('heroTitle')}</h2><p>{t('heroText')}</p><button className="btn btn-primary" onClick={() => navigate('appointments')}>{t('viewAppointments')}<ArrowRight size={17}/></button></div><div className="hero-art"><div className="hero-disc"/><Botanical/><span className="hero-spark"><Sparkles size={24}/></span></div></section>
         <div className="overview-grid"><section className="card"><div className="section-heading"><h2>{t('nextAppointments')}</h2><TextLink onClick={() => navigate('appointments')}>{t('allAppointments')}</TextLink></div>{future.length ? <div className="appointment-list">{future.slice(0, 4).map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={openClient}/>)}</div> : <Empty icon={<CalendarDays size={25}/>} title={t('noAppointments')} text={t('noAppointmentsText')}/>}</section><section className="card"><div className="section-heading"><h2>{t('yourClients')}</h2><button className="icon-btn" aria-label={t('newClient')} onClick={() => setForm({ type: 'client' })}><Plus size={19}/></button></div>{data.clients.length ? <><div className="client-summary-list">{data.clients.slice(0, 4).map(c => <button className="client-summary" key={c.id} onClick={() => openClient(c.id)}><Avatar client={c} vault={vault}/><span><strong>{c.name}</strong><small>{data.sessions.filter(s => s.clientId === c.id).length} {t('sessions')}</small></span><ChevronRight size={17}/></button>)}</div><TextLink onClick={() => navigate('clients')}>{t('allClients')}</TextLink></> : <Empty icon={<Users size={25}/>} title={t('noClients')} text={t('noClientsText')} action={<button className="btn btn-secondary" onClick={() => setForm({ type: 'client' })}>{t('newClient')}</button>}/>}</section></div><IncomeChart sessions={data.sessions} year={year} compact/>
@@ -104,7 +116,7 @@ export default function App() {
       </div></>}
       {route === 'appointments' && <AppointmentsPage vault={vault} onNew={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })} onClient={openClient} onComplete={a => setForm({ type: 'session', appointment: a })} onEdit={a => setForm({ type: 'appointment', appointment: a })}/>}
       {route === 'finances' && <FinancesPage vault={vault} onNew={() => setForm(data.clients.length ? { type: 'session' } : { type: 'client' })} onPayment={markPayment} onClient={openClient}/>}
-      {route === 'settings' && <SettingsPage vault={vault} onSync={doSync} syncing={syncing} onRestore={async () => {
+      {route === 'settings' && <SettingsPage vault={vault} auto={auto} onSync={doSync} syncing={syncing} onRestore={async () => {
         if (!window.confirm(t('restoreConfirm'))) return;
         try { const u = await currentUser(); const remote = await fetchRemote(); if (!remote) throw new Error('noRemote'); await vault.importBackup({ type: 'praxisraum-backup-v1', envelope: remoteEnvelope(remote), blobs: [] }); await setRevision(u.id, remote.vault_id, remote.revision); } catch (err) { setSyncMessage(cloudError(err) as TextKey); }
       }}/>}
@@ -112,6 +124,7 @@ export default function App() {
       <div className="sync-bar"><span>{vault.saving ? <LoaderCircle size={15} className="spin"/> : <CheckCheck size={16}/>}<span>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</span></span><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
     </div>
     {form?.type === 'client' && <ClientForm vault={vault} client={form.client} onClose={() => setForm(undefined)} onSaved={id => { setForm(undefined); openClient(id); }} onDeleted={() => { setForm(undefined); setSelectedId(undefined); setTag(''); }}/>} {form?.type === 'appointment' && <AppointmentForm vault={vault} clientId={form.clientId} appointment={form.appointment} onClose={() => setForm(undefined)}/>} {form?.type === 'session' && <SessionForm vault={vault} clientId={form.clientId} appointment={form.appointment} session={form.session} onClose={() => setForm(undefined)}/>} {form?.type === 'note' && <NoteForm vault={vault} clientId={form.clientId} onClose={() => setForm(undefined)}/>} {form?.type === 'payment' && <PaymentForm vault={vault} session={form.session} onClose={() => setForm(undefined)}/>}
+    {vault.passphraseReset && <PassphraseReset vault={vault}/>}
     {searching && <SearchModal vault={vault} onClose={() => setSearching(false)} onOpen={hit => { setSearching(false); if (hit.kind === 'invoice') navigate('finances'); else openClient(hit.clientId); }}/>}
     {photo && <Modal title={t('photoNote')} onClose={() => setPhoto(undefined)} wide><ImageView id={photo} vault={vault} alt={t('photoNote')} className="note-full-image"/></Modal>}
   </div>;

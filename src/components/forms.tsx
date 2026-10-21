@@ -44,7 +44,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   async function removeClient() {
     if (!client || !window.confirm(`${client.name}\n\n${t('deleteClientConfirm')}`)) return;
     setBusy(true);
-    try { await vault.remove(data => deleteClient(data, client.id)); onDeleted?.(); } catch { setError('storageError'); } finally { setBusy(false); }
+    try { await vault.remove(data => deleteClient(data, client.id), true); onDeleted?.(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
   return <Modal title={t(client ? 'editClient' : 'newClient')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
@@ -147,7 +147,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
   async function remove() {
     if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}`)) return;
     setBusy(true);
-    try { await vault.update(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
+    try { await vault.remove(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
   return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <Field label={t('client')}><select value={selected} disabled={!!appointment} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
