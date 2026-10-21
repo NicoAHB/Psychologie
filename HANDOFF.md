@@ -4,21 +4,16 @@
 
 - Repository in dieser Cloud-Aufgabe: `/workspace/Psychologie`
 - Lokaler Entwicklungsbranch: `codex/praxisraum-foundation`
-- **GitHub-Push blockiert:** Der Server antwortete beim ersten Push mit HTTP 403 / `Permission denied`. Der Branch darf bis zu einem erfolgreichen Push nicht als auf GitHub gesichert betrachtet werden.
+- **GitHub-Push erfolgreich:** `codex/praxisraum-foundation` ist jetzt auf GitHub gesichert. Der erste 403-Fehler wurde nach der Berechtigungsänderung behoben.
 - Programmcode und Tests werden lokal committed. Ein Projekt-ZIP und ein selbstständiges Git-Bundle werden zusätzlich unter `/workspace` erzeugt. Sie enthalten keine echten Praxisdaten oder Zugangsdaten.
 
-Öffne diesen Chat auf dem Tablet, um die bestehende Aufgabe fortzusetzen. Für eine unabhängige neue Aufgabe oder Codespaces wird der erfolgreiche GitHub-Push oder das Projektarchiv benötigt. Eine langfristige Wiederherstellung lokaler Commits allein aus einem neuen Cloud-Task ist nicht zugesichert.
+Öffne diesen Chat auf dem Tablet, um die bestehende Aufgabe fortzusetzen. Für eine unabhängige neue Aufgabe oder Codespaces den aktuellen GitHub-Stand oder das Projektarchiv verwenden. Eine langfristige Wiederherstellung lokaler Commits allein aus einem neuen Cloud-Task ist nicht zugesichert.
 
-## Noch nötig für GitHub
+## GitHub und App-Veröffentlichung
 
-In der GitHub-Verbindung Schreibzugriff auf `NicoAHB/Psychologie` einschließlich Workflow-Dateien ermöglichen. Es ist kein zusätzlicher Token im Anwendungscode nötig. Nach einer tatsächlichen Berechtigungsänderung:
+Die Quellcode-Veröffentlichung funktioniert. Die App-Veröffentlichung ist getrennt davon: Der Workflow `.github/workflows/pages.yml` baut den Unterpfad `/Psychologie/` und veröffentlicht über GitHub Pages. Unter **Settings → Pages** einmalig die Quelle **GitHub Actions** wählen. Einen eventuell vor Aktivierung fehlgeschlagenen Lauf unter **Actions → Publish Praxisraum** erneut starten. Erst ein erfolgreicher Deploy-Lauf bestätigt den Live-Link `https://nicoahb.github.io/Psychologie/`.
 
-```sh
-cd /workspace/Psychologie
-git push -u origin codex/praxisraum-foundation
-```
-
-Nicht auf `main` zurücksetzen; dort liegt bisher nur die ursprüngliche README. Keine echten Praxisdaten ins Repository hochladen.
+Die Cloud-Umgebung blockierte Verwaltungszugriffe auf `api.github.com` mit CONNECT 403. Die Domains `api.github.com` und `nicoahb.github.io` wurden additiv als Netzwerkentwurf gespeichert. Der Entwurf ist kein Nachweis einer bereits angewendeten Freigabe. Sobald die Freigabe angewendet ist, können Aktivierung und Live-Deployment aus dieser Aufgabe geprüft werden. Alternativ die oben genannte GitHub-Einstellung direkt vornehmen. Es wurde keine Repository-Sichtbarkeit verändert und kein kostenpflichtiges Hosting aktiviert.
 
 ## Starten und prüfen
 

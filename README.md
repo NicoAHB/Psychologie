@@ -4,7 +4,7 @@ Eine lokale, verschlüsselte Praxis-PWA mit deutscher und ukrainischer Oberfläc
 
 ## Auf einem anderen Gerät weiterarbeiten
 
-Der Entwicklungsstand ist lokal im Branch **`codex/praxisraum-foundation`** committed. **Der erste GitHub-Push wurde mit HTTP 403 abgelehnt; dieser Branch ist erst nach einem erfolgreichen Push auf GitHub verfügbar.** Die GitHub-Verbindung benötigt Schreibzugriff auf `NicoAHB/Psychologie`. Bis dahin diesen Cloud-Chat weiterverwenden oder ein Projektarchiv herunterladen. Öffne auf dem Tablet dieses Repository in einer neuen Codex-Aufgabe und wähle diesen Branch. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
+Der Entwicklungsstand ist auf GitHub im Branch **`codex/praxisraum-foundation`** gesichert. Der Schreibzugriff funktioniert inzwischen. Für den Gerätewechsel dieses Repository in Codex oder einer lokalen Entwicklungsumgebung öffnen. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
 
 ```sh
 git clone --branch codex/praxisraum-foundation https://github.com/NicoAHB/Psychologie.git
@@ -14,6 +14,29 @@ npm run dev
 ```
 
 Node.js 22 oder neuer verwenden. Für Produktion: `npm run build`, anschließend `dist/` auf einem HTTPS-Host bereitstellen (z. B. Cloudflare Pages Free). `npm run preview` prüft den Produktionsstand lokal. PWA und Web Crypto benötigen HTTPS oder localhost. Beim Tablet-Zugriff auf einen Entwicklungsserver über eine unverschlüsselte LAN-IP stehen sichere Browser-APIs nicht zuverlässig zur Verfügung.
+
+## Veröffentlichung über GitHub Pages
+
+Der Workflow `.github/workflows/pages.yml` testet und baut die App bei Änderungen auf `main` und veröffentlicht das Ergebnis über die offiziellen GitHub-Pages-Actions. Keine Hosting-Zugangsdaten erforderlich; die öffentlichen Supabase-Variablen sind optional.
+
+1. Unter [Repository → Settings → Pages](https://github.com/NicoAHB/Psychologie/settings/pages) als Quelle **GitHub Actions** auswählen. Actions müssen für das Repository freigeschaltet sein.
+2. Unter [Actions → Publish Praxisraum](https://github.com/NicoAHB/Psychologie/actions/workflows/pages.yml) den Lauf beobachten. Falls ein Lauf bereits vor der Pages-Aktivierung fehlgeschlagen ist, **Re-run all jobs** wählen oder den Workflow über **Run workflow** starten.
+3. Erst nach erfolgreichem Deployment ist die App unter **https://nicoahb.github.io/Psychologie/** erreichbar. Die lokale Prüfung allein bestätigt kein öffentliches Deployment.
+
+GitHub Pages ist für öffentliche Repositories im GitHub-Free-Tarif verfügbar. Falls GitHub bei einem privaten Repository einen kostenpflichtigen Tarif verlangt, wurde die Sichtbarkeit von uns nicht verändert. Die URL veröffentlicht die Anwendung; Praxisdaten bleiben auf dem jeweiligen Gerät und werden nicht im Repository abgelegt.
+
+Der Build setzt `VITE_BASE_PATH=/Psychologie/`. HTML, Manifest, Icons und Service Worker verwenden denselben Unterpfad; der Offline-Cache bleibt auf diesen App-Pfad begrenzt. `npm run build` ohne Variable baut weiterhin für die Domainwurzel.
+
+Optionale öffentliche Projektvariablen unter **Settings → Secrets and variables → Actions → Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_REMINDER_PUBLIC_KEY`. Diese werden beim nächsten Build übernommen. Niemals einen Service-Role-Key, eine Tresor-Passphrase, Bot-Token oder den privaten RSA-Schlüssel als `VITE_*` hinterlegen.
+
+Zusätzliche Prüfung für den GitHub-Pages-Pfad:
+
+```sh
+VITE_BASE_PATH=/Psychologie/ npm run build
+VITE_BASE_PATH=/Psychologie/ PLAYWRIGHT_PORT=4180 npx playwright test tests/browser/pages.spec.ts
+```
+
+GitHub Pages wertet `public/_headers` nicht aus. Diese Datei ist eine Empfehlung für Hosts, die benutzerdefinierte Sicherheitsheader unterstützen. Für einen späteren Praxisbetrieb mit eigenen Headern kann ein geeigneter HTTPS-Host verwendet werden.
 
 ## Aktueller Funktionsumfang
 
