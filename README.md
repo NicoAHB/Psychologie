@@ -2,6 +2,8 @@
 
 Eine lokale, verschlüsselte Praxis-PWA mit deutscher und ukrainischer Oberfläche, Klientenprofilen einschließlich Profilbildern, Sitzungsvorbereitung, Fotonotizen mit Tags, Terminen und Einnahmenübersicht.
 
+Der Sonnen-/Mond-Schalter neben der Sprachauswahl wechselt sofort zwischen Hell und Dunkel, auch auf dem Sperrbildschirm. Unter **Einstellungen → Darstellung → Farbschema** lässt sich zusätzlich die Geräteeinstellung verwenden (Standard). Die Auswahl bleibt lokal auf dem Gerät gespeichert, unabhängig vom Tresor. Der Darkmodus gilt für die Bildschirmoberfläche; Rechnungsdruck und erzeugte PDFs behalten ihre Papierfarben.
+
 ## Auf einem anderen Gerät weiterarbeiten
 
 Der Entwicklungsstand ist auf GitHub im Branch **`codex/praxisraum-foundation`** gesichert. Der Schreibzugriff funktioniert inzwischen. Für den Gerätewechsel dieses Repository in Codex oder einer lokalen Entwicklungsumgebung öffnen. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.

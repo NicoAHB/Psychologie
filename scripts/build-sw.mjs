@@ -9,7 +9,7 @@ const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'
 Object.assign(manifest, { id: base, start_url: base, scope: base });
 manifest.icons = manifest.icons.map(icon => ({ ...icon, src: `${base}${icon.src.split('/').pop()}` }));
 await writeFile('dist/manifest.webmanifest', JSON.stringify(manifest, null, 2) + '\n');
-const paths = [base, `${base}index.html`, `${base}manifest.webmanifest`, `${base}icon.svg`, `${base}icon-192.png`, `${base}icon-512.png`, ...assets];
+const paths = [base, `${base}index.html`, `${base}theme-init.js`, `${base}manifest.webmanifest`, `${base}icon.svg`, `${base}icon-192.png`, `${base}icon-512.png`, ...assets];
 const hash = createHash('sha256').update(base);
 for (const path of paths.filter(path => path !== base)) hash.update(await readFile(`dist/${path.slice(base.length)}`));
 const prefix = `praxisraum:${base}:`;

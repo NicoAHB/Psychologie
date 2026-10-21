@@ -12,6 +12,15 @@ import { SecurityCard } from './security';
 import { BackupCard, HistoryCard } from './backup';
 import type { AutoBackup } from '../lib/useAutoBackup';
 import { ZoneSelect } from './ZoneSelect';
+import { useTheme, type ThemePreference } from '../lib/theme';
+
+function AppearanceCard() {
+  const { t } = useI18n(); const { preference, setPreference } = useTheme();
+  return <section className="card settings-card"><h2>{t('appearance')}</h2><p>{t('appearanceHint')}</p>
+    <Field label={t('colorScheme')}><select value={preference} onChange={e => setPreference(e.target.value as ThemePreference)}>
+      <option value="system">{t('themeSystem')}</option><option value="light">{t('themeLight')}</option><option value="dark">{t('themeDark')}</option>
+    </select></Field></section>;
+}
 
 function TemplatesCard({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [name, setName] = useState(''); const [body, setBody] = useState(''); const list = vault.data!.templates;
@@ -44,6 +53,7 @@ export function SettingsPage({ vault, auto, onSync, syncing, onRestore }: { vaul
   const setting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => { void vault.update(d => { d.settings[key] = value; }).catch(() => {}); };
   return <><PageHeading title={t('settingsTitle')} subtitle={t('settingsSubtitle')}/><div className="settings-grid">
     <BackupCard vault={vault} auto={auto}/>
+    <AppearanceCard/>
     <section className="card settings-card"><span className="settings-icon tone-blue"><Cloud size={24}/></span><h2>{t('cloudTitle')}</h2><p>{t('cloudText')}</p>{vault.demo ? <Notice>{t('demoNotice')}</Notice> : <CloudAuth><label className="check-label"><input type="checkbox" checked={settings.autoSync} onChange={e => setting('autoSync', e.target.checked)}/><span>{t('autoSync')}</span></label><p className="hint">{t('autoSyncHint')}</p><div className="button-row"><button className="btn btn-primary" disabled={syncing} onClick={() => void onSync()}><Cloud size={17}/>{t(syncing ? 'syncing' : 'sync')}</button><button className="btn btn-secondary" disabled={syncing} onClick={() => void onRestore()}>{t('loadCloud')}</button></div><p className="hint">{t('cloudRestoreHint')}</p></CloudAuth>}<p className="hint">{t('freeTierNote')}</p></section>
     <section className="card settings-card"><span className="settings-icon tone-beige"><CalendarDays size={24}/></span><h2>{t('remindersTitle')}</h2><p>{t('remindersText')}</p><label className="check-label"><input type="checkbox" disabled={vault.demo} checked={settings.remindersEnabled} onChange={e => setting('remindersEnabled', e.target.checked)}/><span>{t('enableReminders')}</span></label><p className="hint">{t('reminderNeedsSetup')}</p><Field label={t('advisorChatId')} hint={t('chatHelp')}><input value={settings.advisorChatId} inputMode="numeric" placeholder={t('chatPlaceholder')} onChange={e => { if (/^-?\d*$/.test(e.target.value)) setting('advisorChatId', e.target.value); }}/></Field><ZoneSelect label={t('timeZone')} hint={t('timeZoneHint')} value={settings.timeZone} onChange={zone => { if (isValidZone(zone)) setting('timeZone', zone); }}/><Notice>{t('telegramLimit')}</Notice></section>
     <section className="card settings-card"><span className="settings-icon"><Leaf size={24}/></span><h2>{t('deviceTitle')}</h2><p>{t('installHint')}</p><p>{t('storageHint')}</p><button className="btn btn-secondary" onClick={async () => { try { setMessage(await navigator.storage?.persist?.() ? 'storageGranted' : 'storageDenied'); } catch { setMessage('storageDenied'); } }}>{t('storagePersist')}</button></section>
