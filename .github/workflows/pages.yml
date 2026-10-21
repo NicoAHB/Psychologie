@@ -19,7 +19,18 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: npm test
+      - name: Run tests
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/praxisraum-tests.log
+          test_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$test_status" -ne 0 ]; then
+            printf '### Test failure\n\n```text\n' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 160 /tmp/praxisraum-tests.log >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$test_status"
       - name: Build for the repository's Pages path
         run: npm run build
         env:
