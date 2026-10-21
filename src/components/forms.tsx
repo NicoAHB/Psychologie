@@ -23,6 +23,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   const { t } = useI18n();
   const [name, setName] = useState(client?.name || '');
   const [contact, setContact] = useState(client?.contact || '');
+  const [email, setEmail] = useState(client?.email || '');
   const [ukrainian, setUkrainian] = useState(client?.language === 'uk');
   const [currency, setCurrency] = useState<Currency>(currencyOf(client));
   const [currencyTouched, setCurrencyTouched] = useState(!!client);
@@ -38,10 +39,11 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (!name.trim() || (chat && !/^-?\d+$/.test(chat)) || !isValidZone(zone)) { setError('required'); return; }
+    if (email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
     setBusy(true);
     try {
       const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
-      const result: Client = { id: client?.id || uid(), name: name.trim(), contact: contact.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency };
+      const result: Client = { id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency };
       const before = referencedBlobs(vault.data!);
       await vault.update(data => { const index = data.clients.findIndex(c => c.id === result.id); if (index < 0) data.clients.push(result); else data.clients[index] = result; });
       await vault.purgeUnused(before); // a replaced profile picture must not linger encrypted on the device or in the cloud
@@ -57,6 +59,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
+    <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder={t('clientEmailPlaceholder')}/></Field>
     <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
     <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={zone} onChange={setZone}/>
     <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { setUkrainian(e.target.checked); if (!currencyTouched) setCurrency(e.target.checked ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>

@@ -150,3 +150,9 @@ Die Cloud dieser Aufgabe blockiert den NBU-Host aktuell mit CONNECT 403. `bank.g
 Zum Teilen die gewünschte PNG-Datei auf dem Smartphone speichern und in WhatsApp oder Telegram als Bild anhängen. Als **Dokument/Datei** versenden, wenn die unveränderte Auflösung erhalten bleiben soll. Nach der Personalisierung den tatsächlichen Kontaktlink als Nachricht ergänzen; Text und Links innerhalb einer PNG-Datei sind nicht anklickbar.
 
 Name, Kontakt, tatsächliche Qualifikationen, Beratungssprachen, Region und Foto sind noch Platzhalter. Die Karten werden erst nach Ergänzung dieser Angaben für die tatsächliche Verwendung freigegeben. Die visuelle Illustration ist ein Beispiel; die PDF-Datei enthält die exakt gesetzten Texte. Ein künftiger QR-Code verweist auf die öffentliche Kontakt-/Buchungsseite und niemals auf die private Verwaltungs-App.
+
+## Klienten-Dokumente und ausfüllbare Fragebögen
+
+Klientenprofile haben ein eigenes E-Mail-Feld. Unter **Fragebögen** lassen sich PHQ-9 und GAD-7 als echte ausfüllbare PDF auf Deutsch oder Ukrainisch erstellen; beide stehen danach unter **Dokumente** bereit. Dort können auch Aufgaben, Bilder und andere Unterlagen verschlüsselt hinterlegt werden. Original mit Versandhistorie und ausgefüllte Rückläufe mit Eingangsdatum stehen nebeneinander; frühere Rückläufe bleiben erhalten. PDFs werden lokal erzeugt, einschließlich der mitgelieferten Unicode-Schrift, und funktionieren nach der Offline-Installation auch ohne Internet.
+
+Direkter E-Mail-Versand ist über eine authentifizierte Supabase Edge Function mit Resend-Adapter vorbereitet. Ohne Anbieter-Konfiguration bleibt er ausgeschaltet; es wird kein Versanddatum vorgetäuscht. Einrichtung, kostenlose Kontingente, notwendige Server-Secrets und der Unterschied zwischen verschlüsselter Ablage und gewöhnlicher E-Mail sind in [`docs/email-versand.md`](docs/email-versand.md) beschrieben. Es wurden keine echten E-Mails versendet.

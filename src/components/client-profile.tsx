@@ -11,9 +11,10 @@ import type { AssessmentKind, Client, PhotoNote, Session } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Avatar, Empty, ImageView, Notice, PaymentBadge } from './ui';
 import { AssessmentsSection } from './assessments';
+import { DocumentsSection } from './documents';
 import { clockText } from './DualTime';
 
-export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'finances';
+export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances';
 export interface ProfileActions {
   onBack: () => void; onEditClient: () => void; onNewSession: () => void; onNewNote: () => void; onNewAppointment: () => void;
   onEditSession: (session: Session) => void; onPhoto: (blobId: string) => void; onPayment: (session: Session) => void; onDeleteNote: (note: PhotoNote) => void;
@@ -92,7 +93,7 @@ function Discussed({ vault, client, tag, setTag, actions }: { vault: VaultContro
 
 export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions }) {
   const { t, language } = useI18n(); const data = vault.data!;
-  const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
+  const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
   const sum = (filter: (s: Session) => boolean) => money(data.sessions.filter(s => s.clientId === client.id && filter(s)).reduce((n, s) => n + s.feeCents, 0), language);
   return <div className="profile-content">
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
@@ -103,6 +104,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
       {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
+      {tab === 'documents' && <DocumentsSection vault={vault} client={client}/>}
       {tab === 'finances' && <section className="card"><div className="section-heading"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div></div><div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, i) => <div key={label}><span>{t(label)}</span><strong className={i === 2 ? 'text-rose' : ''}>{sum(s => i === 0 || (i === 1 ? !!s.paidAt : !s.paidAt))}</strong></div>)}</div>{data.sessions.some(s => s.clientId === client.id && s.billing?.currency === 'UAH') && <p className="hint">{t('agreedUahTotal')}: <strong>{money(data.sessions.filter(s => s.clientId === client.id && s.billing?.currency === 'UAH').reduce((total, s) => total + s.billing!.amountCents, 0), language, 'UAH')}</strong><br/>{t('financeCurrencyHint')}</p>}</section>}
     </div>
   </div>;

@@ -6,6 +6,7 @@ import { changeSincePrevious, history, INSTRUMENTS, isComplete, needsAttention, 
 import { uid, type Assessment, type AssessmentKind } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
+import { QuestionnairePdfButton } from './documents';
 
 const KINDS: AssessmentKind[] = ['phq9', 'gad7'];
 const itemKey = (kind: AssessmentKind, index: number) => `${kind}_${index + 1}` as TextKey;
@@ -57,7 +58,7 @@ function ScoreChart({ entries }: { entries: Assessment[] }) {
 export function AssessmentsSection({ vault, clientId }: { vault: VaultController; clientId: string }) {
   const { t, language } = useI18n(); const data = vault.data!; const [adding, setAdding] = useState(false);
   const groups = KINDS.map(kind => ({ kind, entries: history(data.assessments, clientId, kind) })).filter(g => g.entries.length);
-  return <section className="card"><div className="section-heading flex-wrap"><div><h2><ClipboardList size={18}/> {t('questionnaires')}</h2></div><button className="btn btn-secondary btn-small" onClick={() => setAdding(true)}><Plus size={16}/>{t('addQuestionnaire')}</button></div>
+  return <section className="card"><div className="section-heading flex-wrap"><div><h2><ClipboardList size={18}/> {t('questionnaires')}</h2></div><div className="button-row"><QuestionnairePdfButton vault={vault} client={data.clients.find(c => c.id === clientId)!}/><button className="btn btn-secondary btn-small" onClick={() => setAdding(true)}><Plus size={16}/>{t('addQuestionnaire')}</button></div></div>
     {groups.length ? groups.map(({ kind, entries }) => { const latest = entries.at(-1)!; const total = scoreOf(kind, latest.answers); const delta = changeSincePrevious(entries);
       return <div className="assessment-group" key={kind}><h3>{t(`${kind}Title` as TextKey)}</h3>
         <div className="score-line"><span>{t('scoreLabel')}</span><strong>{total} / {INSTRUMENTS[kind].max}</strong><span className="tag-chip">{t(severityKey(kind, total))}</span>{delta !== null && <span className={delta <= 0 ? 'ok-text' : 'warn-text'}>{t('changeLabel')}: {delta > 0 ? '+' : delta < 0 ? '−' : '±'}{Math.abs(delta)}</span>}</div>

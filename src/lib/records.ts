@@ -12,6 +12,7 @@ export function deleteClient(data: VaultData, clientId: string) {
   data.notes = data.notes.filter(n => n.clientId !== clientId);
   data.invoices = data.invoices.filter(i => i.clientId !== clientId);
   data.assessments = data.assessments.filter(a => a.clientId !== clientId);
+  data.documents = data.documents.filter(d => d.clientId !== clientId);
 }
 export function deleteSession(data: VaultData, sessionId: string) {
   const session = data.sessions.find(s => s.id === sessionId);

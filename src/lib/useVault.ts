@@ -178,13 +178,13 @@ export function useVault() {
     if (demoRef.current) memoryBlobs.current.set(id, blob); else await writeBlob(blob);
     return id;
   };
-  const image = useCallback(async (id: string) => {
+  const image = useCallback(async (id: string, mimeType = 'image/webp') => {
     if (!key.current) throw new Error('locked');
     const activeKey = key.current;
     const vaultId = demoRef.current ? 'demo' : info.current!.vaultId;
     const blob = demoRef.current ? memoryBlobs.current.get(id) : (await readBlob(id)) ?? (await downloadBlob(vaultId, id));
     if (!blob || blob.vaultId !== vaultId) throw new Error('storageError');
-    return new Blob([await decryptBytes(activeKey, blob.payload, `praxisraum-blob:v1:${vaultId}:${id}`)], { type: 'image/webp' });
+    return new Blob([await decryptBytes(activeKey, blob.payload, `praxisraum-blob:v1:${vaultId}:${id}`)], { type: mimeType });
   }, []);
   // Images nobody references any more are erased locally and queued for removal from the cloud. Callers run this only
   // after the vault write that dropped the references succeeded, so a failed save can never cost an image.
@@ -254,10 +254,10 @@ export function useVault() {
   const retry = () => current.current ? persist(current.current) : Promise.resolve();
   /** Replace the vault contents by an earlier version (undo of a deletion); stamped like a normal edit so other devices follow. */
   const restoreData = (value: VaultData) => update(next => {
-    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates'] as const) (next[name] as unknown[]) = value[name];
-    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates].some(r => r.id === id)) delete next.deleted[id];
+    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents'] as const) (next[name] as unknown[]) = value[name];
+    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
-  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, lock, addImage, image, exportBackup, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
+  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, lock, addImage, image, addFile: addImage, file: image, exportBackup, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
 }
 export type VaultController = ReturnType<typeof useVault>;

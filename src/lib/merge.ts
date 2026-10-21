@@ -1,6 +1,6 @@
 import type { PasskeyWrap, VaultData, VaultEnvelope } from './types';
 
-const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates'] as const;
+const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents'] as const;
 type Collection = typeof COLLECTIONS[number];
 type Record_ = { id: string; updatedAt?: number };
 const TOMBSTONE_DAYS = 400;
@@ -48,12 +48,28 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
     (merged[name] as Record_[]) = list.sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9));
   }
   merged.deleted = deleted;
+  // A return uploaded on one device must not erase an email receipt recorded on the other device.
+  // These histories are append-only; an accepted receipt always wins over its earlier pending version.
+  merged.documents = structuredClone(merged.documents);
+  for (const document of merged.documents) {
+    const copies = [...local.documents, ...remote.documents].filter(d => d.id === document.id);
+    const deliveries = new Map(document.deliveries.map(d => [d.id, d]));
+    const returns = new Map(document.returns.map(r => [r.id, r]));
+    for (const copy of copies) {
+      for (const delivery of copy.deliveries) {
+        const current = deliveries.get(delivery.id);
+        if (!current || !current.acceptedAt && delivery.acceptedAt) deliveries.set(delivery.id, delivery);
+      }
+      for (const returned of copy.returns) if (!returns.has(returned.id)) returns.set(returned.id, returned);
+    }
+    document.deliveries = [...deliveries.values()]; document.returns = [...returns.values()];
+  }
   if ((remote.settings.updatedAt ?? 0) > (local.settings.updatedAt ?? 0)) merged.settings = { ...structuredClone(remote.settings), autoSync: local.settings.autoSync };
   // A session that points at an appointment/invoice which no longer exists must not dangle.
   const invoiceIds = new Set(merged.invoices.map(i => i.id));
   for (const session of merged.sessions) if (session.invoiceId && !invoiceIds.has(session.invoiceId)) delete session.invoiceId;
   const clientIds = new Set(merged.clients.map(c => c.id));
-  for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments'] as const)
+  for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents'] as const)
     (merged[name] as { clientId: string }[]) = (merged[name] as { clientId: string }[]).filter(r => clientIds.has(r.clientId));
   return merged;
 }

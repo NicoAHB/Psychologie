@@ -18,6 +18,7 @@ export interface Client extends Stamped {
   /** Where the client lives (IANA name). Appointment times are always shown in this zone as well. */
   timeZone?: string;
   currency?: Currency;
+  email?: string;
 }
 export interface Appointment extends Stamped {
   id: string; clientId: string; date: string; time: string; duration: number;
@@ -50,6 +51,17 @@ export interface Invoice extends Stamped {
   originalAmounts?: { totalCents: number; lines: { sessionId: string; amountCents: number }[] };
 }
 export type AssessmentKind = 'phq9' | 'gad7';
+export interface DocumentFile { blobId: string; fileName: string; mimeType: string; size: number }
+export interface EmailDelivery {
+  id: string; recipient: string; requestedAt: string; subject: string; body: string;
+  acceptedAt?: string; providerId?: string;
+}
+export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: string; uploadedAt: string }
+export interface ClientDocument extends Stamped {
+  id: string; clientId: string; title: string; file: DocumentFile; createdAt: string;
+  kind?: AssessmentKind; language?: Language; returnExpected: boolean;
+  deliveries: EmailDelivery[]; returns: DocumentReturn[];
+}
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;
 }
@@ -65,7 +77,7 @@ export interface Settings {
 }
 export interface VaultData {
   schema: 1; clients: Client[]; appointments: Appointment[]; sessions: Session[]; notes: PhotoNote[];
-  invoices: Invoice[]; assessments: Assessment[]; templates: Template[];
+  invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
   settings: Settings;
@@ -84,14 +96,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.
