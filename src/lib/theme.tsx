@@ -22,7 +22,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document.documentElement.dataset.themePreference = preference;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#17211e' : '#467269');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c1628' : '#467269');
     try { localStorage.setItem(KEY, preference); } catch { /* Optional device preference, independent of the encrypted vault. */ }
   }, [dark, preference]);
   return <Context.Provider value={{ preference, dark, setPreference }}>{children}</Context.Provider>;

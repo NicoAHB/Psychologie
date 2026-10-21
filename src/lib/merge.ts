@@ -55,14 +55,20 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
     const copies = [...local.documents, ...remote.documents].filter(d => d.id === document.id);
     const deliveries = new Map(document.deliveries.map(d => [d.id, d]));
     const returns = new Map(document.returns.map(r => [r.id, r]));
+    const telegram = new Map((document.telegramDeliveries ?? []).map(d => [d.id, d]));
     for (const copy of copies) {
       for (const delivery of copy.deliveries) {
         const current = deliveries.get(delivery.id);
         if (!current || !current.acceptedAt && delivery.acceptedAt) deliveries.set(delivery.id, delivery);
       }
       for (const returned of copy.returns) if (!returns.has(returned.id)) returns.set(returned.id, returned);
+      for (const delivery of copy.telegramDeliveries ?? []) {
+        const current = telegram.get(delivery.id);
+        if (!current || !current.acceptedAt && delivery.acceptedAt) telegram.set(delivery.id, delivery);
+      }
     }
     document.deliveries = [...deliveries.values()]; document.returns = [...returns.values()];
+    if (telegram.size) document.telegramDeliveries = [...telegram.values()];
   }
   if ((remote.settings.updatedAt ?? 0) > (local.settings.updatedAt ?? 0)) merged.settings = { ...structuredClone(remote.settings), autoSync: local.settings.autoSync };
   // A session that points at an appointment/invoice which no longer exists must not dangle.

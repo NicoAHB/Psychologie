@@ -21,8 +21,8 @@ export function Empty({ icon, title, text, action }: { icon: ReactNode; title: s
 }
 export function Notice({ children, error = false }: { children: ReactNode; error?: boolean }) { return <div className={`notice ${error ? 'notice-error' : ''}`} role={error ? 'alert' : 'status'}>{children}</div>; }
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  const hintId = useId();
-  const control = isValidElement(children) ? cloneElement(children as ReactElement<{ 'aria-label'?: string; 'aria-describedby'?: string }>, { 'aria-label': label, 'aria-describedby': hint ? hintId : undefined }) : children;
+  const hintId = useId(); const { language } = useI18n();
+  const control = isValidElement(children) ? cloneElement(children as ReactElement<{ lang?: string; 'aria-label'?: string; 'aria-describedby'?: string }>, { lang: (children.props as { lang?: string }).lang ?? language, 'aria-label': label, 'aria-describedby': hint ? hintId : undefined }) : children;
   return <label className="field"><span>{label}</span>{control}{hint && <small id={hintId}>{hint}</small>}</label>;
 }
 export function ImageView({ id, vault, alt, className = '' }: { id: string; vault: VaultController; alt: string; className?: string }) {

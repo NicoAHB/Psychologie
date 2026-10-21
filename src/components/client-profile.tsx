@@ -12,6 +12,7 @@ import type { VaultController } from '../lib/useVault';
 import { Avatar, Empty, ImageView, Notice, PaymentBadge } from './ui';
 import { AssessmentsSection } from './assessments';
 import { DocumentsSection } from './documents';
+import { InvoiceForm, InvoiceView } from './invoices';
 import { clockText } from './DualTime';
 
 export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances';
@@ -21,7 +22,7 @@ export interface ProfileActions {
 }
 /** Edits are kept in local state and written (encrypted) once typing pauses, instead of re-encrypting the whole vault on every keystroke. */
 function PreparationEditor({ vault, client }: { vault: VaultController; client: Client }) {
-  const { t } = useI18n(); const [value, setValue] = useState(client.preparation);
+  const { t, language } = useI18n(); const [value, setValue] = useState(client.preparation);
   const pending = useRef<string | null>(null); const timer = useRef(0); const latest = useRef(vault); latest.current = vault;
   const save = useCallback(() => {
     window.clearTimeout(timer.current);
@@ -36,7 +37,7 @@ function PreparationEditor({ vault, client }: { vault: VaultController; client: 
     document.addEventListener('visibilitychange', hidden); window.addEventListener('pagehide', save);
     return () => { document.removeEventListener('visibilitychange', hidden); window.removeEventListener('pagehide', save); save(); };
   }, [save]);
-  return <textarea rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => { setValue(e.target.value); pending.current = e.target.value; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); }}/>;
+  return <textarea lang={language} rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => { setValue(e.target.value); pending.current = e.target.value; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); }}/>;
 }
 function Tile({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) { return <div className="glance-tile"><span className="glance-label">{icon}{label}</span>{children}</div>; }
 
@@ -80,21 +81,40 @@ function Discussed({ vault, client, tag, setTag, actions }: { vault: VaultContro
     {tags.length > 0 && <div className="tag-filters" role="group" aria-label={t('filterTags')}><button className={`tag-chip ${!tag ? 'active' : ''}`} onClick={() => setTag('')}>{t('allTags')}</button>{tags.map(value => <button key={value} className={`tag-chip ${tag === value ? 'active' : ''}`} onClick={() => setTag(value)}>#{value}</button>)}</div>}
     {!entries.length ? <Empty icon={<Leaf size={26}/>} title={t('emptyTimeline')} text={t('emptyTimelineText')}/> : <div className="timeline">{entries.filter(e => !tag || e.item.tags.includes(tag)).map(entry => <article className="timeline-entry" key={entry.item.id}>
       <span className={`timeline-dot ${entry.kind === 'note' ? 'dot-beige' : ''}`}>{entry.kind === 'note' ? <FileImage size={15}/> : <Check size={15}/>}</span>
-      <div className="timeline-entry-heading"><h3>{t(entry.kind === 'note' ? 'photoNote' : 'session')}</h3><time>{dateLabel(entry.date.slice(0, 10), language, { day: 'numeric', month: 'long', year: 'numeric' })}</time><span className="entry-actions">{entry.kind === 'session' ? <button className="icon-btn" title={t('editSession')} aria-label={t('editSession')} onClick={() => actions.onEditSession(entry.item)}><PencilIcon size={16}/></button> : <button className="icon-btn danger" title={t('deleteNote')} aria-label={t('deleteNote')} onClick={() => actions.onDeleteNote(entry.item)}><Trash2 size={16}/></button>}</span></div>
+      <div className="timeline-entry-heading"><h3>{t(entry.kind === 'note' ? 'photoNote' : 'session')}</h3><time dateTime={entry.date}>{dateLabel(entry.date.slice(0, 10), language, { day: 'numeric', month: 'long', year: 'numeric' })}{entry.kind === 'session' && ` · ${clockText(entry.item.time, language)}`}</time><span className="entry-actions">{entry.kind === 'session' ? <button className="icon-btn" title={t('editSession')} aria-label={t('editSession')} onClick={() => actions.onEditSession(entry.item)}><PencilIcon size={16}/></button> : <button className="icon-btn danger" title={t('deleteNote')} aria-label={t('deleteNote')} onClick={() => actions.onDeleteNote(entry.item)}><Trash2 size={16}/></button>}</span></div>
       {entry.kind === 'session' ? <>
         {entry.item.notes && <p className="pre-line">{entry.item.notes}</p>}
         {attached(entry.item).length > 0 && <div className="photo-strip">{attached(entry.item).map(n => <button key={n.id} className="note-thumbnail" aria-label={t('viewPhoto')} onClick={() => actions.onPhoto(n.blobId)}><ImageView id={n.blobId} vault={vault} alt={t('photoNote')}/><span>{t('viewPhoto')}<ArrowRight size={15}/></span></button>)}</div>}
         {entry.item.homework && <div className={`homework-note ${entry.item.homeworkDone ? 'is-done' : ''}`}><strong><Home size={14}/> {t('homework')}{entry.item.homeworkDone ? ` · ${t('homeworkReviewed')}` : ''}</strong><p className="pre-line">{entry.item.homework}</p></div>}
-        <div className="session-payment"><BillingMoney feeCents={entry.item.feeCents} billing={entry.item.billing}/>{entry.item.invoiceId && <span className="tag-chip">{data.invoices.find(i => i.id === entry.item.invoiceId)?.number}</span>}<PaymentBadge session={entry.item} onClick={() => actions.onPayment(entry.item)}/></div></>
+        {!entry.item.notes && <button className="text-link" onClick={() => actions.onEditSession(entry.item)}><PencilIcon size={14}/>{t('addSessionNotes')}</button>}</>
         : <><p>{entry.item.caption}</p><button className="note-thumbnail" aria-label={t('viewPhoto')} onClick={() => actions.onPhoto(entry.item.blobId)}><ImageView id={entry.item.blobId} vault={vault} alt={t('photoNote')}/><span>{t('viewPhoto')}<ArrowRight size={15}/></span></button></>}
       {entry.item.tags.length > 0 && <div className="entry-tags">{entry.item.tags.map(value => <button className="tag-chip" key={value} onClick={() => setTag(value)}>#{value}</button>)}</div>}
     </article>)}{tag && !entries.some(e => e.item.tags.includes(tag)) && <p>{t('noTagResults')}</p>}</div>}</section>;
 }
 
+function ClientFinances({ vault, client, actions }: { vault: VaultController; client: Client; actions: ProfileActions }) {
+  const { t, language } = useI18n(); const data = vault.data!;
+  const [creating, setCreating] = useState(false); const [invoiceId, setInvoiceId] = useState<string>();
+  const sessions = data.sessions.filter(s => s.clientId === client.id).sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
+  const sum = (filter: (s: Session) => boolean) => money(sessions.filter(filter).reduce((total, s) => total + s.feeCents, 0), language);
+  const invoice = data.invoices.find(i => i.id === invoiceId);
+  return <section className="card client-finances"><div className="section-heading flex-wrap"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div><button className="btn btn-secondary btn-small" disabled={!sessions.some(s => !s.invoiceId)} onClick={() => setCreating(true)}>{t('createInvoice')}</button></div>
+    <div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, index) => <div key={label}><span>{t(label)}</span><strong className={index === 2 ? 'text-rose' : ''}>{sum(s => index === 0 || (index === 1 ? !!s.paidAt : !s.paidAt))}</strong></div>)}</div>
+    <p className="hint">{t('financeCurrencyHint')}</p>
+    {sessions.some(s => s.billing?.currency === 'UAH') && <p className="hint">{t('agreedUahTotal')}: <strong>{money(sessions.filter(s => s.billing?.currency === 'UAH').reduce((total, s) => total + s.billing!.amountCents, 0), language, 'UAH')}</strong></p>}
+    {sessions.length ? <div className="table-scroll"><table><thead><tr><th>{t('date')}</th><th>{t('invoiceAmount')}</th><th>{t('paymentDate')}</th><th>{t('paymentStatus')}</th><th>{t('invoiceTitle')}</th></tr></thead><tbody>{sessions.map(s => <tr key={s.id}>
+      <td>{dateLabel(s.date, language, { day: '2-digit', month: '2-digit', year: 'numeric' })}<small className="session-clock">{clockText(s.time, language)}</small></td>
+      <td><BillingMoney feeCents={s.feeCents} billing={s.billing}/></td><td>{s.paidAt ? dateLabel(s.paidAt, language, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}</td>
+      <td><PaymentBadge session={s} onClick={() => actions.onPayment(s)}/></td><td>{s.invoiceId ? <button className="table-client" onClick={() => setInvoiceId(s.invoiceId)}>{data.invoices.find(i => i.id === s.invoiceId)?.number ?? '—'}</button> : '—'}</td>
+    </tr>)}</tbody></table></div> : <p className="hint">{t('noSessions')}</p>}
+    {creating && <InvoiceForm vault={vault} clientId={client.id} onClose={() => setCreating(false)} onCreated={invoice => { setCreating(false); setInvoiceId(invoice.id); }}/>}
+    {invoice && <InvoiceView vault={vault} invoice={invoice} onClose={() => setInvoiceId(undefined)}/>}
+  </section>;
+}
+
 export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions }) {
   const { t, language } = useI18n(); const data = vault.data!;
   const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
-  const sum = (filter: (s: Session) => boolean) => money(data.sessions.filter(s => s.clientId === client.id && filter(s)).reduce((n, s) => n + s.feeCents, 0), language);
   return <div className="profile-content">
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
     <div className="profile-heading"><Avatar client={client} vault={vault} large/><div><h2>{client.name}</h2><p>{client.contact || t('profile')}</p></div><button className="btn btn-secondary" onClick={actions.onEditClient}>{t('editClient')}</button></div>
@@ -105,7 +125,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
       {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
       {tab === 'documents' && <DocumentsSection vault={vault} client={client}/>}
-      {tab === 'finances' && <section className="card"><div className="section-heading"><div><h2>{t('profileFinances')}</h2><p>{t('allTime')}</p></div></div><div className="profile-totals">{(['total', 'paid', 'unpaid'] as const).map((label, i) => <div key={label}><span>{t(label)}</span><strong className={i === 2 ? 'text-rose' : ''}>{sum(s => i === 0 || (i === 1 ? !!s.paidAt : !s.paidAt))}</strong></div>)}</div>{data.sessions.some(s => s.clientId === client.id && s.billing?.currency === 'UAH') && <p className="hint">{t('agreedUahTotal')}: <strong>{money(data.sessions.filter(s => s.clientId === client.id && s.billing?.currency === 'UAH').reduce((total, s) => total + s.billing!.amountCents, 0), language, 'UAH')}</strong><br/>{t('financeCurrencyHint')}</p>}</section>}
+      {tab === 'finances' && <ClientFinances vault={vault} client={client} actions={actions}/>}
     </div>
   </div>;
 }

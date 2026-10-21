@@ -57,10 +57,16 @@ export interface EmailDelivery {
   acceptedAt?: string; providerId?: string;
 }
 export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: string; uploadedAt: string }
+export interface TelegramDelivery {
+  id: string; recipient: string; requestedAt: string; text: string;
+  acceptedAt?: string; messageId?: number;
+}
 export interface ClientDocument extends Stamped {
   id: string; clientId: string; title: string; file: DocumentFile; createdAt: string;
   kind?: AssessmentKind; language?: Language; returnExpected: boolean;
   deliveries: EmailDelivery[]; returns: DocumentReturn[];
+  /** Each generated invoice copy preserves its payment status at the time of export. */
+  invoiceId?: string; invoicePaidOn?: string | null; telegramDeliveries?: TelegramDelivery[];
 }
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;

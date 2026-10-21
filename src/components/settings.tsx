@@ -19,7 +19,7 @@ function AppearanceCard() {
   return <section className="card settings-card"><h2>{t('appearance')}</h2><p>{t('appearanceHint')}</p>
     <Field label={t('colorScheme')}><select value={preference} onChange={e => setPreference(e.target.value as ThemePreference)}>
       <option value="system">{t('themeSystem')}</option><option value="light">{t('themeLight')}</option><option value="dark">{t('themeDark')}</option>
-    </select></Field></section>;
+    </select></Field><p className="hint">{t('keyboardHint')}</p></section>;
 }
 
 function TemplatesCard({ vault }: { vault: VaultController }) {

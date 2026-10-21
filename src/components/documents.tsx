@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { Download, FilePlus2, FileText, Mail, Paperclip, Reply } from 'lucide-react';
-import fontUrl from '../assets/DejaVuSans.ttf?url';
 import { translate, useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, today } from '../lib/dates';
 import { DOCUMENT_ACCEPT, downloadDocument, emailConfigured, inspectDocument, prepareDelivery, sendDocumentEmail, validEmail } from '../lib/documents';
 import { uid, type AssessmentKind, type Client, type ClientDocument, type DocumentFile, type Language } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
+import { invoiceMessage } from '../lib/invoiceMessage';
+import { TelegramComposer } from './telegram';
 
 const errorKey = (error: unknown): TextKey => error instanceof Error && ['documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError'].includes(error.message) ? error.message as TextKey : 'storageError';
 
@@ -21,7 +22,8 @@ function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { va
     try {
       let bytes: Uint8Array<ArrayBuffer>; let fileName: string; let mimeType: string;
       if (questionnaire) {
-        const [{ questionnairePdf }, font] = await Promise.all([import('../lib/questionnairePdf'), fetch(fontUrl)]);
+        const [{ questionnairePdf }, { default: fontUrl }] = await Promise.all([import('../lib/questionnairePdf'), import('../assets/DejaVuSans.ttf?url')]);
+        const font = await fetch(fontUrl);
         if (!font.ok) throw new Error('storageError');
         bytes = await questionnairePdf(kind, language, new Uint8Array(await font.arrayBuffer())); fileName = `${kind}-${language}-${today()}.pdf`; mimeType = 'application/pdf';
       } else ({ bytes, fileName, mimeType } = await inspectDocument(file!));
@@ -44,11 +46,13 @@ function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { va
   </form></Modal>;
 }
 
-function EmailComposer({ vault, client, documentId, onClose }: { vault: VaultController; client: Client; documentId: string; onClose: () => void }) {
+export function EmailComposer({ vault, client, documentId, onClose }: { vault: VaultController; client: Client; documentId: string; onClose: () => void }) {
   const { t, language } = useI18n(); const document = vault.data!.documents.find(d => d.id === documentId)!;
   const pending = [...document.deliveries].reverse().find(d => !d.acceptedAt && d.recipient === client.email);
-  const [subject, setSubject] = useState(pending?.subject ?? translate(client.language, 'documentEmailSubject'));
-  const [body, setBody] = useState(pending?.body ?? translate(client.language, document.returnExpected ? 'documentEmailBodyReturn' : 'documentEmailBody'));
+  const invoice = vault.data!.invoices.find(i => i.id === document.invoiceId);
+  const message = invoice && invoiceMessage(invoice, client);
+  const [subject, setSubject] = useState(pending?.subject ?? message?.subject ?? translate(client.language, 'documentEmailSubject'));
+  const [body, setBody] = useState(pending?.body ?? message?.body ?? translate(client.language, document.returnExpected ? 'documentEmailBodyReturn' : 'documentEmailBody'));
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>(); const [sentAt, setSentAt] = useState<string>();
   async function send(e: FormEvent) {
     e.preventDefault(); setError(undefined); setBusy(true);
@@ -62,10 +66,10 @@ function EmailComposer({ vault, client, documentId, onClose }: { vault: VaultCon
       setSentAt(receipt.acceptedAt);
     } catch (error) { setError(errorKey(error)); } finally { setBusy(false); }
   }
-  return <Modal title={t('emailClientDocument')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={send} noValidate>
+  return <Modal title={t(invoice ? 'emailClientInvoice' : 'emailClientDocument')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={send} noValidate>
     <Field label={t('emailRecipient')}><input type="email" value={client.email ?? ''} readOnly/></Field>
-    <Field label={t('emailSubject')}><input value={subject} maxLength={180} disabled={!!sentAt || busy} onChange={e => setSubject(e.target.value)}/></Field>
-    <Field label={t('emailMessage')}><textarea rows={6} value={body} maxLength={12000} disabled={!!sentAt || busy} onChange={e => setBody(e.target.value)}/></Field>
+    <Field label={t('emailSubject')}><input lang={client.language} value={subject} maxLength={180} disabled={!!sentAt || busy} onChange={e => setSubject(e.target.value)}/></Field>
+    <Field label={t('emailMessage')}><textarea lang={client.language} rows={6} value={body} maxLength={12000} disabled={!!sentAt || busy} onChange={e => setBody(e.target.value)}/></Field>
     <p className="document-attachment"><Paperclip size={17}/>{document.file.fileName}</p>
     <Notice>{t('emailPrivacyHint')}</Notice>
     {(!emailConfigured || vault.demo) && <Notice>{t('emailNotConfigured')}</Notice>}
@@ -107,6 +111,7 @@ export function QuestionnairePdfButton({ vault, client }: { vault: VaultControll
 export function DocumentsSection({ vault, client }: { vault: VaultController; client: Client }) {
   const { t, language } = useI18n(); const [adding, setAdding] = useState(false); const [emailId, setEmailId] = useState<string>(); const [returnId, setReturnId] = useState<string>(); const [error, setError] = useState<TextKey>();
   const documents = vault.data!.documents.filter(d => d.clientId === client.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const [telegramId, setTelegramId] = useState<string>();
   const day = (iso: string) => dateLabel(iso.slice(0, 10), language, { day: '2-digit', month: '2-digit', year: 'numeric' });
   const when = (iso: string) => new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'uk-UA', { timeZone: vault.data!.settings.timeZone, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
   async function download(file: DocumentFile) { try { downloadDocument(await vault.file(file.blobId, file.mimeType), file.fileName); } catch { setError('storageError'); } }
@@ -116,8 +121,10 @@ export function DocumentsSection({ vault, client }: { vault: VaultController; cl
     {!documents.length ? <p className="hint">{t('noClientDocuments')}</p> : <div className="document-list">{documents.map(doc => <article className="client-document" key={doc.id}><header><h3>{doc.title}</h3><small>{t('documentAddedOn')} {day(doc.createdAt)}</small></header>
       <div className="document-columns"><section><h4>{t('documentOriginalColumn')}</h4><button className="document-download" onClick={() => void download(doc.file)}><Download size={17}/>{doc.file.fileName}</button>
         <ul className="document-history">{doc.deliveries.map(delivery => <li key={delivery.id} className={delivery.acceptedAt ? 'document-sent' : ''}><Mail size={15}/><span>{delivery.acceptedAt ? <>{t('documentSentOn')} <time dateTime={delivery.acceptedAt}>{when(delivery.acceptedAt)}</time></> : <>{t('documentNotSent')} · {when(delivery.requestedAt)}</>}<small>{delivery.recipient}</small></span></li>)}</ul>
-        {!doc.deliveries.length && <p className="hint">{t('documentNotSent')}</p>}
+        {(doc.telegramDeliveries ?? []).map(delivery => <p className="hint" key={delivery.id}>{t(delivery.acceptedAt ? 'telegramSentOn' : 'telegramNotSent')} · {when(delivery.acceptedAt ?? delivery.requestedAt)} · {delivery.recipient}</p>)}
+        {!doc.deliveries.length && !doc.telegramDeliveries?.length && <p className="hint">{t('documentNotSent')}</p>}
         <button className="btn btn-secondary btn-small" disabled={!validEmail(client.email ?? '')} onClick={() => setEmailId(doc.id)}><Mail size={16}/>{t('emailClientDocument')}</button>
+        {doc.invoiceId && <button className="btn btn-secondary btn-small" onClick={() => setTelegramId(doc.id)}>{t('invoiceTelegram')}</button>}
       </section><section><h4>{t('documentReturnColumn')}</h4>
         {doc.returns.length ? <ul className="document-returns">{doc.returns.map(returned => <li key={returned.id}><strong>{t('documentReceivedOn')} <time dateTime={returned.receivedOn}>{day(returned.receivedOn)}</time></strong><button className="document-download" onClick={() => void download(returned.file)}><Download size={17}/>{returned.file.fileName}</button><small>{t('documentAddedOn')} {day(returned.uploadedAt)}</small></li>)}</ul> : <p className="hint">{t(doc.returnExpected ? 'documentAwaitingReturn' : 'documentNoReturn')}</p>}
         <button className="btn btn-secondary btn-small" onClick={() => setReturnId(doc.id)}><Reply size={16}/>{t('uploadDocumentReturn')}</button>
@@ -125,6 +132,7 @@ export function DocumentsSection({ vault, client }: { vault: VaultController; cl
     <p className="hint">{t('emailHistoryHint')}</p>
     {adding && <DocumentDialog vault={vault} client={client} questionnaire={false} onClose={() => setAdding(false)} onSaved={(doc, email) => { setAdding(false); if (email) setEmailId(doc.id); }}/>} 
     {emailId && <EmailComposer vault={vault} client={client} documentId={emailId} onClose={() => setEmailId(undefined)}/>}
+    {telegramId && <TelegramComposer vault={vault} client={client} documentId={telegramId} onClose={() => setTelegramId(undefined)}/>}
     {returnId && <ReturnDialog vault={vault} documentId={returnId} onClose={() => setReturnId(undefined)}/>}
   </section>;
 }

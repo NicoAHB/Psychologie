@@ -40,6 +40,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_REMINDER_PUBLIC_KEY: ${{ vars.VITE_REMINDER_PUBLIC_KEY }}
           VITE_EMAIL_ENABLED: ${{ vars.VITE_EMAIL_ENABLED }}
+          VITE_TELEGRAM_ENABLED: ${{ vars.VITE_TELEGRAM_ENABLED }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

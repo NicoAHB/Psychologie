@@ -2,7 +2,7 @@
 
 Eine lokale, verschlüsselte Praxis-PWA mit deutscher und ukrainischer Oberfläche, Klientenprofilen einschließlich Profilbildern, Sitzungsvorbereitung, Fotonotizen mit Tags, Terminen und Einnahmenübersicht.
 
-Der Sonnen-/Mond-Schalter neben der Sprachauswahl wechselt sofort zwischen Hell und Dunkel, auch auf dem Sperrbildschirm. Unter **Einstellungen → Darstellung → Farbschema** lässt sich zusätzlich die Geräteeinstellung verwenden (Standard). Die Auswahl bleibt lokal auf dem Gerät gespeichert, unabhängig vom Tresor. Der Darkmodus gilt für die Bildschirmoberfläche; Rechnungsdruck und erzeugte PDFs behalten ihre Papierfarben.
+Der Sonnen-/Mond-Schalter neben der Sprachauswahl wechselt sofort zwischen Hell und Dunkel, auch auf dem Sperrbildschirm. Unter **Einstellungen → Darstellung → Farbschema** lässt sich zusätzlich die Geräteeinstellung verwenden (Standard). Die Auswahl bleibt lokal auf dem Gerät gespeichert, unabhängig vom Tresor. Im Darkmodus nutzt die App eine dunkelblaue Palette mit dezenten Glasflächen, deckenden Eingabefeldern und getrennten Farben für bezahlte/offene Beträge. Bei reduzierter Transparenz oder fehlender Browserunterstützung werden deckende Flächen verwendet. Der Darkmodus gilt für die Bildschirmoberfläche; Rechnungsdruck und erzeugte PDFs behalten ihre Papierfarben.
 
 ## Auf einem anderen Gerät weiterarbeiten
 
@@ -158,3 +158,12 @@ Name, Kontakt, tatsächliche Qualifikationen, Beratungssprachen, Region und Foto
 Klientenprofile haben ein eigenes E-Mail-Feld. Unter **Fragebögen** lassen sich PHQ-9 und GAD-7 als echte ausfüllbare PDF auf Deutsch oder Ukrainisch erstellen; beide stehen danach unter **Dokumente** bereit. Dort können auch Aufgaben, Bilder und andere Unterlagen verschlüsselt hinterlegt werden. Original mit Versandhistorie und ausgefüllte Rückläufe mit Eingangsdatum stehen nebeneinander; frühere Rückläufe bleiben erhalten. PDFs werden lokal erzeugt, einschließlich der mitgelieferten Unicode-Schrift, und funktionieren nach der Offline-Installation auch ohne Internet.
 
 Direkter E-Mail-Versand ist über eine authentifizierte Supabase Edge Function mit Resend-Adapter vorbereitet. Ohne Anbieter-Konfiguration bleibt er ausgeschaltet; es wird kein Versanddatum vorgetäuscht. Einrichtung, kostenlose Kontingente, notwendige Server-Secrets und der Unterschied zwischen verschlüsselter Ablage und gewöhnlicher E-Mail sind in [`docs/email-versand.md`](docs/email-versand.md) beschrieben. Es wurden keine echten E-Mails versendet.
+
+
+## Rechnungsversand und schnelle Übersicht
+
+Die vier Übersichtskacheln führen zu Klienten, anstehenden Terminen, den Zahlungseingängen des aktuellen Monats und allen offenen Sitzungen. Monatseingänge berücksichtigen das Zahlungsdatum, auch bei älteren Sitzungen; offene Beträge schließen frühere Jahre ein. Im Profil zeigt „Besprochen“ Datum, Uhrzeit, Notizen, Fotos und Hausaufgaben. Die Zahlungsdetails stehen im Profil unter „Finanzen“ sowie in der globalen Finanzansicht.
+
+Rechnungen erhalten eine gestaltete Papieransicht und einen lokal erzeugten PDF-Export mit lateinischen und kyrillischen Schriften. Buttons für E-Mail und direkten Telegram-Bot-Versand öffnen einen bearbeitbaren Begleittext in der Sprache des Klienten. PDF-Fassungen und bestätigte Versandversuche bleiben verschlüsselt in der Dokumenthistorie. Einrichtung und technische Grenzen: [docs/rechnungsversand.md](docs/rechnungsversand.md). Für Live-Sendungen müssen die jeweiligen Anbieter verbunden sein; ohne Konfiguration bleiben Sendungen deaktiviert.
+
+Die App setzt die Dokumentsprache und die Sprache von Texteingaben auf DE/UA. Eine Web-App kann die Bildschirmtastatur des Tablets nicht zwangsweise umstellen. Unter iPadOS zunächst **Einstellungen → Allgemein → Tastatur → Tastaturen → Tastatur hinzufügen → Ukrainisch** wählen, danach beim Schreiben mit der Globus-Taste umschalten.

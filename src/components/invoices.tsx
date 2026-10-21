@@ -1,12 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Printer, Download } from 'lucide-react';
+import { FileText, Printer, Download, Leaf, Mail, Send } from 'lucide-react';
+import { downloadDocument, validEmail } from '../lib/documents';
+import { invoiceFilename } from '../lib/invoiceMessage';
+import { EmailComposer } from './documents';
+import { TelegramComposer } from './telegram';
 import { translate, useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, money, today } from '../lib/dates';
 import { attachInvoice, buildInvoice, incomeCsv, paidOn, uninvoiced } from '../lib/invoice';
 import { downloadText } from '../lib/files';
 import { duplicateInvoiceNumbers } from '../lib/merge';
-import { uid, type Currency, type ExchangeRate, type Invoice, type Language } from '../lib/types';
+import { uid, type ClientDocument, type Currency, type ExchangeRate, type Invoice, type Language } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { bankFor, currencyOf } from '../lib/currency';
 import { BillingMoney, ExchangeRateField } from './money';
@@ -17,25 +21,51 @@ export function InvoiceSheet({ invoice, paid }: { invoice: Invoice; paid: string
   const l = invoice.language; const T = (key: TextKey) => translate(l, key); const p = invoice.sender; const currency = invoice.currency ?? 'EUR'; const account = invoice.paymentAccount ?? bankFor(p, currency);
   const date = (iso: string) => dateLabel(iso, l, { day: '2-digit', month: '2-digit', year: 'numeric' });
   return <article className="invoice-sheet" lang={l}>
-    <header><div className="invoice-sender"><strong>{p.name}</strong><span className="pre-line">{p.address}</span>{p.taxId && <span>{T('invoiceTaxId')}: {p.taxId}</span>}</div></header>
+    <header className="invoice-header"><div className="invoice-brand"><Leaf size={30} strokeWidth={1.4} aria-hidden="true"/><div className="invoice-sender"><strong>{p.name}</strong><span className="pre-line">{p.address}</span>{p.taxId && <span>{T('invoiceTaxId')}: {p.taxId}</span>}</div></div><div className="invoice-heading"><h1>{T('invoiceTitle')}</h1><dl className="invoice-meta"><div><dt>{T('invoiceNumber')}</dt><dd>{invoice.number}</dd></div><div><dt>{T('invoiceDate')}</dt><dd>{date(invoice.issuedAt)}</dd></div></dl></div></header>
     <section className="invoice-recipient"><small>{T('invoiceRecipient')}</small><strong>{invoice.recipient.name}</strong><span className="pre-line">{invoice.recipient.address}</span></section>
-    <h1>{T('invoiceTitle')} {invoice.number}</h1>
-    <dl className="invoice-meta"><div><dt>{T('invoiceDate')}</dt><dd>{date(invoice.issuedAt)}</dd></div><div><dt>{T('invoiceNumber')}</dt><dd>{invoice.number}</dd></div></dl>
-    <table><thead><tr><th>{T('invoiceServiceDate')}</th><th>{T('invoiceItem')}</th><th className="num">{T('invoiceAmount')}</th></tr></thead>
+    <table><colgroup><col className="invoice-date-column"/><col/><col className="invoice-amount-column"/></colgroup><thead><tr><th>{T('invoiceServiceDate')}</th><th>{T('invoiceItem')}</th><th className="num">{T('invoiceAmount')}</th></tr></thead>
       <tbody>{invoice.lines.map(line => <tr key={line.sessionId}><td>{date(line.date)}</td><td>{line.description}</td><td className="num">{money(line.amountCents, l, currency)}</td></tr>)}</tbody>
       <tfoot><tr><td colSpan={2}>{T('invoiceTotal')}</td><td className="num">{money(invoice.totalCents, l, currency)}</td></tr></tfoot></table>
-    {p.taxNote && <p className="pre-line">{p.taxNote}</p>}
-    {paid ? <p>{T('invoicePaid').replace('{date}', date(paid))}</p> : (account.iban && <p>{T('invoicePayTo')}<br/>{account.holder && <>{account.holder}<br/></>}<strong>{account.iban}</strong>{account.bank && ` · ${account.bank}`}{account.bic && <><br/>BIC / SWIFT: {account.bic}</>}<br/>{T('invoiceNumber')}: {invoice.number}</p>)}
+    {p.taxNote && <p className="pre-line invoice-tax-note">{p.taxNote}</p>}
+    {paid ? <section className="invoice-payment invoice-paid"><p>{T('invoicePaid').replace('{date}', date(paid))}</p></section> : (account.iban && <section className="invoice-payment"><h2>{T('invoicePaymentDetails')}</h2><p>{T('invoicePayTo')}</p><dl>{account.holder && <div><dt>{T('accountHolder')}</dt><dd>{account.holder}</dd></div>}<div><dt>IBAN</dt><dd><strong>{account.iban}</strong></dd></div>{account.bank && <div><dt>{T('invoiceBank')}</dt><dd>{account.bank}</dd></div>}{account.bic && <div><dt>BIC / SWIFT</dt><dd>{account.bic}</dd></div>}<div><dt>{T('invoiceReference')}</dt><dd>{invoice.number}</dd></div></dl></section>)}
+    <footer className="invoice-footer">{T('invoiceThanks')}</footer>
   </article>;
 }
 export function InvoiceView({ vault, invoice, onClose }: { vault: VaultController; invoice: Invoice; onClose: () => void }) {
-  const { t } = useI18n(); const paid = paidOn(vault.data!, invoice); const root = document.getElementById('print-root');
-  return <Modal title={`${t('invoiceTitle')} ${invoice.number}`} onClose={onClose} wide>
+  const { t, language } = useI18n(); const paid = paidOn(vault.data!, invoice); const root = document.getElementById('print-root');
+  const client = vault.data!.clients.find(c => c.id === invoice.clientId);
+  const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
+  const [composer, setComposer] = useState<{ kind: 'email' | 'telegram'; id: string }>();
+  const copies = vault.data!.documents.filter(d => d.invoiceId === invoice.id);
+  const when = (value: string) => new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'uk-UA', { timeZone: vault.data!.settings.timeZone, dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+  async function prepare(kind: 'download' | 'email' | 'telegram') {
+    if (busy || !client) return; setBusy(true); setError(undefined); let added: string | undefined;
+    try {
+      let copy = copies.find(d => d.invoicePaidOn === paid);
+      if (!copy) {
+        const [{ invoicePdf }, { default: fontUrl }, { default: boldFontUrl }] = await Promise.all([import('../lib/invoicePdf'), import('../assets/DejaVuSans.ttf?url'), import('../assets/DejaVuSans-Bold.ttf?url')]);
+        const [regular, bold] = await Promise.all([fetch(fontUrl), fetch(boldFontUrl)]);
+        if (!regular.ok || !bold.ok) throw new Error('invoicePdfError');
+        const bytes = await invoicePdf(invoice, paid, new Uint8Array(await regular.arrayBuffer()), new Uint8Array(await bold.arrayBuffer()));
+        added = await vault.addFile(bytes);
+        copy = { id: uid(), clientId: client.id, title: `${translate(invoice.language, 'invoiceTitle')} ${invoice.number}`, createdAt: new Date().toISOString(), invoiceId: invoice.id, invoicePaidOn: paid, language: invoice.language, returnExpected: false, deliveries: [], returns: [], file: { blobId: added, fileName: invoiceFilename(invoice), mimeType: 'application/pdf', size: bytes.byteLength } } satisfies ClientDocument;
+        const stored = copy; await vault.update(d => { d.documents.push(stored); }); added = undefined;
+      }
+      if (kind === 'download') downloadDocument(await vault.file(copy.file.blobId, copy.file.mimeType), copy.file.fileName);
+      else setComposer({ kind, id: copy.id });
+    } catch (e) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(e instanceof Error && e.message === 'invoicePdfError' ? 'invoicePdfError' : 'storageError'); }
+    finally { setBusy(false); }
+  }
+  return <Modal title={`${t('invoiceTitle')} ${invoice.number}`} onClose={() => { if (!busy) onClose(); }} wide>
     {invoice.currency === 'UAH' && invoice.totalEuroCents !== undefined && <Notice>{t('invoiceInternalEuro')}: ≈ {money(invoice.totalEuroCents, invoice.language)}</Notice>}
     <InvoiceSheet invoice={invoice} paid={paid}/>
-    <p className="hint">{t('invoicePrintHint')}</p>
-    <div className="form-actions"><button className="btn btn-secondary" onClick={onClose}>{t('close')}</button><button className="btn btn-primary" onClick={() => window.print()}><Printer size={17}/>{t('printInvoice')}</button></div>
+    <p className="hint">{t('invoicePrintHint')}</p><p className="hint">{t('invoiceArchived')}</p>
+    {!validEmail(client?.email ?? '') && <p className="hint">{t('clientEmailMissing')}</p>}
+    {copies.some(d => d.deliveries.length || d.telegramDeliveries?.length) && <div className="invoice-send-history">{copies.flatMap(d => [...d.deliveries.map(x => <p className="hint" key={x.id}>{t(x.acceptedAt ? 'documentSentOn' : 'documentNotSent')} · {when(x.acceptedAt ?? x.requestedAt)} · {x.recipient}</p>), ...(d.telegramDeliveries ?? []).map(x => <p className="hint" key={x.id}>{t(x.acceptedAt ? 'telegramSentOn' : 'telegramNotSent')} · {when(x.acceptedAt ?? x.requestedAt)} · {x.recipient}</p>)])}</div>}
+    {error && <Notice error>{t(error)}</Notice>}
+    <div className="form-actions invoice-actions"><button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-secondary" disabled={busy || !client} onClick={() => void prepare('download')}><Download size={17}/>{t(busy ? 'working' : 'invoiceDownload')}</button><button className="btn btn-secondary" disabled={busy} onClick={() => window.print()}><Printer size={17}/>{t('printInvoice')}</button><button className="btn btn-primary" disabled={busy || !validEmail(client?.email ?? '')} onClick={() => void prepare('email')}><Mail size={17}/>{t('invoiceEmail')}</button><button className="btn btn-primary" disabled={busy || !client} onClick={() => void prepare('telegram')}><Send size={17}/>{t('invoiceTelegram')}</button></div>
     {root && createPortal(<InvoiceSheet invoice={invoice} paid={paid}/>, root)}
+    {composer && client && (composer.kind === 'email' ? <EmailComposer vault={vault} client={client} documentId={composer.id} onClose={() => setComposer(undefined)}/> : <TelegramComposer vault={vault} client={client} documentId={composer.id} onClose={() => setComposer(undefined)}/>)}
   </Modal>;
 }
 export function InvoiceForm({ vault, clientId, onClose, onCreated }: { vault: VaultController; clientId?: string; onClose: () => void; onCreated: (invoice: Invoice) => void }) {
