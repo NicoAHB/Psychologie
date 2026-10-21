@@ -488,5 +488,12 @@
   "sessionDiscussedPlaceholder": "Що ми обговорили? Теми, спостереження, домовленості …",
   "deleteSessionPhotosNote": "Пов’язані фото також буде видалено.",
   "copiedHomework": "Повідомлення скопійовано — вставте його в месенджер.",
-  "editThisSession": "Відкрити сесію"
+  "editThisSession": "Відкрити сесію",
+  "forClient": "Для клієнта",
+  "forClientSentence": "Для клієнта зустріч о {time} (місцевий час: {place}).",
+  "practiceAndClient": "Практика і клієнт",
+  "dayEarlier": "попереднього дня",
+  "suggestKyivHint": "Цей клієнт отримує повідомлення українською. Він живе в Україні?",
+  "suggestKyivButton": "Встановити часовий пояс Києва",
+  "bothTimes": "Обидва часи"
 }

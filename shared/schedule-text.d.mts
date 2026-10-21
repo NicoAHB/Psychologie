@@ -2,6 +2,10 @@ export type Lang = 'de' | 'uk';
 export interface ScheduleJob { startsAt: string; clientTimeZone: string; advisorTimeZone: string; language: Lang }
 export const COMMON_ZONES: string[];
 export function zoneCity(zone: string, language: Lang): string;
+export function zoneCountryCode(zone: string): string;
+export function zoneCountry(zone: string, language: Lang): string;
+export function zonePlace(zone: string, language: Lang): string;
+export function dayShift(instant: string | number, zone: string, reference: string): number;
 export function isValidZone(zone: unknown): boolean;
 export function utcOffset(zone: string, instant: string | number): string;
 export function localParts(instant: string | number, zone: string, language: Lang): { iso: string; time: string; date: string };

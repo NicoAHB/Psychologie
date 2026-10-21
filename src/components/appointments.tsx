@@ -9,13 +9,14 @@ import { appointmentView, confirmationFor, utcOffset, zoneCity } from '../lib/zo
 import type { Appointment } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Avatar, Empty, Modal, Notice, PageHeading } from './ui';
+import { clockText, TimePair } from './DualTime';
 
 export function AppointmentRow({ appointment: a, vault, onClient, actions }: { appointment: Appointment; vault: VaultController; onClient: (id: string) => void; actions?: ReactNode }) {
   const { t, language } = useI18n(); const data = vault.data!; const c = data.clients.find(c => c.id === a.clientId); if (!c) return null;
   const view = appointmentView(a, c, data.settings, language);
   const day = view.practice.iso;
   const relativeDate = day === today() ? t('today') : day === addDays(today(), 1) ? t('tomorrow') : dateLabel(day, language, { day: 'numeric', month: 'short' });
-  return <div className="appointment-row"><div className="appointment-time"><strong>{view.practice.time}</strong><small>{relativeDate}</small></div><span className="appointment-line"/><button className="appointment-person" onClick={() => onClient(c.id)}><Avatar client={c} vault={vault}/><span><strong>{c.name}</strong><small>{a.duration} {t('minutes')} · {view.differs ? `${t('clientTime')}: ${view.clientText}` : `${zoneCity(view.practiceZone, language)}, ${utcOffset(view.practiceZone, view.instant)}`}</small></span></button>{actions || <button className="icon-btn" aria-label={`${t('openProfile')}: ${c.name}`} onClick={() => onClient(c.id)}><ArrowRight size={18}/></button>}</div>;
+  return <div className="appointment-row"><div className="appointment-time"><TimePair practice={view.practice} client={view.client} differs={view.differs}/><small>{relativeDate}</small></div><span className="appointment-line"/><button className="appointment-person" onClick={() => onClient(c.id)}><Avatar client={c} vault={vault}/><span><strong>{c.name}</strong><small>{a.duration} {t('minutes')} · {view.differs ? `${t('forClient')}: ${clockText(view.client.time, language)} (${view.client.place}, ${view.client.offset})` : `${view.practice.place}, ${view.practice.offset}`}</small></span></button>{actions || <button className="icon-btn" aria-label={`${t('openProfile')}: ${c.name}`} onClick={() => onClient(c.id)}><ArrowRight size={18}/></button>}</div>;
 }
 
 /** Calendar week in the practice's own time zone; blocks are positioned by real start time and length. */
@@ -28,19 +29,21 @@ function WeekView({ vault, onEdit }: { vault: VaultController; onEdit: (a: Appoi
   const hours = Array.from({ length: last - first }, (_, i) => first + i); const pxPerHour = 56;
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const name = (a: Appointment) => data.clients.find(c => c.id === a.clientId)?.name ?? '';
+  /** Second line of a block: the client's own local time, whenever it differs from the practice's. */
+  const theirs = (a: Appointment) => { const v = appointmentView(a, data.clients.find(c => c.id === a.clientId), data.settings, language); return v.differs ? `${v.client.time} ${v.client.tag}${v.client.shift ? (v.client.shift > 0 ? ' +1' : ' −1') : ''}` : ''; };
   return <section className="card week-card">
     <div className="week-nav"><button className="icon-btn" aria-label={t('previousWeek')} onClick={() => setMonday(addDays(monday, -7))}><ChevronLeft size={19}/></button>
       <strong>{dateLabel(monday, language, { day: 'numeric', month: 'short' })} – {dateLabel(addDays(monday, 6), language, { day: 'numeric', month: 'short', year: 'numeric' })}</strong>
       <button className="icon-btn" aria-label={t('nextWeek')} onClick={() => setMonday(addDays(monday, 7))}><ChevronRight size={19}/></button>
       <button className="btn btn-secondary btn-small" onClick={() => setMonday(mondayOf(today()))}>{t('thisWeek')}</button></div>
     <p className="hint">{t('calendarFor')}: {zoneCity(zone, language)}, {utcOffset(zone, Date.now())}</p>
-    {narrow ? <div className="week-agenda">{days.map((d, i) => { const list = blocks.filter(b => b.day === i).sort((a, b) => a.start - b.start); return <div key={d} className={`agenda-day ${d === today() ? 'is-today' : ''}`}><h3>{dateLabel(d, language, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>{list.length ? list.map(b => <button key={b.appointment.id} className={`week-block static status-${b.appointment.status}`} onClick={() => onEdit(b.appointment)}><strong>{b.time}</strong> {name(b.appointment)}</button>) : <small className="hint">—</small>}</div>; })}</div>
+    {narrow ? <div className="week-agenda">{days.map((d, i) => { const list = blocks.filter(b => b.day === i).sort((a, b) => a.start - b.start); return <div key={d} className={`agenda-day ${d === today() ? 'is-today' : ''}`}><h3>{dateLabel(d, language, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>{list.length ? list.map(b => <button key={b.appointment.id} className={`week-block static status-${b.appointment.status}`} onClick={() => onEdit(b.appointment)}><strong>{b.time}</strong> {name(b.appointment)}{theirs(b.appointment) && <span className="w2">{t('clientTime')}: {theirs(b.appointment)}</span>}</button>) : <small className="hint">—</small>}</div>; })}</div>
     : <div className="week-grid" style={{ ['--hours' as string]: hours.length, ['--hour-px' as string]: `${pxPerHour}px` }}>
       <div className="week-corner"/>{days.map(d => <div key={d} className={`week-head ${d === today() ? 'is-today' : ''}`}>{dateLabel(d, language, { weekday: 'short', day: 'numeric' })}</div>)}
       <div className="week-hours">{hours.map(h => <span key={h} style={{ height: pxPerHour }}>{String(h).padStart(2, '0')}:00</span>)}</div>
       {days.map((d, i) => <div key={d} className={`week-day ${d === today() ? 'is-today' : ''}`} style={{ height: hours.length * pxPerHour }}>
-        {blocks.filter(b => b.day === i).map(b => <button key={b.appointment.id} className={`week-block status-${b.appointment.status}`} title={`${b.time} ${name(b.appointment)}`} onClick={() => onEdit(b.appointment)}
-          style={{ top: (b.start - first * 60) / 60 * pxPerHour, height: Math.max(22, (b.end - b.start) / 60 * pxPerHour - 2), left: `${b.lane / b.lanes * 100}%`, width: `calc(${100 / b.lanes}% - 3px)` }}><strong>{b.time}</strong> {name(b.appointment)}</button>)}</div>)}
+        {blocks.filter(b => b.day === i).map(b => <button key={b.appointment.id} className={`week-block status-${b.appointment.status}`} title={`${t('practiceTime')} ${b.time}${theirs(b.appointment) ? ` · ${t('clientTime')} ${theirs(b.appointment)}` : ''} · ${name(b.appointment)}`} onClick={() => onEdit(b.appointment)}
+          style={{ top: (b.start - first * 60) / 60 * pxPerHour, height: Math.max(22, (b.end - b.start) / 60 * pxPerHour - 2), left: `${b.lane / b.lanes * 100}%`, width: `calc(${100 / b.lanes}% - 3px)` }}><strong>{b.time}</strong> {name(b.appointment)}{theirs(b.appointment) && <span className="w2">{t('clientTime')}: {theirs(b.appointment)}</span>}</button>)}</div>)}
     </div>}
   </section>;
 }
