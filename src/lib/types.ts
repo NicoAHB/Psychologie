@@ -21,9 +21,13 @@ export interface Session extends Stamped {
   id: string; clientId: string; date: string; time: string; feeCents: number;
   paidAt: string | null; notes: string; tags: string[]; appointmentId?: string;
   invoiceId?: string;
+  /** What the client was asked to do or observe until the next session, and whether it was reviewed. */
+  homework?: string; homeworkDone?: boolean;
 }
 export interface PhotoNote extends Stamped {
   id: string; clientId: string; blobId: string; createdAt: string; tags: string[]; caption: string;
+  /** Set when the photo (e.g. a handwritten note sheet) belongs to a session. */
+  sessionId?: string;
 }
 export interface InvoiceLine { sessionId: string; date: string; description: string; amountCents: number }
 export interface Invoice extends Stamped {

@@ -16,6 +16,7 @@ export function deleteClient(data: VaultData, clientId: string) {
 export function deleteSession(data: VaultData, sessionId: string) {
   const session = data.sessions.find(s => s.id === sessionId);
   data.sessions = data.sessions.filter(s => s.id !== sessionId);
+  data.notes = data.notes.filter(n => n.sessionId !== sessionId); // photos of the session go with it
   // A completed appointment without its session would otherwise stay "completed" with nothing to show for it.
   const appointment = data.appointments.find(a => a.id === session?.appointmentId);
   if (appointment?.status === 'completed') appointment.status = 'scheduled';

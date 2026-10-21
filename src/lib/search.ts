@@ -40,7 +40,7 @@ export function searchVault(data: VaultData, query: string, limit = 40): Hit[] {
     hits.push({ kind, id, clientId, title, ...excerpt(body, terms), date });
   };
   for (const c of data.clients) consider('client', c.id, c.id, c.name, [c.name, c.contact, c.address ?? '', c.preparation]);
-  for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.tags.map(t => `#${t}`).join(' '), s.date], s.date);
+  for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.homework ?? '', s.tags.map(t => `#${t}`).join(' '), s.date], s.date);
   for (const n of data.notes) consider('note', n.id, n.clientId, nameOf(n.clientId), [n.caption, n.tags.map(t => `#${t}`).join(' ')], n.createdAt.slice(0, 10));
   for (const i of data.invoices) consider('invoice', i.id, i.clientId, nameOf(i.clientId), [i.number, i.recipient.name], i.issuedAt);
   return hits.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)).slice(0, limit);

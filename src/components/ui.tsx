@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { ArrowRight, Leaf, ShieldCheck, X, ImageOff, LoaderCircle } from 'lucide-react';
 import { LanguageSwitch, useI18n } from '../lib/i18n';
-import type { Client } from '../lib/types';
+import type { Client, Session } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 export function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) { return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
 export function Logo() { return <div className="brand"><span className="brand-icon"><Leaf size={24}/></span><span>Praxisraum<span className="brand-dot">.</span></span></div>; }
@@ -46,3 +46,4 @@ export function Avatar({ client, vault, large = false }: { client: Client; vault
 }
 export function TextLink({ children, onClick }: { children: ReactNode; onClick: () => void }) { return <button className="text-link" onClick={onClick}>{children}<ArrowRight size={16}/></button>; }
 export function SecurityLine() { const { t } = useI18n(); return <span className="security-line"><ShieldCheck size={15}/>{t('localSecure')}</span>; }
+export function PaymentBadge({ session, onClick }: { session: Session; onClick: () => void }) { const { t } = useI18n(); return <label className={`payment-badge ${session.paidAt ? 'is-paid' : 'is-unpaid'}`}><input type="checkbox" checked={!!session.paidAt} aria-label={t(session.paidAt ? 'markUnpaid' : 'markPaid')} onChange={onClick}/>{t(session.paidAt ? 'paid' : 'unpaid')}</label>; }

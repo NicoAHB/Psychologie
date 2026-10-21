@@ -47,7 +47,8 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
   await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Erster Entwurf');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
-  await expect(page.getByText('Erster Entwurf')).toBeVisible();
+  await expect(page.getByText('Erster Entwurf')).toBeVisible(); // visible in the overview's "recently discussed"
+  await page.getByRole('tab', { name: 'Besprochen' }).click();
   await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
   await expect(dialog.getByLabel('Sitzungsnotiz (optional)')).toHaveValue('Erster Entwurf');
   await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Korrigierte Notiz');
@@ -83,13 +84,13 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await expect(dialog).not.toBeVisible(); await expect(page.getByText('15:45', { exact: true })).toBeVisible();
 
   // Locking right after typing must not lose the last words.
-  await nav(page, 'Klienten'); await openProfile(page);
+  await nav(page, 'Klienten'); await openProfile(page); await page.getByRole('tab', { name: 'Überblick' }).click();
   await expect(preparation).toHaveValue('Kurz vor dem Sperren getippt');
   await preparation.fill('Letzte Worte direkt vor dem Sperren');
   await page.getByRole('button', { name: 'Sperren', exact: true }).last().click();
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
-  await nav(page, 'Klienten'); await openProfile(page);
+  await nav(page, 'Klienten'); await openProfile(page); await page.getByRole('tab', { name: 'Überblick' }).click();
   await expect(preparation).toHaveValue('Letzte Worte direkt vor dem Sperren');
 
   await page.getByRole('button', { name: 'Profil bearbeiten' }).click();

@@ -20,6 +20,7 @@ test('PHQ-9 with safety flag and trend chart, GAD-7, and session note templates'
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
   await dialog.getByLabel('Name *', { exact: true }).fill('Fragebogen Person'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
 
+  await page.getByRole('tab', { name: 'Fragebögen' }).click();
   await page.getByRole('button', { name: 'Fragebogen ausfüllen' }).click();
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog.getByText('Bitte alle Fragen beantworten.')).toBeVisible();
   const answer = (item: number, text: string) => dialog.locator('fieldset').nth(item).getByRole('radio', { name: text, exact: true }).check();

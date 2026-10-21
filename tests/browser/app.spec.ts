@@ -42,6 +42,7 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await dialog.getByLabel('Themen-Tags').fill('#Foto');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog).not.toBeVisible();
+  await page.getByRole('tab', { name: 'Besprochen' }).click();
   await page.getByRole('group', { name: 'Nach Thema filtern' }).getByRole('button', { name: '#Foto', exact: true }).click();
   await expect(page.getByText('Vertrauliche Sitzungsnotiz')).toHaveCount(0);
   await page.getByRole('button', { name: 'Notiz ansehen', exact: true }).click();

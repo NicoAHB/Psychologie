@@ -14,6 +14,6 @@ export function demoVault(): VaultData {
       data.sessions.push({ id: uid(), clientId: data.clients[n % names.length].id, date: day, time: '10:00', feeCents: 8500, paidAt: n === 0 && m === 0 ? null : day, notes: '', tags: [] });
     }
   }
-  data.sessions.push({ id: uid(), clientId: data.clients[0].id, date: addDays(now, -7), time: '14:00', feeCents: 8500, paidAt: addDays(now, -7), notes: 'Gemeinsam hilfreiche Ressourcen gesammelt. Eine kleine Pause bewusst in den Alltag einbauen.', tags: ['Ressourcen', 'Fortschritt'] });
+  data.sessions.push({ id: uid(), clientId: data.clients[0].id, date: addDays(now, -7), time: '14:00', feeCents: 8500, paidAt: addDays(now, -7), notes: 'Gemeinsam hilfreiche Ressourcen gesammelt. Eine kleine Pause bewusst in den Alltag einbauen.', tags: ['Ressourcen', 'Fortschritt'], homework: 'Täglich 5 Minuten bewusste Pause, danach kurz notieren, wie sie sich angefühlt hat.' });
   return data;
 }

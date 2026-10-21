@@ -2,10 +2,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Camera, Check, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { uid, type Appointment, type Client, type Session } from '../lib/types';
-import { addDays, addMonths, appointmentInstant, clientZone, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
+import { addDays, addMonths, appointmentInstant, clientZone, dateLabel, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
 import { ZoneSelect } from './ZoneSelect';
 import { isValidZone, placeTime, utcOffset, zoneCity } from '../lib/zones';
 import { deleteClient, deleteSession, feeText, findConflict, suggestedFee } from '../lib/records';
+import { pendingHomework } from '../lib/discussion';
 import { referencedBlobs } from '../lib/blobs';
 import { useTemplates, withTemplate } from '../lib/templates';
 import { compressImage } from '../lib/images';
@@ -122,43 +123,75 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
 }
 const zoneLabel = (zone: string, language: 'de' | 'uk') => `${zoneCity(zone, language)} (${utcOffset(zone, Date.now())})`;
 export function SessionForm({ vault, clientId, appointment, session, onClose }: { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; onClose: () => void }) {
-  const { t } = useI18n(); const data = vault.data!;
+  const { t, language } = useI18n(); const data = vault.data!;
   const [selected, setSelected] = useState(session?.clientId || appointment?.clientId || clientId || data.clients[0]?.id || '');
   const [date, setDate] = useState(session?.date || appointment?.date || today()); const [time, setTime] = useState(session?.time || appointment?.time || '10:00');
   const [fee, setFee] = useState(feeText(session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
   const [feeTouched, setFeeTouched] = useState(!!(session || appointment));
   const [paid, setPaid] = useState(!!session?.paidAt); const [paymentDate, setPaymentDate] = useState(session?.paidAt || today());
   const templates = useTemplates(data); const [notes, setNotes] = useState(session?.notes || ''); const [tags, setTags] = useState(session?.tags.map(tag => `#${tag}`).join(', ') || '');
+  const [homework, setHomework] = useState(session?.homework || ''); const [homeworkDone, setHomeworkDone] = useState(!!session?.homeworkDone);
+  const client = data.clients.find(c => c.id === selected);
+  const [nextTopics, setNextTopics] = useState(client?.preparation ?? ''); const [nextTouched, setNextTouched] = useState(false);
+  const [files, setFiles] = useState<File[]>([]); const [removedPhotos, setRemovedPhotos] = useState<string[]>([]);
+  const [reviewPrevious, setReviewPrevious] = useState(false);
+  const previous = selected ? pendingHomework(data, selected, session?.id) : undefined;
+  const attached = session ? data.notes.filter(n => n.sessionId === session.id && !removedPhotos.includes(n.id)) : [];
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
-  function choose(id: string) { setSelected(id); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); }
+  function choose(id: string) { setSelected(id); setReviewPrevious(false); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); if (!nextTouched) setNextTopics(data.clients.find(c => c.id === id)?.preparation ?? ''); }
+  // Copy the files out at once: the input's FileList is emptied as soon as its value is reset.
+  const addFiles = (list: FileList | null) => { const picked = Array.from(list ?? []); if (picked.length) setFiles(current => [...current, ...picked].slice(0, 12)); };
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (!selected || !date || !time || (paid && (!paymentDate || paymentDate > today()))) { setError('required'); return; }
     setBusy(true);
+    const before = referencedBlobs(data); const added: string[] = [];
     try {
-      const result: Session = { id: session?.id ?? uid(), clientId: selected, date, time, feeCents: parseMoney(fee), paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id };
+      const text = homework.trim();
+      const result: Session = { id: session?.id ?? uid(), clientId: selected, date, time, feeCents: parseMoney(fee), paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
+        ...session?.invoiceId && { invoiceId: session.invoiceId }, ...text && { homework: text, homeworkDone } };
+      for (const file of files) added.push(await vault.addImage(await compressImage(file)));
       await vault.update(d => {
-        if (session) { const index = d.sessions.findIndex(s => s.id === session.id); if (index >= 0) d.sessions[index] = result; return; }
-        if (appointment && d.sessions.some(s => s.appointmentId === appointment.id)) return;
-        d.sessions.push(result);
-        if (appointment) d.appointments.find(a => a.id === appointment.id)!.status = 'completed';
-      }); onClose();
-    } catch (err) { setError(err instanceof Error && err.message === 'invalidAmount' ? 'invalidAmount' : 'storageError'); } finally { setBusy(false); }
+        if (session) { const index = d.sessions.findIndex(s => s.id === session.id); if (index < 0) return; d.sessions[index] = result; }
+        else {
+          if (appointment && d.sessions.some(s => s.appointmentId === appointment.id)) return;
+          d.sessions.push(result);
+          if (appointment) d.appointments.find(a => a.id === appointment.id)!.status = 'completed';
+        }
+        d.notes = d.notes.filter(n => !removedPhotos.includes(n.id));
+        for (const blobId of added) d.notes.push({ id: uid(), clientId: selected, blobId, sessionId: result.id, caption: '', tags: result.tags, createdAt: new Date().toISOString() });
+        if (reviewPrevious && previous) { const earlier = d.sessions.find(s => s.id === previous.id); if (earlier) earlier.homeworkDone = true; }
+        const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
+      });
+      await vault.purgeUnused([...before, ...added]); onClose();
+    } catch (err) { setError(err instanceof Error && err.message === 'invalidAmount' ? 'invalidAmount' : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
-    if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}`)) return;
+    if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}${data.notes.some(n => n.sessionId === session.id) ? `\n\n${t('deleteSessionPhotosNote')}` : ''}`)) return;
     setBusy(true);
     try { await vault.remove(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
-  return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
+  return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => { if (!busy) onClose(); }} wide><form onSubmit={submit} noValidate>
     <Field label={t('client')}><select value={selected} disabled={!!appointment} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
-    <Field label={t('fee')}><input inputMode="decimal" value={fee} onChange={e => { setFee(e.target.value); setFeeTouched(true); }}/></Field>
-    <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
-    {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}
-    <Field label={t('insertTemplate')}><select value="" onChange={e => { const chosen = templates.find(x => x.id === e.target.value); if (chosen) setNotes(withTemplate(notes, chosen.body)); }}><option value="">—</option>{templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
-    <Field label={t('sessionNotes')}><textarea rows={3} value={notes} maxLength={20000} placeholder={t('sessionNotesPlaceholder')} onChange={e => setNotes(e.target.value)}/></Field>
-    <Field label={t('tags')} hint={t('tagsHelp')}><input value={tags} maxLength={500} placeholder={t('tagsPlaceholder')} onChange={e => setTags(e.target.value)}/></Field>
+    <div className="form-section"><h3>{t('discussedTitle')}</h3>
+      <Field label={t('insertTemplate')}><select value="" onChange={e => { const chosen = templates.find(x => x.id === e.target.value); if (chosen) setNotes(withTemplate(notes, chosen.body)); }}><option value="">—</option>{templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
+      <Field label={t('sessionNotes')}><textarea rows={4} value={notes} maxLength={20000} placeholder={t('sessionDiscussedPlaceholder')} onChange={e => setNotes(e.target.value)}/></Field>
+      <div className="photo-pick" role="group" aria-label={t('handwritten')}><span className="photo-pick-label">{t('handwritten')}</span>
+        <label className="btn btn-secondary file-label"><Camera size={16}/>{t('photoTake')}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { addFiles(e.target.files); e.target.value = ''; }}/></label>
+        <label className="btn btn-secondary file-label"><ImagePlus size={16}/>{t('photoChoose')}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { addFiles(e.target.files); e.target.value = ''; }}/></label></div>
+      {(files.length > 0 || attached.length > 0) && <ul className="photo-list" aria-label={t('photosAttached')}>
+        {attached.map(n => <li key={n.id}><span><ImagePlus size={14}/> {t('photoNote')}</span><button type="button" className="icon-btn danger" aria-label={t('photoRemove')} title={t('photoRemove')} onClick={() => setRemovedPhotos([...removedPhotos, n.id])}><Trash2 size={15}/></button></li>)}
+        {files.map((f, i) => <li key={`${f.name}${i}`}><span><ImagePlus size={14}/> {f.name}</span><button type="button" className="icon-btn danger" aria-label={`${t('photoRemove')}: ${f.name}`} title={t('photoRemove')} onClick={() => setFiles(files.filter((_, j) => j !== i))}><Trash2 size={15}/></button></li>)}</ul>}
+      <Field label={t('tags')} hint={t('tagsHelp')}><input value={tags} maxLength={500} placeholder={t('tagsPlaceholder')} onChange={e => setTags(e.target.value)}/></Field></div>
+    <div className="form-section"><h3>{t('homework')}</h3>
+      {previous && <div className="previous-homework"><strong>{t('homeworkPrevious')} · {dateLabel(previous.date, language, { day: 'numeric', month: 'short' })}</strong><p className="pre-line">{previous.homework}</p><label className="check-label"><input type="checkbox" checked={reviewPrevious} onChange={e => setReviewPrevious(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label></div>}
+      <Field label={t('homeworkFor')}><textarea rows={3} value={homework} maxLength={4000} placeholder={t('homeworkPlaceholder')} onChange={e => setHomework(e.target.value)}/></Field>
+      {session && homework.trim() && <label className="check-label"><input type="checkbox" checked={homeworkDone} onChange={e => setHomeworkDone(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label>}
+      <Field label={t('nextTopicsField')} hint={t('nextTopicsHint')}><textarea rows={3} value={nextTopics} maxLength={30000} onChange={e => { setNextTopics(e.target.value); setNextTouched(true); }}/></Field></div>
+    <div className="form-section"><Field label={t('fee')}><input inputMode="decimal" value={fee} onChange={e => { setFee(e.target.value); setFeeTouched(true); }}/></Field>
+      <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
+      {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</div>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>
   </form></Modal>;
 }
