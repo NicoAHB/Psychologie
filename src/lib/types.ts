@@ -29,7 +29,7 @@ export interface InvoiceLine { sessionId: string; date: string; description: str
 export interface Invoice extends Stamped {
   id: string; number: string; clientId: string; issuedAt: string; lines: InvoiceLine[]; totalCents: number;
   /** Snapshots: later edits of the client or practice profile never alter an issued invoice. */
-  recipient: { name: string; address: string }; language: Language;
+  recipient: { name: string; address: string }; sender: PracticeProfile; language: Language;
 }
 export type AssessmentKind = 'phq9' | 'gad7';
 export interface Assessment extends Stamped {
@@ -37,7 +37,7 @@ export interface Assessment extends Stamped {
 }
 export interface Template extends Stamped { id: string; name: string; body: string }
 export interface PracticeProfile {
-  name: string; address: string; taxId: string; iban: string; bank: string; taxNote: string; invoicePrefix: string;
+  name: string; address: string; taxId: string; iban: string; bank: string; taxNote: string; invoicePrefix: string; serviceName: string;
 }
 export interface Settings {
   timeZone: string; advisorChatId: string; autoSync: boolean; remindersEnabled: boolean;
@@ -62,7 +62,7 @@ export interface VaultEnvelope {
 }
 export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertext }
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
-export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '' });
+export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '' });
 export const emptyVault = (): VaultData => ({
   schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },

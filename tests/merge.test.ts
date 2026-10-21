@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { duplicateInvoiceNumbers, mergeEnvelopes, mergeVaults, stampChanges } from '../src/lib/merge';
-import { emptyVault, uid, type Client, type VaultData, type VaultEnvelope } from '../src/lib/types';
+import { emptyPractice, emptyVault, uid, type Client, type VaultData, type VaultEnvelope } from '../src/lib/types';
 
 const client = (name: string): Client => ({ id: uid(), name, contact: '', preparation: '', telegramChatId: '', language: 'de', reminderConsent: false, createdAt: '2026-01-01' });
 const edit = (data: VaultData, change: (next: VaultData) => void, now: number) => { const next = structuredClone(data); change(next); stampChanges(data, next, now); return next; };
@@ -44,7 +44,7 @@ test('settings follow the newer copy but autoSync stays a per-device choice', ()
   const merged = mergeVaults(local, remote); assert.equal(merged.settings.timeZone, 'Europe/Kyiv'); assert.equal(merged.settings.autoSync, false);
 });
 test('duplicate invoice numbers from two offline devices are detected', () => {
-  const data = emptyVault(); const base = { clientId: uid(), issuedAt: '2026-01-01', lines: [], totalCents: 0, recipient: { name: '', address: '' }, language: 'de' as const };
+  const data = emptyVault(); const base = { clientId: uid(), issuedAt: '2026-01-01', lines: [], totalCents: 0, recipient: { name: '', address: '' }, sender: emptyPractice(), language: 'de' as const };
   data.invoices.push({ ...base, id: uid(), number: '2026-001' }, { ...base, id: uid(), number: '2026-001' }, { ...base, id: uid(), number: '2026-002' });
   assert.deepEqual(duplicateInvoiceNumbers(data), ['2026-001']);
 });

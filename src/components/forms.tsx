@@ -145,7 +145,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     } catch (err) { setError(err instanceof Error && err.message === 'invalidAmount' ? 'invalidAmount' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
-    if (!session || !window.confirm(t('deleteSessionConfirm'))) return;
+    if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}`)) return;
     setBusy(true);
     try { await vault.update(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
