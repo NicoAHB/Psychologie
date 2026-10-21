@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { allBlobs, readBlob, readVault, writeBlob, writeVault } from './db';
+import { allBlobs, purgeBlobs, readBlob, readVault, writeBlob, writeVault } from './db';
 import { decryptBytes, decryptVault, deriveKey, encryptBytes, encryptVault, randomSalt, validateEnvelope } from './crypto';
 import { emptyVault, uid, type EncryptedBlob, type VaultData, type VaultEnvelope } from './types';
 import { demoVault } from './demo';
-import { downloadBlob, referencedBlobs } from './cloud';
+import { downloadBlob } from './cloud';
+import { referencedBlobs } from './blobs';
+import { orphanedBlobs } from './records';
 export function useVault() {
   const [envelope, setEnvelope] = useState<VaultEnvelope | null | undefined>(undefined);
   const [data, setData] = useState<VaultData | null>(null);
@@ -45,6 +47,18 @@ export function useVault() {
     setGeneration(g => g + 1);
     return persist(next);
   }, [persist]);
+  // Images nobody references any more are erased locally and queued for removal from the cloud. Callers run this only
+  // after the vault write that dropped the references succeeded, so a failed save can never cost an image.
+  const purge = async (ids: string[]) => {
+    if (!ids.length) return;
+    if (demoRef.current) { ids.forEach(id => memoryBlobs.current.delete(id)); return; }
+    await purgeBlobs(info.current!.vaultId, ids);
+  };
+  const purgeUnused = async (before: string[]) => { if (current.current) await purge(orphanedBlobs(before, current.current)); };
+  const remove = async (change: (value: VaultData) => void) => {
+    const before = referencedBlobs(current.current ?? emptyVault());
+    await update(change); await purgeUnused(before);
+  };
   const flush = useCallback(async () => { await queue.current; if (failure.current) throw new Error('storageError'); }, []);
   const create = async (passphrase: string) => {
     const salt = randomSalt();
@@ -109,6 +123,6 @@ export function useVault() {
     await lock();
   };
   const retry = () => current.current ? persist(current.current) : Promise.resolve();
-  return { envelope, data, saving, storageError, loadError, demo, generation, create, unlock, openDemo, update, flush, lock, addImage, image, exportBackup, importBackup, retry };
+  return { envelope, data, saving, storageError, loadError, demo, generation, create, unlock, openDemo, update, remove, purgeUnused, flush, lock, addImage, image, exportBackup, importBackup, retry };
 }
 export type VaultController = ReturnType<typeof useVault>;

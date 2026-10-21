@@ -28,3 +28,13 @@ export const writeBlob = (blob: EncryptedBlob) => operation('blobs', 'readwrite'
 export const allBlobs = () => operation<EncryptedBlob[]>('blobs', 'readonly', s => s.getAll());
 export const getRevision = async (user: string, vault: string) => (await operation<number | undefined>('meta', 'readonly', s => s.get(`revision:${user}:${vault}`))) ?? 0;
 export const setRevision = (user: string, vault: string, revision: number) => operation('meta', 'readwrite', s => s.put(revision, `revision:${user}:${vault}`));
+export const deleteBlob = (id: string) => operation('blobs', 'readwrite', s => s.delete(id));
+// Images deleted on this device whose encrypted copy must still be removed from the cloud on the next sync.
+const removalKey = (vault: string) => `removals:${vault}`;
+export const getRemovals = async (vault: string) => new Set((await operation<string[] | undefined>('meta', 'readonly', s => s.get(removalKey(vault)))) ?? []);
+export const setRemovals = (vault: string, ids: Set<string>) => operation('meta', 'readwrite', s => s.put([...ids], removalKey(vault)));
+/** Erase images locally; the cloud copy follows on the next sync. The removal is recorded first so a crash cannot strand a remote copy. */
+export async function purgeBlobs(vault: string, ids: string[]) {
+  await setRemovals(vault, new Set([...await getRemovals(vault), ...ids]));
+  for (const id of ids) await deleteBlob(id);
+}

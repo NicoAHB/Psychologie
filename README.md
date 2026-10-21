@@ -45,6 +45,8 @@ GitHub Pages wertet `public/_headers` nicht aus. Diese Datei ist eine Empfehlung
 - Profilbilder bis 256 Pixel, Fotonotizen bis 1600 Pixel; JPEG/PNG/WebP bis 20 MB. Canvas-Neukodierung entfernt ursprüngliche EXIF-Metadaten. Bilder werden vor der Ablage verschlüsselt.
 - Klientenprofil: Vorbereitung ganz oben, chronologischer Verlauf mit manuell vergebenen Tags, Sitzungsbeträge und Zahlungsstatus.
 - Einnahmen nach **Zahlungsdatum**, Monatsdiagramm, letzter Monat mit Vormonatsvergleich und Jahresauswahl. Offene Beträge sind separat ausgewiesen. Geldbeträge werden in ganzen Cent berechnet.
+- Sitzungen und Termine lassen sich nachträglich bearbeiten (Termine verschieben, Beträge/Notizen/Tags korrigieren). Sitzungen, Fotonotizen und ganze Klienten (mit allen zugehörigen Daten) können endgültig gelöscht werden; die verschlüsselten Bilder werden dabei auch lokal und nach der nächsten Synchronisierung aus der Cloud entfernt (Recht auf Löschung). Bereits heruntergeladene Sicherungsdateien bleiben unverändert.
+- Überschneidende Termine werden beim Anlegen/Verschieben gewarnt (nicht verboten). Der Betrag wird aus der letzten Sitzung des Klienten vorgeschlagen.
 - Verschlüsselte Sicherungen einschließlich referenzierter Bilder, Import, Offline-App-Shell, private optionale Supabase-Synchronisation mit Konflikterkennung.
 - Demo enthält ausschließlich erfundene Daten und schreibt keine Praxisdaten in IndexedDB. Änderungen in der Demo gehen beim Sperren verloren.
 
@@ -87,6 +89,14 @@ Der Sollzeitpunkt wird als **18:00 Uhr am vorherigen Kalendertag in der Termin-Z
 Kostenlose GitHub-Actions-Cronjobs können verspätet sein, ausfallen und bei inaktiven öffentlichen Repositories deaktiviert werden. Eine exakte Zustellung um 18:00 Uhr ist damit nicht garantiert. Das Beispiel prüft alle zehn Minuten zwischen 15 und 18 Uhr UTC (Berlin/Kyiv, saisonabhängig); ausstehende Nachrichten werden nur bis Mitternacht des Vorabends nachgeholt, damit niemals am Termintag eine irreführende „morgen“-Nachricht versendet wird. Bereits vom Dienst reservierte Zustellungen können bei einer gleichzeitigen Terminabsage nicht mehr zuverlässig zurückgerufen werden. Bei einem bereits laufenden eigenen Rechner kann `CRON_TZ=Europe/Berlin` mit `0 18 * * * node /pfad/scripts/send-reminders.mjs` verwendet werden. Auch dort bleibt externe Zustellzeit abhängig von Telegram und Netzwerk.
 
 Der Worker reserviert Jobs mit einer Lease und speichert den Erfolg je Empfänger. Bei einem Absturz zwischen Telegram-Zustellung und Datenbankbestätigung ist eine doppelte Nachricht technisch möglich; Telegram bietet hierfür keinen Idempotenzschlüssel. Es werden keine Chat-IDs, Bot-Tokens oder Nachrichtentexte protokolliert. GitHub-Actions-Minuten werden mit anderem Verbrauch geteilt; Workflow erst nach Konfiguration aktivieren.
+
+## Optimierungen gegenüber dem ersten Stand
+
+- **Kleinere App:** Die Temporal-Polyfill (≈150 kB) wurde durch eine kompakte `Intl`-Berechnung ersetzt (`src/lib/dates.ts`). Ein Test vergleicht sie für vier Zeitzonen über drei Jahre inkl. Sommerzeitwechsel mit der Polyfill als Referenz. Der Supabase-Client wird nur geladen, wenn beim Build Supabase-Variablen gesetzt sind, und dann erst bei Bedarf als eigener Chunk. Ergebnis: 147 kB → 104 kB gzip beim Start.
+- **Sparsamere Synchronisierung:** Verschlüsselte Bilder wurden bisher bei *jeder* Synchronisierung erneut hochgeladen. Jetzt genügt eine Dateiliste; nur fehlende Bilder werden übertragen (fehlende Cloud-Dateien werden dabei auch wieder repariert). Das schont das Free-Tier-Kontingent.
+- **Flüssiges Schreiben:** Die Vorbereitungsnotiz wird nach einer Tipppause (und beim Verlassen, Sperren oder Ausblenden der Seite) gespeichert statt den gesamten Tresor bei jedem Tastendruck neu zu verschlüsseln.
+- **Content-Security-Policy auch auf GitHub Pages:** Da Pages `public/_headers` ignoriert, wird die CSP beim Produktionsbuild zusätzlich als `<meta>` eingefügt (`connect-src` nur für die konfigurierte Supabase-URL).
+- **Sauberes Aufräumen:** Ersetzte Profilbilder und gelöschte Notizen bleiben nicht mehr verschlüsselt auf Gerät und Cloud liegen.
 
 ## Prüfung und Betrieb
 

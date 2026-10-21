@@ -233,5 +233,16 @@
   "paymentRemoveConfirm": "Den Zahlungseingang entfernen und die Sitzung wieder als offen markieren?",
   "noteCount": "Fotonotizen",
   "profile": "Klientenprofil",
-  "emailPlaceholder": "name@beispiel.de"
+  "emailPlaceholder": "name@beispiel.de",
+  "edit": "Bearbeiten",
+  "delete": "Löschen",
+  "editSession": "Sitzung bearbeiten",
+  "deleteSession": "Sitzung löschen",
+  "deleteSessionConfirm": "Diese Sitzung endgültig löschen? Notiz, Tags und Betrag gehen verloren. Ein zugehöriger Termin wird wieder als geplant geführt.",
+  "deleteNote": "Fotonotiz löschen",
+  "deleteNoteConfirm": "Diese Fotonotiz endgültig löschen? Das verschlüsselte Bild wird auf diesem Gerät gelöscht und nach der nächsten Synchronisierung auch aus der Cloud.",
+  "deleteClient": "Klient löschen",
+  "deleteClientConfirm": "Diesen Klienten mit allen Sitzungen, Terminen, Fotonotizen und Bildern endgültig löschen? Das lässt sich nicht rückgängig machen. Bereits heruntergeladene Sicherungsdateien bleiben unverändert und müssen bei Bedarf selbst gelöscht werden.",
+  "editAppointment": "Termin bearbeiten",
+  "conflictWarning": "Überschneidung mit einem anderen Termin:"
 }

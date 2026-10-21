@@ -39,7 +39,7 @@ export function ImageView({ id, vault, alt, className = '' }: { id: string; vaul
   return <img src={url} alt={alt} className={className}/>;
 }
 export function Avatar({ client, vault, large = false }: { client: Client; vault: VaultController; large?: boolean }) {
-  const initials = client.name.trim().split(/\s+/).slice(0, 2).map(n => n[0]).join('');
+  const initials = client.name.trim().split(/\s+/).slice(0, 2).map(n => [...n][0]).join('').toLocaleUpperCase();
   const color = [...client.id].reduce((n, c) => n + c.charCodeAt(0), 0) % 4;
   return <span className={`avatar avatar-${color} ${large ? 'avatar-large' : ''}`}>{client.avatarId ? <ImageView id={client.avatarId} vault={vault} alt={client.name}/> : initials}</span>;
 }
