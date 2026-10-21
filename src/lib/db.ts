@@ -38,3 +38,6 @@ export async function purgeBlobs(vault: string, ids: string[]) {
   await setRemovals(vault, new Set([...await getRemovals(vault), ...ids]));
   for (const id of ids) await deleteBlob(id);
 }
+export const metaGet = <T>(key: string) => operation<T | undefined>('meta', 'readonly', s => s.get(key));
+export const metaPut = (key: string, value: unknown) => operation('meta', 'readwrite', s => s.put(value, key));
+export const metaDelete = (key: string) => operation('meta', 'readwrite', s => s.delete(key));

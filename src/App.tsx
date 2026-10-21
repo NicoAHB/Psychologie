@@ -7,7 +7,11 @@ import { readVault, setRevision } from './lib/db';
 import { addDays, dateLabel, localeFor, money, monthlyIncome, today } from './lib/dates';
 import type { Appointment, Client, PhotoNote, Route, Session } from './lib/types';
 import { deleteNote } from './lib/records';
-import { Avatar, Botanical, Empty, Field, ImageView, Logo, Modal, Notice, SecurityLine, TextLink } from './components/ui';
+import { Avatar, Botanical, Empty, Field, ImageView, Logo, Modal, Notice, PageHeading, SecurityLine, TextLink } from './components/ui';
+import { AppointmentRow, AppointmentsPage } from './components/appointments';
+import { ZoneSelect } from './components/ZoneSelect';
+import { isValidZone } from './lib/zones';
+import { appointmentEnd, byStart } from './lib/dates';
 import { AppointmentForm, ClientForm, NoteForm, PaymentForm, SessionForm } from './components/forms';
 import { IncomeChart } from './components/IncomeChart';
 import { Welcome } from './components/Welcome';
@@ -32,11 +36,20 @@ export default function App() {
     const generation = v.generation;
     try {
       await v.flush();
-      const envelope = await readVault(); if (!envelope) throw new Error('storageError');
+      let envelope = await readVault(); if (!envelope) throw new Error('storageError');
       // No update can interleave between these synchronous reads after the flush.
       const snapshot = currentVault.current;
       if (snapshot.generation !== generation) return;
-      await syncVault(envelope, v.data); setLastSyncedGeneration(generation); setSyncMessage('synced');
+      let synced = generation;
+      try { await syncVault(envelope, v.data); }
+      catch (err) {
+        if (cloudError(err) !== 'syncConflict') throw err;
+        // Another device saved first: merge record by record, then save the combined state.
+        const merged = await v.mergeRemote(); await v.flush();
+        envelope = await readVault(); if (!envelope) throw new Error('storageError');
+        await syncVault(envelope, merged.data); synced = merged.generation;
+      }
+      setLastSyncedGeneration(synced); setSyncMessage('synced');
     } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); }
   }, [user]);
   useEffect(() => {
@@ -57,7 +70,7 @@ export default function App() {
   if (!vault.data) return <Welcome vault={vault}/>;
   const data = vault.data;
   const selected = data.clients.find(c => c.id === selectedId);
-  const future = data.appointments.filter(a => a.status === 'scheduled' && `${a.date}T${a.time}` >= `${today()}T00:00`).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const future = data.appointments.filter(a => a.status === 'scheduled' && appointmentEnd(a) >= new Date(`${today()}T00:00:00`).getTime()).sort(byStart);
   const now = new Date(); const year = now.getFullYear(); const month = now.getMonth();
   const income = monthlyIncome(data.sessions, year)[month]; const open = data.sessions.filter(s => !s.paidAt).reduce((n, s) => n + s.feeCents, 0);
   const menuItems: { id: Route; icon: ReactNode }[] = [{ id: 'overview', icon: <LayoutDashboard size={20}/> }, { id: 'clients', icon: <Users size={20}/> }, { id: 'appointments', icon: <CalendarDays size={20}/> }, { id: 'finances', icon: <Wallet size={20}/> }, { id: 'settings', icon: <Settings2 size={20}/> }];
@@ -97,7 +110,6 @@ export default function App() {
     {photo && <Modal title={t('photoNote')} onClose={() => setPhoto(undefined)} wide><ImageView id={photo} vault={vault} alt={t('photoNote')} className="note-full-image"/></Modal>}
   </div>;
 }
-function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) { return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
 /** Edits are kept in local state and written (encrypted) once typing pauses, instead of re-encrypting the whole vault on every keystroke. */
 function PreparationEditor({ vault, client }: { vault: VaultController; client: Client }) {
   const { t } = useI18n(); const [value, setValue] = useState(client.preparation);
@@ -116,11 +128,6 @@ function PreparationEditor({ vault, client }: { vault: VaultController; client: 
   return <textarea rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => { setValue(e.target.value); pending.current = e.target.value; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); }}/>;
 }
 function Stat({ icon, label, value, tone, detail }: { icon: ReactNode; label: string; value: string; tone: string; detail?: string }) { return <div className="stat-card"><div className={`stat-icon tone-${tone}`}>{icon}</div><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>; }
-function AppointmentRow({ appointment: a, vault, onClient, actions }: { appointment: Appointment; vault: VaultController; onClient: (id: string) => void; actions?: ReactNode }) {
-  const { t, language } = useI18n(); const c = vault.data!.clients.find(c => c.id === a.clientId); if (!c) return null;
-  const relativeDate = a.date === today() ? t('today') : a.date === addDays(today(), 1) ? t('tomorrow') : dateLabel(a.date, language, { day: 'numeric', month: 'short' });
-  return <div className="appointment-row"><div className="appointment-time"><strong>{a.time}</strong><small>{relativeDate}</small></div><span className="appointment-line"/><button className="appointment-person" onClick={() => onClient(c.id)}><Avatar client={c} vault={vault}/><span><strong>{c.name}</strong><small>{a.duration} {t('minutes')} · {a.timeZone}</small></span></button>{actions || <button className="icon-btn" aria-label={`${t('openProfile')}: ${c.name}`} onClick={() => onClient(c.id)}><ArrowRight size={18}/></button>}</div>;
-}
 function Timeline({ vault, clientId, tag, setTag, onPhoto, onPayment, onEdit, onDeleteNote }: { vault: VaultController; clientId: string; tag: string; setTag: (tag: string) => void; onPhoto: (id: string) => void; onPayment: (session: Session) => void; onEdit: (session: Session) => void; onDeleteNote: (note: PhotoNote) => void }) {
   const { t, language } = useI18n(); const data = vault.data!;
   const entries = [...data.sessions.filter(s => s.clientId === clientId).map(s => ({ kind: 'session' as const, date: `${s.date}T${s.time}`, item: s })), ...data.notes.filter(n => n.clientId === clientId).map(n => ({ kind: 'note' as const, date: n.createdAt, item: n }))].sort((a, b) => b.date.localeCompare(a.date));
@@ -130,11 +137,6 @@ function Timeline({ vault, clientId, tag, setTag, onPhoto, onPayment, onEdit, on
   </>;
 }
 function PaymentBadge({ session, onClick }: { session: Session; onClick: () => void }) { const { t } = useI18n(); return <label className={`payment-badge ${session.paidAt ? 'is-paid' : 'is-unpaid'}`}><input type="checkbox" checked={!!session.paidAt} aria-label={t(session.paidAt ? 'markUnpaid' : 'markPaid')} onChange={onClick}/>{t(session.paidAt ? 'paid' : 'unpaid')}</label>; }
-function AppointmentsPage({ vault, onNew, onClient, onComplete, onEdit }: { vault: VaultController; onNew: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
-  const { t } = useI18n(); const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming');
-  const appointments = [...vault.data!.appointments].filter(a => filter === 'all' || (filter === 'upcoming' ? a.status === 'scheduled' && a.date >= today() : a.status !== 'scheduled' || a.date < today())).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`) * (filter === 'past' ? -1 : 1));
-  return <><PageHeading title={t('appointments')} subtitle={t('appointmentsSubtitle')} action={<button className="btn btn-primary" onClick={onNew}><Plus size={17}/>{t('newAppointment')}</button>}/><div className="segmented-tabs">{(['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{t(f)}</button>)}</div><section className="card appointments-card">{appointments.length ? appointments.map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={<div className="appointment-row-actions">{a.status === 'scheduled' ? <><button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button><button className="icon-btn" title={t('editAppointment')} aria-label={t('editAppointment')} onClick={() => onEdit(a)}><Pencil size={17}/></button><button className="icon-btn danger" title={t('cancelAppointment')} aria-label={t('cancelAppointment')} onClick={() => { if (window.confirm(t('cancelAppointmentConfirm'))) void vault.update(d => { d.appointments.find(x => x.id === a.id)!.status = 'cancelled'; }).catch(() => {}); }}><X size={17}/></button></> : <span className="tag-chip">{t(a.status)}</span>}</div>}/>) : <Empty icon={<CalendarDays size={28}/>} title={t('noAppointments')} text={t('noAppointmentsText')} action={<button className="btn btn-primary" onClick={onNew}>{t('newAppointment')}</button>}/>}</section></>;
-}
 function FinancesPage({ vault, onNew, onPayment, onClient }: { vault: VaultController; onNew: () => void; onPayment: (s: Session) => void; onClient: (id: string) => void }) {
   const { t, language } = useI18n(); const data = vault.data!; const [year, setYear] = useState(new Date().getFullYear()); const [filter, setFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
   const now = new Date(); const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1); const before = new Date(now.getFullYear(), now.getMonth() - 2, 1);
@@ -154,6 +156,6 @@ function SettingsPage({ vault, onSync, syncing, onRestore }: { vault: VaultContr
   const setting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => { void vault.update(d => { d.settings[key] = value; }).catch(() => {}); };
   return <><PageHeading title={t('settingsTitle')} subtitle={t('settingsSubtitle')}/><div className="settings-grid"><section className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><p>{t('securityText')}</p><button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void backup()}><Download size={17}/>{t(busy ? 'working' : 'exportBackup')}</button><p className="hint">{t('backupHelp')}</p>{message && <Notice>{t(message)}</Notice>}</section>
   <section className="card settings-card"><span className="settings-icon tone-blue"><Cloud size={24}/></span><h2>{t('cloudTitle')}</h2><p>{t('cloudText')}</p>{vault.demo ? <Notice>{t('demoNotice')}</Notice> : <CloudAuth><label className="check-label"><input type="checkbox" checked={settings.autoSync} onChange={e => setting('autoSync', e.target.checked)}/><span>{t('autoSync')}</span></label><p className="hint">{t('autoSyncHint')}</p><div className="button-row"><button className="btn btn-primary" disabled={syncing} onClick={() => void onSync()}><Cloud size={17}/>{t(syncing ? 'syncing' : 'sync')}</button><button className="btn btn-secondary" disabled={syncing} onClick={() => void onRestore()}>{t('loadCloud')}</button></div><p className="hint">{t('cloudRestoreHint')}</p></CloudAuth>}<p className="hint">{t('freeTierNote')}</p></section>
-  <section className="card settings-card"><span className="settings-icon tone-beige"><CalendarDays size={24}/></span><h2>{t('remindersTitle')}</h2><p>{t('remindersText')}</p><label className="check-label"><input type="checkbox" disabled={vault.demo} checked={settings.remindersEnabled} onChange={e => setting('remindersEnabled', e.target.checked)}/><span>{t('enableReminders')}</span></label><p className="hint">{t('reminderNeedsSetup')}</p><Field label={t('advisorChatId')} hint={t('chatHelp')}><input value={settings.advisorChatId} inputMode="numeric" placeholder={t('chatPlaceholder')} onChange={e => { if (/^-?\d*$/.test(e.target.value)) setting('advisorChatId', e.target.value); }}/></Field><Field label={t('timeZone')} hint={t('timeZoneHint')}><select value={settings.timeZone} onChange={e => setting('timeZone', e.target.value)}>{['Europe/Berlin', 'Europe/Kyiv', 'Europe/Vienna', 'Europe/Zurich'].map(zone => <option key={zone}>{zone}</option>)}</select></Field><Notice>{t('telegramLimit')}</Notice></section>
+  <section className="card settings-card"><span className="settings-icon tone-beige"><CalendarDays size={24}/></span><h2>{t('remindersTitle')}</h2><p>{t('remindersText')}</p><label className="check-label"><input type="checkbox" disabled={vault.demo} checked={settings.remindersEnabled} onChange={e => setting('remindersEnabled', e.target.checked)}/><span>{t('enableReminders')}</span></label><p className="hint">{t('reminderNeedsSetup')}</p><Field label={t('advisorChatId')} hint={t('chatHelp')}><input value={settings.advisorChatId} inputMode="numeric" placeholder={t('chatPlaceholder')} onChange={e => { if (/^-?\d*$/.test(e.target.value)) setting('advisorChatId', e.target.value); }}/></Field><ZoneSelect label={t('timeZone')} hint={t('timeZoneHint')} value={settings.timeZone} onChange={zone => { if (isValidZone(zone)) setting('timeZone', zone); }}/><Notice>{t('telegramLimit')}</Notice></section>
   <section className="card settings-card"><span className="settings-icon"><Leaf size={24}/></span><h2>{t('deviceTitle')}</h2><p>{t('installHint')}</p><p>{t('storageHint')}</p><button className="btn btn-secondary" onClick={async () => { try { setMessage(await navigator.storage?.persist?.() ? 'storageGranted' : 'storageDenied'); } catch { setMessage('storageDenied'); } }}>{t('storagePersist')}</button></section></div></>;
 }

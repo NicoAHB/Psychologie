@@ -33,12 +33,14 @@ test('an image shared by two records is only orphaned when the last reference di
   const { data, ids } = sample(); data.notes.push({ ...data.notes[0], id: uid() }); const before = referencedBlobs(data);
   deleteNote(data, data.notes[0].id); assert.deepEqual(orphanedBlobs(before, data), []);
 });
-test('double-booking detection: overlap, adjacency, other days, cancelled and self', () => {
+test("double-booking detection: overlap, adjacency, other days, other zones, cancelled and self", () => {
   const { data } = sample(); const existing = data.appointments[1]; // B, 2026-05-04 10:00, 50 min, scheduled
-  const probe = (time: string, duration = 50, date = existing.date, id = '') => findConflict(data.appointments, { id, date, time, duration });
+  const probe = (time: string, duration = 50, date = existing.date, id = '', timeZone = 'Europe/Berlin') => findConflict(data.appointments, { id, date, time, duration, timeZone });
   assert.equal(probe('10:30'), existing); assert.equal(probe('09:30', 40), existing); assert.equal(probe('09:00', 120), existing);
   assert.equal(probe('10:50'), undefined); assert.equal(probe('09:10', 50), undefined); assert.equal(probe('10:30', 50, '2026-05-05'), undefined);
   assert.equal(probe('10:30', 50, existing.date, existing.id), undefined);
+  assert.equal(probe('11:30', 50, existing.date, '', 'Europe/Kyiv'), existing); // 11:30 Kyiv is 10:30 Berlin
+  assert.equal(probe('09:00', 50, existing.date, '', 'Europe/Kyiv'), undefined); // 09:00 Kyiv is 08:00 Berlin, ends before 10:00
   existing.status = 'cancelled'; assert.equal(probe('10:30'), undefined);
 });
 test('fee suggestion follows the latest session or appointment of that client', () => {

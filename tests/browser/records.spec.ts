@@ -80,7 +80,7 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await page.getByRole('button', { name: 'Termin bearbeiten' }).first().click();
   await dialog.getByLabel('Uhrzeit *').fill('15:45'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
-  await expect(page.getByText('15:45')).toBeVisible();
+  await expect(dialog).not.toBeVisible(); await expect(page.getByText('15:45', { exact: true })).toBeVisible();
 
   // Locking right after typing must not lose the last words.
   await nav(page, 'Klienten'); await openProfile(page);

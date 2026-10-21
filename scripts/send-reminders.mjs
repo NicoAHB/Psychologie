@@ -1,5 +1,6 @@
 import { webcrypto } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { isValidZone, reminderMessage } from '../shared/schedule-text.mjs';
 const subtle = webcrypto.subtle;
 const bytes = value => new Uint8Array(Buffer.from(value, 'base64'));
 export async function decryptJob(privatePem, payload, id) {
@@ -9,13 +10,18 @@ export async function decryptJob(privatePem, payload, id) {
   const contentKey = await subtle.unwrapKey('raw', bytes(payload.wrappedKey), key, { name: 'RSA-OAEP' }, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
   const plaintext = await subtle.decrypt({ name: 'AES-GCM', iv: bytes(payload.iv), additionalData: new TextEncoder().encode(`praxisraum-reminder:v1:${id}`) }, contentKey, bytes(payload.ciphertext));
   const value = JSON.parse(new TextDecoder().decode(plaintext));
-  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value.time) || !['de', 'uk'].includes(value.language) ||
-    ![value.advisorChatId, value.clientChatId].every(chat => typeof chat === 'string' && (chat === '' || /^-?\d{1,24}$/.test(chat)))) throw new Error('invalid_payload');
+  const chatsValid = [value.advisorChatId, value.clientChatId].every(chat => typeof chat === 'string' && (chat === '' || /^-?\d{1,24}$/.test(chat)));
+  const legacy = value.startsAt === undefined; // jobs queued by an older app version carry only a bare clock time
+  const valid = chatsValid && ['de', 'uk'].includes(value.language) && (legacy
+    ? /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value.time)
+    : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value.startsAt) && !Number.isNaN(Date.parse(value.startsAt)) && isValidZone(value.advisorTimeZone) && isValidZone(value.clientTimeZone));
+  if (!valid) throw new Error('invalid_payload');
   return value;
 }
-export function reminderText(recipient, language, time) {
-  if (recipient === 'advisor') return `Erinnerung: Morgen um ${time} steht ein Termin an.`;
-  return language === 'uk' ? `Нагадування про Вашу зустріч завтра о ${time}` : `Erinnerung an Ihren Termin morgen um ${time}`;
+export function reminderText(recipient, payload) {
+  if (payload.startsAt) return reminderMessage(recipient, payload);
+  if (recipient === 'advisor') return `Erinnerung: Morgen um ${payload.time} steht ein Termin an.`;
+  return payload.language === 'uk' ? `Нагадування про Вашу зустріч завтра о ${payload.time}` : `Erinnerung an Ihren Termin morgen um ${payload.time}`;
 }
 export async function processJobs({ env = process.env, request = fetch, now = () => new Date(), log = console.log } = {}) {
   const names = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'TELEGRAM_BOT_TOKEN', 'REMINDER_PRIVATE_KEY', 'REMINDER_OWNER_ID'];
@@ -44,7 +50,7 @@ export async function processJobs({ env = process.env, request = fetch, now = ()
         if (!chat || job[`${recipient}_sent`]) continue;
         const response = await request(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
-          body: JSON.stringify({ chat_id: chat, text: reminderText(recipient, payload.language, payload.time), protect_content: true }),
+          body: JSON.stringify({ chat_id: chat, text: reminderText(recipient, payload), protect_content: true }),
         });
         if (!response.ok || !(await response.json()).ok) throw new Error('telegram_delivery_failed');
         await patch(job.id, { [`${recipient}_sent`]: true });

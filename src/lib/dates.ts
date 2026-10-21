@@ -1,4 +1,4 @@
-import type { Appointment, Language, Session } from './types';
+import type { Appointment, Client, Language, Session, Settings } from './types';
 export const localeFor = (language: Language) => language === 'de' ? 'de-DE' : 'uk-UA';
 const pad = (value: number) => String(value).padStart(2, '0');
 export const today = () => { const now = new Date(); return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`; };
@@ -6,6 +6,12 @@ export function addDays(date: string, count: number): string {
   const [year, month, day] = date.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day + count)).toISOString().slice(0, 10);
 }
+export function addMonths(date: string, count: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const last = new Date(Date.UTC(year, month + count, 0)).getUTCDate(); // days in the target month
+  return new Date(Date.UTC(year, month - 1 + count, Math.min(day, last))).toISOString().slice(0, 10);
+}
+export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
 // Wall-clock arithmetic without a Temporal polyfill: the browser's Intl data supplies the zone rules.
 const formatters = new Map<string, Intl.DateTimeFormat>();
 function zoneOffset(timeZone: string, instant: number): number {
@@ -23,6 +29,12 @@ export function zonedInstant(date: string, time: string, timeZone: string): stri
   const valid = [...new Set([before, after])].map(offset => wall - offset).filter(instant => zoneOffset(timeZone, instant) === wall - instant).sort((a, b) => a - b);
   return new Date(valid[0] ?? wall - before).toISOString().replace('.000Z', 'Z');
 }
+/** The zone a client lives in; unset means "same as the practice". */
+export const clientZone = (client: Pick<Client, 'timeZone'> | undefined, settings: Pick<Settings, 'timeZone'>) => client?.timeZone || settings.timeZone;
+export const appointmentStart = (appointment: Pick<Appointment, 'date' | 'time' | 'timeZone'>) => Date.parse(appointmentInstant(appointment));
+export const appointmentEnd = (appointment: Pick<Appointment, 'date' | 'time' | 'timeZone' | 'duration'>) => appointmentStart(appointment) + appointment.duration * 60000;
+/** Chronological order across appointments agreed in different zones. */
+export const byStart = (a: Appointment, b: Appointment) => appointmentStart(a) - appointmentStart(b);
 export const dateLabel = (date: string, language: Language, options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }) => new Intl.DateTimeFormat(localeFor(language), options).format(new Date(`${date}T12:00:00`));
 export const money = (cents: number, language: Language) => new Intl.NumberFormat(localeFor(language), { style: 'currency', currency: 'EUR' }).format(cents / 100);
 export const appointmentInstant = (appointment: Pick<Appointment, 'date' | 'time' | 'timeZone'>) => zonedInstant(appointment.date, appointment.time, appointment.timeZone);

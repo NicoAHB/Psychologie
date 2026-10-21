@@ -84,7 +84,8 @@ const keys = await crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 
 const pem = (type: string, buffer: ArrayBuffer) => `-----BEGIN ${type}-----\n${Buffer.from(buffer).toString('base64')}\n-----END ${type}-----`;
 const publicPem = pem('PUBLIC KEY', await crypto.subtle.exportKey('spki', keys.publicKey));
 const privatePem = pem('PRIVATE KEY', await crypto.subtle.exportKey('pkcs8', keys.privateKey));
-const payload = { advisorChatId: '111', clientChatId: '222', language: 'uk', time: '14:00', timeZone: 'Europe/Berlin' };
+const payload = { advisorChatId: '111', clientChatId: '222', language: 'uk', startsAt: '2026-07-14T12:00:00Z', advisorTimeZone: 'Europe/Berlin', clientTimeZone: 'Europe/Kyiv' };
+const legacyPayload = { advisorChatId: '111', clientChatId: '222', language: 'uk', time: '14:00', timeZone: 'Europe/Berlin' };
 
 test('browser public-key reminder encryption interoperates with the private-key Node worker', async () => {
   const id = uid(); const encrypted = await encryptReminder(publicPem, payload, id);
@@ -92,10 +93,26 @@ test('browser public-key reminder encryption interoperates with the private-key 
   assert.deepEqual(await decryptJob(privatePem, encrypted, id), payload);
   await assert.rejects(() => decryptJob(privatePem, encrypted, uid()));
 });
-test('Telegram messages contain only required time, advisor is always German', () => {
-  assert.equal(reminderText('client', 'de', '14:00'), 'Erinnerung an Ihren Termin morgen um 14:00');
-  assert.equal(reminderText('client', 'uk', '14:00'), 'Нагадування про Вашу зустріч завтра о 14:00');
-  assert.equal(reminderText('advisor', 'uk', '14:00'), 'Erinnerung: Morgen um 14:00 steht ein Termin an.');
+test('Telegram messages name date, place and UTC offset so no time zone can be misread', () => {
+  assert.equal(reminderText('client', payload), 'Нагадування про Вашу зустріч: вівторок, 14 липня 2026 р., 15:00 (Київ, UTC+3). Для довідки — Берлін: 14:00 (UTC+2).');
+  assert.equal(reminderText('client', { ...payload, language: 'de' }), 'Erinnerung an Ihren Termin: Dienstag, 14. Juli 2026, 15:00 Uhr (Kiew, UTC+3). Zur Orientierung — Berlin: 14:00 Uhr (UTC+2).');
+  assert.equal(reminderText('advisor', payload), 'Erinnerung an einen Termin: Dienstag, 14. Juli 2026, 14:00 Uhr (Berlin, UTC+2). Klient — Kiew: 15:00 Uhr (UTC+3).');
+  assert.equal(reminderText('client', { ...payload, clientTimeZone: 'Europe/Berlin', language: 'de' }), 'Erinnerung an Ihren Termin: Dienstag, 14. Juli 2026, 14:00 Uhr (Berlin, UTC+2).');
+});
+test('a time that falls on another calendar day for the client says so explicitly', () => {
+  const late = reminderText('client', { ...payload, startsAt: '2026-07-14T21:40:00Z', language: 'de' });
+  assert.match(late, /Mittwoch, 15\. Juli 2026, 00:40 Uhr \(Kiew, UTC\+3\)\. Zur Orientierung — Berlin: 23:40 Uhr \(UTC\+2\), Dienstag, 14\. Juli 2026\./);
+});
+test('reminders queued by an older app version (bare clock time) are still delivered', async () => {
+  const id = uid(); const encrypted = await encryptReminder(publicPem, legacyPayload, id);
+  assert.deepEqual(await decryptJob(privatePem, encrypted, id), legacyPayload);
+  assert.equal(reminderText('client', legacyPayload), 'Нагадування про Вашу зустріч завтра о 14:00');
+  assert.equal(reminderText('advisor', legacyPayload), 'Erinnerung: Morgen um 14:00 steht ein Termin an.');
+});
+test('the worker rejects payloads with unknown time zones or malformed instants', async () => {
+  for (const bad of [{ ...payload, clientTimeZone: 'Mars/Olympus' }, { ...payload, startsAt: 'tomorrow' }, { ...payload, advisorTimeZone: '' }]) {
+    const id = uid(); await assert.rejects(async () => decryptJob(privatePem, await encryptReminder(publicPem, bad, id), id), /invalid_payload/);
+  }
 });
 test('worker honors successful recipient flags, claims only configured owner and logs only counts', async () => {
   const owner = uid(); const id = uid(); const encrypted = await encryptReminder(publicPem, payload, id);
@@ -110,7 +127,7 @@ test('worker honors successful recipient flags, claims only configured owner and
   assert.equal(result.sent, 1);
   const telegram = calls.filter(call => call.url.includes('telegram.org'));
   assert.equal(telegram.length, 1); assert.equal(telegram[0].body.chat_id, '222');
-  assert.equal(telegram[0].body.text, 'Нагадування про Вашу зустріч завтра о 14:00');
+  assert.match(String(telegram[0].body.text), /^Нагадування про Вашу зустріч: вівторок, 14 липня 2026 р\., 15:00 \(Київ, UTC\+3\)/);
   assert.ok(calls.some(call => call.body.client_sent === true));
   assert.deepEqual(logs, [JSON.stringify({ claimed: 1, sent: 1, failed: 0, expired: 0 })]);
 });

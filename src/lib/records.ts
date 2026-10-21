@@ -1,4 +1,5 @@
 import type { Appointment, VaultData } from './types';
+import { appointmentEnd, appointmentStart } from './dates';
 import { referencedBlobs } from './blobs';
 
 /** Image ids no longer referenced by any record; callers delete them only after the vault write succeeded. */
@@ -19,11 +20,10 @@ export function deleteSession(data: VaultData, sessionId: string) {
 }
 export const deleteNote = (data: VaultData, noteId: string) => { data.notes = data.notes.filter(n => n.id !== noteId); };
 
-const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
-/** A scheduled appointment on the same day whose time range overlaps the candidate (ignoring `candidate.id` itself). */
-export function findConflict(appointments: Appointment[], candidate: Pick<Appointment, 'id' | 'date' | 'time' | 'duration'>): Appointment | undefined {
-  const start = minutes(candidate.time); const end = start + candidate.duration;
-  return appointments.find(a => a.id !== candidate.id && a.status === 'scheduled' && a.date === candidate.date && start < minutes(a.time) + a.duration && minutes(a.time) < end);
+/** A scheduled appointment that overlaps the candidate in real time, even if the two were agreed in different zones. */
+export function findConflict(appointments: Appointment[], candidate: Pick<Appointment, 'id' | 'date' | 'time' | 'duration' | 'timeZone'>): Appointment | undefined {
+  const start = appointmentStart(candidate); const end = appointmentEnd(candidate);
+  return appointments.find(a => a.id !== candidate.id && a.status === 'scheduled' && start < appointmentEnd(a) && appointmentStart(a) < end);
 }
 /** Suggest the fee last agreed with this client, so recurring sessions need no retyping. */
 export function suggestedFee(data: VaultData, clientId: string, fallback = 8500): number {

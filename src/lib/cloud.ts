@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EncryptedBlob, RemoteVault, VaultData, VaultEnvelope } from './types';
 import { readBlob, writeBlob, getRevision, setRevision, getRemovals, setRemovals } from './db';
 import { encryptReminder } from './crypto';
-import { reminderExpiration, reminderInstant } from './dates';
+import { appointmentInstant, clientZone, reminderExpiration, reminderInstant } from './dates';
 import { referencedBlobs } from './blobs';
 export { referencedBlobs };
 // Set by vite.config.ts; undefined under the Node test runner, which has no `import.meta.env` either.
@@ -45,7 +45,11 @@ export async function fetchRemote(): Promise<RemoteVault | null> {
   if (error) throw error;
   return data;
 }
-export const remoteEnvelope = (r: RemoteVault): VaultEnvelope => ({ format: 'praxisraum-v1', iterations: 600000, vaultId: r.vault_id, salt: r.salt, payload: r.payload });
+/** Key wraps travel inside the payload object, so the existing table columns and RPC signature stay unchanged. */
+export const remoteEnvelope = (r: RemoteVault): VaultEnvelope => {
+  const { wraps, ...payload } = r.payload;
+  return { format: wraps ? 'praxisraum-v2' : 'praxisraum-v1', iterations: 600000, vaultId: r.vault_id, salt: r.salt, payload, ...wraps && { wraps } };
+};
 export async function downloadBlob(vaultId: string, id: string): Promise<EncryptedBlob> {
   const user = await currentUser(); const cloud = await requireCloud();
   const { data, error } = await cloud.storage.from(BUCKET).download(`${user.id}/${vaultId}/${id}.json`);
@@ -80,7 +84,7 @@ export async function syncVault(envelope: VaultEnvelope, data: VaultData) {
     const { error } = await cloud.storage.from(BUCKET).upload(`${folder}/${id}.json`, new Blob([JSON.stringify(blob)], { type: 'application/json' }), { upsert: true, contentType: 'application/json' });
     if (error) throw error;
   }
-  const { data: revision, error } = await cloud.rpc('save_encrypted_vault', { p_expected_revision: expected, p_vault_id: envelope.vaultId, p_salt: envelope.salt, p_payload: envelope.payload });
+  const { data: revision, error } = await cloud.rpc('save_encrypted_vault', { p_expected_revision: expected, p_vault_id: envelope.vaultId, p_salt: envelope.salt, p_payload: envelope.wraps ? { ...envelope.payload, wraps: envelope.wraps } : envelope.payload });
   if (error) throw error;
   await setRevision(user.id, envelope.vaultId, revision);
   const jobs = [];
@@ -93,8 +97,10 @@ export async function syncVault(envelope: VaultEnvelope, data: VaultData) {
       const advisorChatId = data.settings.advisorChatId;
       const clientChatId = client?.reminderConsent ? client.telegramChatId : '';
       if (!advisorChatId && !clientChatId) continue;
+      // The worker receives the exact instant plus both zones and words the message itself, so nobody has to convert times.
       jobs.push({ id: appointment.reminderId, due_at: reminderInstant(appointment), expires_at: expires,
-        payload: await encryptReminder(reminderPublicKey, { advisorChatId, clientChatId, language: client?.language ?? 'de', time: appointment.time, timeZone: appointment.timeZone }, appointment.reminderId) });
+        payload: await encryptReminder(reminderPublicKey, { advisorChatId, clientChatId, language: client?.language ?? 'de', startsAt: appointmentInstant(appointment),
+          advisorTimeZone: data.settings.timeZone, clientTimeZone: clientZone(client, data.settings) }, appointment.reminderId) });
     }
   }
   const { error: reminderError } = await cloud.rpc('replace_reminder_jobs', { p_jobs: jobs });
