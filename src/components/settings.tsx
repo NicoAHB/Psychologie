@@ -1,0 +1,52 @@
+import { useState } from 'react';
+import { Briefcase, CalendarDays, Cloud, FileText, Leaf, Trash2 } from 'lucide-react';
+import { uid } from '../lib/types';
+import { useI18n, type TextKey } from '../lib/i18n';
+import { isValidZone } from '../lib/zones';
+import type { PracticeProfile } from '../lib/types';
+import type { VaultController } from '../lib/useVault';
+import { Field, Notice, PageHeading } from './ui';
+import { CloudAuth } from './CloudAuth';
+import { SecurityCard } from './security';
+import { BackupCard, HistoryCard } from './backup';
+import type { AutoBackup } from '../lib/useAutoBackup';
+import { ZoneSelect } from './ZoneSelect';
+
+function TemplatesCard({ vault }: { vault: VaultController }) {
+  const { t } = useI18n(); const [name, setName] = useState(''); const [body, setBody] = useState(''); const list = vault.data!.templates;
+  return <section className="card settings-card"><span className="settings-icon"><FileText size={24}/></span><h2>{t('templates')}</h2><p>{t('templatesText')}</p>
+    {list.length > 0 && <ul className="passkey-list">{list.map(x => <li key={x.id}><span>{x.name}</span><button className="icon-btn danger" aria-label={`${t('templateDelete')}: ${x.name}`} title={t('templateDelete')} onClick={() => { void vault.update(d => { d.templates = d.templates.filter(y => y.id !== x.id); }).catch(() => {}); }}><Trash2 size={16}/></button></li>)}</ul>}
+    <Field label={t('templateName')}><input value={name} maxLength={60} onChange={e => setName(e.target.value)}/></Field>
+    <Field label={t('templateBody')}><textarea rows={4} value={body} maxLength={4000} onChange={e => setBody(e.target.value)}/></Field>
+    <button className="btn btn-secondary" disabled={vault.demo || !name.trim() || !body.trim()} onClick={() => { void vault.update(d => { d.templates.push({ id: uid(), name: name.trim(), body }); }).then(() => { setName(''); setBody(''); }).catch(() => {}); }}>{t('templateAdd')}</button></section>;
+}
+function PracticeCard({ vault }: { vault: VaultController }) {
+  const { t } = useI18n(); const stored = vault.data!.settings.practice;
+  const [draft, setDraft] = useState<PracticeProfile>(stored); const [saved, setSaved] = useState(false);
+  const field = (key: keyof PracticeProfile, label: TextKey, props: { multiline?: boolean; hint?: TextKey; placeholder?: TextKey; max?: number } = {}) =>
+    <Field label={t(label)} hint={props.hint && t(props.hint)}>{props.multiline
+      ? <textarea rows={3} maxLength={props.max ?? 400} value={draft[key]} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setSaved(false); }}/>
+      : <input maxLength={props.max ?? 120} value={draft[key]} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); setSaved(false); }}/>}</Field>;
+  return <section className="card settings-card settings-wide"><span className="settings-icon tone-beige"><Briefcase size={24}/></span><h2>{t('practiceProfile')}</h2><p>{t('practiceDisclaimer')}</p>
+    <div className="form-grid">{field('name', 'practiceName')}{field('taxId', 'practiceTaxId')}</div>
+    {field('address', 'practiceAddress', { multiline: true })}
+    <div className="form-grid">{field('iban', 'practiceIban', { max: 42 })}{field('bank', 'practiceBank')}</div>
+    <div className="form-grid">{field('serviceName', 'practiceService')}{field('invoicePrefix', 'practicePrefix', { max: 10 })}</div>
+    {field('taxNote', 'practiceTaxNote', { multiline: true, placeholder: 'practiceTaxNotePlaceholder', max: 600 })}
+    <div className="button-row"><button className="btn btn-primary" disabled={vault.demo} onClick={() => { void vault.update(d => { d.settings.practice = { ...draft, name: draft.name.trim(), iban: draft.iban.replace(/\s+/g, ' ').trim() }; }).then(() => setSaved(true)).catch(() => {}); }}>{t('practiceSave')}</button>{saved && <span className="hint" role="status">{t('practiceSaved')}</span>}</div></section>;
+}
+
+export function SettingsPage({ vault, auto, onSync, syncing, onRestore }: { vault: VaultController; auto: AutoBackup; onSync: () => Promise<void>; syncing: boolean; onRestore: () => Promise<void> }) {
+  const { t } = useI18n(); const [message, setMessage] = useState<TextKey>(); const settings = vault.data!.settings;
+  const setting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => { void vault.update(d => { d.settings[key] = value; }).catch(() => {}); };
+  return <><PageHeading title={t('settingsTitle')} subtitle={t('settingsSubtitle')}/><div className="settings-grid">
+    <BackupCard vault={vault} auto={auto}/>
+    <section className="card settings-card"><span className="settings-icon tone-blue"><Cloud size={24}/></span><h2>{t('cloudTitle')}</h2><p>{t('cloudText')}</p>{vault.demo ? <Notice>{t('demoNotice')}</Notice> : <CloudAuth><label className="check-label"><input type="checkbox" checked={settings.autoSync} onChange={e => setting('autoSync', e.target.checked)}/><span>{t('autoSync')}</span></label><p className="hint">{t('autoSyncHint')}</p><div className="button-row"><button className="btn btn-primary" disabled={syncing} onClick={() => void onSync()}><Cloud size={17}/>{t(syncing ? 'syncing' : 'sync')}</button><button className="btn btn-secondary" disabled={syncing} onClick={() => void onRestore()}>{t('loadCloud')}</button></div><p className="hint">{t('cloudRestoreHint')}</p></CloudAuth>}<p className="hint">{t('freeTierNote')}</p></section>
+    <section className="card settings-card"><span className="settings-icon tone-beige"><CalendarDays size={24}/></span><h2>{t('remindersTitle')}</h2><p>{t('remindersText')}</p><label className="check-label"><input type="checkbox" disabled={vault.demo} checked={settings.remindersEnabled} onChange={e => setting('remindersEnabled', e.target.checked)}/><span>{t('enableReminders')}</span></label><p className="hint">{t('reminderNeedsSetup')}</p><Field label={t('advisorChatId')} hint={t('chatHelp')}><input value={settings.advisorChatId} inputMode="numeric" placeholder={t('chatPlaceholder')} onChange={e => { if (/^-?\d*$/.test(e.target.value)) setting('advisorChatId', e.target.value); }}/></Field><ZoneSelect label={t('timeZone')} hint={t('timeZoneHint')} value={settings.timeZone} onChange={zone => { if (isValidZone(zone)) setting('timeZone', zone); }}/><Notice>{t('telegramLimit')}</Notice></section>
+    <section className="card settings-card"><span className="settings-icon"><Leaf size={24}/></span><h2>{t('deviceTitle')}</h2><p>{t('installHint')}</p><p>{t('storageHint')}</p><button className="btn btn-secondary" onClick={async () => { try { setMessage(await navigator.storage?.persist?.() ? 'storageGranted' : 'storageDenied'); } catch { setMessage('storageDenied'); } }}>{t('storagePersist')}</button></section>
+    <SecurityCard vault={vault}/>
+    <HistoryCard vault={vault}/>
+    <TemplatesCard vault={vault}/>
+    <PracticeCard vault={vault}/>
+  </div></>;
+}

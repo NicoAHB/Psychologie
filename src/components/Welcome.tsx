@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, CloudDownload, Flower2, KeyRound, LockKeyhole, ShieldCheck, Upload, LoaderCircle } from 'lucide-react';
+import { ArrowRight, CloudDownload, Fingerprint, Flower2, KeyRound, LockKeyhole, ShieldCheck, Upload, LoaderCircle } from 'lucide-react';
+import { passkeysAvailable } from '../lib/passkey';
 import { LanguageSwitch, useI18n, type TextKey } from '../lib/i18n';
 import type { VaultController } from '../lib/useVault';
 import { cloudError, currentUser, fetchRemote, remoteEnvelope } from '../lib/cloud';
@@ -9,6 +10,7 @@ import { CloudAuth } from './CloudAuth';
 export function Welcome({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [passphrase, setPassphrase] = useState(''); const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>(); const [restoreOpen, setRestoreOpen] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false); const [recoveryKey, setRecoveryKey] = useState('');
   const exists = !!vault.envelope;
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
@@ -17,6 +19,11 @@ export function Welcome({ vault }: { vault: VaultController }) {
     try { if (exists) await vault.unlock(passphrase); else await vault.create(passphrase); setPassphrase(''); setConfirm(''); }
     catch { setError(exists ? 'wrongPassphrase' : 'storageError'); } finally { setBusy(false); }
   }
+  async function unlockWith(action: () => Promise<void>, failure: TextKey) {
+    setBusy(true); setError(undefined);
+    try { await action(); setRecoveryKey(''); } catch (err) { setError(err instanceof Error && err.message === 'invalidRecoveryKey' ? 'invalidRecoveryKey' : failure); } finally { setBusy(false); }
+  }
+  const passkeys = !!vault.envelope?.wraps?.passkeys?.length && passkeysAvailable();
   async function importFile(file?: File) {
     if (!file || (exists && !window.confirm(t('restoreConfirm')))) return;
     setBusy(true); setError(undefined);
@@ -39,6 +46,8 @@ export function Welcome({ vault }: { vault: VaultController }) {
         <Field label={t('passphrase')}><input autoFocus type="password" minLength={exists ? undefined : 12} maxLength={1024} value={passphrase} autoComplete={exists ? 'current-password' : 'new-password'} onChange={e => setPassphrase(e.target.value)} placeholder={t('passphrasePlaceholder')}/></Field>
         {!exists && <Field label={t('confirmPassphrase')}><input type="password" value={confirm} autoComplete="new-password" onChange={e => setConfirm(e.target.value)}/></Field>}
         {error && <Notice error>{t(error)}</Notice>}<button className="btn btn-primary btn-full" disabled={busy || !passphrase}>{busy ? <LoaderCircle size={18} className="spin"/> : <LockKeyhole size={18}/>} {t(busy ? 'working' : exists ? 'unlock' : 'createVault')}<ArrowRight size={18}/></button>
+        {exists && passkeys && <button type="button" className="btn btn-secondary btn-full" disabled={busy} onClick={() => void unlockWith(() => vault.unlockWithPasskey(), 'passkeyFailed')}><Fingerprint size={18}/>{t('passkeyUnlock')}</button>}
+        {exists && vault.envelope?.wraps?.recovery && <><button type="button" className="text-link" onClick={() => setRecoveryOpen(o => !o)}>{t('useRecovery')}</button>{recoveryOpen && <div className="recovery-input"><Field label={t('recoveryKeyInput')}><input value={recoveryKey} autoComplete="off" spellCheck={false} onChange={e => setRecoveryKey(e.target.value)} placeholder="XXXX-XXXX-XXXX-…"/></Field><button type="button" className="btn btn-secondary btn-full" disabled={busy || !recoveryKey.trim()} onClick={() => void unlockWith(() => vault.unlockWithRecovery(recoveryKey), 'invalidRecoveryKey')}><KeyRound size={17}/>{t('recoveryUnlock')}</button></div>}</>}
       </form>}
       <div className="welcome-divider"><span>{t('encryptedBadge')}</span></div><button className="btn btn-secondary btn-full" disabled={busy} onClick={() => void vault.openDemo().catch(() => setError('storageError'))}>{t('demo')}<ArrowRight size={17}/></button>
       <div className="restore-options"><label className="text-link file-label"><Upload size={15}/>{t('restore')}<input type="file" accept="application/json,.json" disabled={busy} onChange={e => { void importFile(e.target.files?.[0]); e.target.value = ''; }}/></label><button className="text-link" onClick={() => setRestoreOpen(true)}><CloudDownload size={15}/>{t('restoreCloud')}</button></div>

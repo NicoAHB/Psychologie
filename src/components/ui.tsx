@@ -3,6 +3,7 @@ import { ArrowRight, Leaf, ShieldCheck, X, ImageOff, LoaderCircle } from 'lucide
 import { LanguageSwitch, useI18n } from '../lib/i18n';
 import type { Client } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
+export function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) { return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
 export function Logo() { return <div className="brand"><span className="brand-icon"><Leaf size={24}/></span><span>Praxisraum<span className="brand-dot">.</span></span></div>; }
 export function Botanical({ small = false }: { small?: boolean }) {
   return <svg className={small ? 'botanical small' : 'botanical'} viewBox="0 0 260 280" fill="none" aria-hidden="true"><path d="M127 270C118 208 158 150 158 40M128 225C99 204 77 160 69 104M138 182C172 164 199 133 210 92" stroke="currentColor" strokeWidth="2"/><path d="M155 92C113 78 122 32 152 16C175 42 182 67 155 92ZM145 143C102 148 84 110 92 80C124 83 151 102 145 143ZM139 185C166 139 204 153 214 175C198 203 169 213 139 185ZM126 232C87 225 65 198 76 168C111 168 132 197 126 232ZM88 163C47 162 32 126 44 100C74 103 95 128 88 163ZM184 126C171 89 190 58 217 58C236 90 223 117 184 126Z" fill="currentColor" fillOpacity=".23" stroke="currentColor" strokeWidth="1.5"/><path d="M40 262C85 247 137 254 186 268" stroke="currentColor" strokeWidth="1.2"/></svg>;
@@ -39,7 +40,7 @@ export function ImageView({ id, vault, alt, className = '' }: { id: string; vaul
   return <img src={url} alt={alt} className={className}/>;
 }
 export function Avatar({ client, vault, large = false }: { client: Client; vault: VaultController; large?: boolean }) {
-  const initials = client.name.trim().split(/\s+/).slice(0, 2).map(n => n[0]).join('');
+  const initials = client.name.trim().split(/\s+/).slice(0, 2).map(n => [...n][0]).join('').toLocaleUpperCase();
   const color = [...client.id].reduce((n, c) => n + c.charCodeAt(0), 0) % 4;
   return <span className={`avatar avatar-${color} ${large ? 'avatar-large' : ''}`}>{client.avatarId ? <ImageView id={client.avatarId} vault={vault} alt={client.name}/> : initials}</span>;
 }

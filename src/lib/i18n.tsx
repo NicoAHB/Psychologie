@@ -11,6 +11,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   return <Context.Provider value={{ language, setLanguage, t: key => dictionaries[language][key] }}>{children}</Context.Provider>;
 }
 export const useI18n = () => useContext(Context);
+/** Text in a given language regardless of the interface language (documents for clients, calendar entries). */
+export const translate = (language: Language, key: TextKey) => dictionaries[language][key];
 export function LanguageSwitch() {
   const { language, setLanguage, t } = useI18n();
   return <div className="language-switch" role="group" aria-label={t('language')}>
