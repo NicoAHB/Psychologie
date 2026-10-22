@@ -104,6 +104,8 @@ export interface Settings {
   autoLockMinutes?: number;
   practice: PracticeProfile; updatedAt?: number;
   exchangeRate?: ExchangeRate;
+  /** Practice-wide memo title choices; encrypted with the rest of the vault. */
+  memoLabels?: string[];
 }
 export interface VaultData {
   crdt?: CrdtState;

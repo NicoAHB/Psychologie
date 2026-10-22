@@ -36,6 +36,7 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
     if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
     else if (k === 'tags') { for (const tag of v as string[]) result[`tag:${tag}`] = true; }
+    else if (collection === 'settings' && k === 'memoLabels') { for (const label of v as string[]) result[`memoLabel:${label}`] = true; }
     else if (['deliveries', 'returns', 'telegramDeliveries'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
     else result[k] = v as Json;
   }
@@ -159,10 +160,14 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
       if (field === '$snapshot' || field === '$amount' || field === '$recording') Object.assign(row, structuredClone(value));
       else if (field.startsWith('practice.')) { row.practice ??= {}; (row.practice as Record<string, Json>)[field.slice(9)] = value; }
       else if (field.startsWith('tag:')) { if (value) (row.tags ??= [] as string[]); if (value) (row.tags as string[]).push(field.slice(4)); }
+      else if (field.startsWith('memoLabel:')) { if (value) (row.memoLabels ??= [] as string[]); if (value) (row.memoLabels as string[]).push(field.slice(10)); }
       else if (/^(deliveries|returns|telegramDeliveries):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
       else row[field] = structuredClone(value);
     }
-    if (collection === 'settings') { delete (row as Partial<Row>).id; result.settings = { ...result.settings, ...row, autoSync: base.settings.autoSync } as VaultData['settings']; }
+    if (collection === 'settings') {
+      if (base.settings.memoLabels || Object.keys(registers).some(field => field.startsWith('memoLabel:'))) row.memoLabels ??= [];
+      delete (row as Partial<Row>).id; result.settings = { ...result.settings, ...row, autoSync: base.settings.autoSync } as VaultData['settings'];
+    }
     else {
       if (['sessions', 'notes'].includes(collection)) row.tags ??= [];
       if (collection === 'documents') { row.deliveries ??= []; row.returns ??= []; }

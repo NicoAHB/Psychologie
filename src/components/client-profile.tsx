@@ -16,9 +16,10 @@ import { InvoiceForm, InvoiceView } from './invoices';
 import { isSessionVoided, uninvoiced } from '../lib/invoice';
 import { clockText } from './DualTime';
 import { ClientExportButton } from './client-export';
-import { SessionMemos } from './AudioMemos';
+import { ClientMemoOverview, SessionMemos } from './AudioMemos';
 import { deleteAudioMemo } from '../lib/records';
 import { validateMemo } from '../lib/audioMemos';
+import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
 
 const VideoConsultation = lazy(() => import('./VideoConsultation').then(m => ({ default: m.VideoConsultation })));
 
@@ -78,6 +79,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
         <span className="recent-head"><strong>{dateLabel(s.date, language, { day: 'numeric', month: 'long', year: 'numeric' })}</strong>{photoCount(s) > 0 && <span className="tag-chip"><FileImage size={12}/> {t('photoCount').replace('{n}', String(photoCount(s)))}</span>}{memoCount(s) > 0 && <span className="tag-chip"><Mic size={12}/> {t('memoCount').replace('{n}', String(memoCount(s)))}</span>}{s.tags.slice(0, 3).map(tag => <span className="tag-chip" key={tag}>#{tag}</span>)}</span>
         <span className="recent-text">{excerpt(s.notes, 220) || '—'}</span></button></li>)}</ul> : <p className="hint">{t('nothingDiscussedYet')}</p>}
       {o.threads.length > 0 && <><h3 className="mini-heading">{t('recurringThemes')}</h3><div className="tag-filters">{o.threads.map(([tag, count]) => <button key={tag} className="tag-chip" onClick={() => openTab('discussed', tag)}>#{tag} · {count}</button>)}</div></>}</section>
+    <ClientMemoOverview vault={vault} clientId={client.id}/>
   </>;
 }
 function Discussed({ vault, client, tag, setTag, actions, focusMemoId, onMemoFocusHandled }: { vault: VaultController; client: Client; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
@@ -112,10 +114,10 @@ function Discussed({ vault, client, tag, setTag, actions, focusMemoId, onMemoFoc
             try {
               blobId = await vault.addFile(bytes);
               const { id, label, summary, createdAt, mimeType, size, durationMs } = draft;
-              await vault.update(d => { if (!d.sessions.some(s => s.id === entry.item.id && s.clientId === client.id)) throw new Error('storageError'); d.audioMemos.push({ id, label, summary, createdAt, mimeType, size, durationMs, blobId: blobId!, sessionId: entry.item.id, clientId: client.id }); });
+              await vault.update(d => { if (!d.sessions.some(s => s.id === entry.item.id && s.clientId === client.id)) throw new Error('storageError'); d.audioMemos.push({ id, label, summary, createdAt, mimeType, size, durationMs, blobId: blobId!, sessionId: entry.item.id, clientId: client.id }); rememberMemoLabel(d, label); });
             } catch (error) { if (blobId) await vault.purgeUnused([blobId]).catch(() => {}); throw error; } finally { bytes.fill(0); }
           }}
-          onEdit={async (id, patch) => { await vault.update(d => { const memo = d.audioMemos.find(m => m.id === id); if (!memo) throw new Error('storageError'); validateMemo(memo, patch); Object.assign(memo, patch); }); }}
+          onEdit={async (id, patch) => { await vault.update(d => editMemoMetadata(d, id, patch)); }}
           onDelete={async id => { await vault.remove(d => deleteAudioMemo(d, id)); }}/>
         {entry.item.homework && <div className={`homework-note ${entry.item.homeworkDone ? 'is-done' : ''}`}><strong><Home size={14}/> {t('homework')}{entry.item.homeworkDone ? ` · ${t('homeworkReviewed')}` : ''}</strong><p className="pre-line">{entry.item.homework}</p></div>}
         {!entry.item.notes && <button className="text-link" onClick={() => actions.onEditSession(entry.item)}><PencilIcon size={14}/>{t('addSessionNotes')}</button>}</>

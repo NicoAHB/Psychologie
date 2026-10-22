@@ -19,6 +19,7 @@ import type { VaultController } from '../lib/useVault';
 import { Avatar, Field, Modal, Notice } from './ui';
 import { SessionMemos } from './AudioMemos';
 import { validateMemo, type MemoDraft, type MemoMetadata } from '../lib/audioMemos';
+import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
 function Actions({ busy, onClose, label, onDelete, deleteLabel }: { busy: boolean; onClose: () => void; label?: string; onDelete?: () => void; deleteLabel?: string }) {
   const { t } = useI18n();
   return <div className="form-actions">{onDelete && <button type="button" className="btn btn-danger" disabled={busy} onClick={onDelete}><Trash2 size={16}/>{deleteLabel || t('delete')}</button>}<button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <Check size={17}/>} {busy ? t('working') : label || t('save')}</button></div>;
@@ -210,8 +211,9 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
         d.notes = d.notes.filter(n => !removedPhotos.includes(n.id));
         for (const blobId of photoIds) d.notes.push({ id: uid(), clientId: selected, blobId, sessionId: result.id, caption: '', tags: result.tags, createdAt: new Date().toISOString() });
         d.audioMemos = d.audioMemos.filter(m => !removedMemos.includes(m.id) && !savedMemos.some(saved => saved.id === m.id));
-        for (const memo of d.audioMemos) if (memo.sessionId === sessionId) { Object.assign(memo, editedMemos[memo.id]); memo.clientId = selected; }
+        for (const memo of d.audioMemos) if (memo.sessionId === sessionId) { if (editedMemos[memo.id]) editMemoMetadata(d, memo.id, editedMemos[memo.id]); memo.clientId = selected; }
         d.audioMemos.push(...savedMemos);
+        for (const memo of savedMemos) rememberMemoLabel(d, memo.label);
         if (reviewPrevious && previous) { const earlier = d.sessions.find(s => s.id === previous.id); if (earlier) earlier.homeworkDone = true; }
         const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
       });

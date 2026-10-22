@@ -7,6 +7,8 @@ import { registerMemoMedia } from '../lib/autoLock';
 import { uid } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
+import { editMemoMetadata, memoLabelChoices, memoLabelKey, visibleMemoLabelChoices } from '../lib/memoLabels';
+import { deleteAudioMemo } from '../lib/records';
 
 /** The only playback source is a transient in-memory blob URL, never an HTTP URL. */
 export function MemoPlayer({ blob, durationMs }: { blob: Blob; durationMs: number }) {
@@ -41,14 +43,21 @@ export function MemoPlayer({ blob, durationMs }: { blob: Blob; durationMs: numbe
     {error && <Notice error>{t('memoPlaybackError')}</Notice>}
   </div>;
 }
-function metadataFields(label: string, summary: string, setLabel: (s: string) => void, setSummary: (s: string) => void, t: (key: TextKey) => string) {
-  return <><Field label={t('memoLabel')}><input value={label} maxLength={MEMO_MAX_LABEL} placeholder={t('memoLabelPlaceholder')} onChange={e => setLabel(e.target.value)}/></Field>
+function MemoMetadataFields({ label, summary, setLabel, setSummary, vault }: { label: string; summary: string; setLabel: (value: string) => void; setSummary: (value: string) => void; vault: VaultController }) {
+  const { t, language } = useI18n();
+  const choices = useMemo(() => memoLabelChoices(vault.data?.settings.memoLabels, language), [vault.data?.settings.memoLabels, language]);
+  const visible = useMemo(() => visibleMemoLabelChoices(choices, label), [choices, label]);
+  const selected = visible.find(choice => memoLabelKey(choice.label) === memoLabelKey(label))?.id ?? '';
+  return <><Field label={t('memoLabelPick')}><select value={selected} onChange={e => { const choice = choices.find(item => item.id === e.target.value); if (choice) setLabel(choice.label); }}>
+      <option value="">{t('memoLabelChoose')}</option><optgroup label={t('memoLabelStandard')}>{visible.filter(choice => choice.builtIn).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup>
+      {visible.some(choice => !choice.builtIn) && <optgroup label={t('memoLabelOwn')}>{visible.filter(choice => !choice.builtIn).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup>}
+    </select></Field><Field label={t('memoLabel')} hint={t('memoLabelRememberHint') + (choices.length > 58 ? ` ${t('memoLabelManyHint')}` : '')}><input value={label} maxLength={MEMO_MAX_LABEL} placeholder={t('memoLabelPlaceholder')} onChange={e => setLabel(e.target.value)}/></Field>
     <Field label={t('memoSummary')} hint={t('memoSummaryHint')}><textarea rows={4} maxLength={MEMO_MAX_SUMMARY} value={summary} placeholder={t('memoSummaryPlaceholder')} onChange={e => setSummary(e.target.value)}/></Field></>;
 }
 // These dialogs can be opened inside the existing session form. No nested form or implicit submit.
 const preventImplicitSubmit = (e: KeyboardEvent) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && e.target.type !== 'range') e.preventDefault(); };
 
-function MemoRecorderDialog({ onSave, onClose }: { onSave: (draft: MemoDraft) => Promise<void> | void; onClose: () => void }) {
+function MemoRecorderDialog({ onSave, onClose, vault }: { onSave: (draft: MemoDraft) => Promise<void> | void; onClose: () => void; vault: VaultController }) {
   const { t } = useI18n(); const [phase, setPhase] = useState<'idle' | 'requesting' | 'recording' | 'stopping' | 'review' | 'error'>('idle');
   const [recording, setRecording] = useState<MemoRecording>(), [elapsed, setElapsed] = useState(0);
   const [label, setLabel] = useState(''), [summary, setSummary] = useState(''), [message, setMessage] = useState<TextKey>();
@@ -87,7 +96,7 @@ function MemoRecorderDialog({ onSave, onClose }: { onSave: (draft: MemoDraft) =>
       {['idle', 'error'].includes(phase) && <button className="btn btn-primary" type="button" onClick={start} disabled={!memoRecordingSupported()}><Mic size={17}/>{t(phase === 'error' ? 'memoRetry' : 'memoStart')}</button>}
       {!memoRecordingSupported() && <Notice error>{t('memoUnsupported')}</Notice>}
       {phase === 'recording' && <button className="btn btn-secondary" type="button" onClick={() => recorder.current?.stop()}><Square size={17}/>{t('memoStop')}</button>}
-      {recording && phase === 'review' && <>{metadataFields(label, summary, setLabel, setSummary, t)}<MemoPlayer blob={recording.blob} durationMs={recording.durationMs}/></>}
+      {recording && phase === 'review' && <><MemoMetadataFields label={label} summary={summary} setLabel={setLabel} setSummary={setSummary} vault={vault}/><MemoPlayer blob={recording.blob} durationMs={recording.durationMs}/></>}
       {message && <Notice error>{t(message)}</Notice>}
       <div className="form-actions memo-actions">
         <button className="btn btn-secondary" disabled={saving} type="button" onClick={() => { recorder.current?.dispose(); onClose(); }}><Trash2 size={16}/>{t('memoDiscard')}</button>
@@ -120,7 +129,7 @@ function MemoView({ item, vault, onEdit, onDelete, onClose }: { item: MemoItem; 
   }
   return <Modal title={item.label || t('memoDefaultTitle')} onClose={() => { if (!busy) onClose(); }}>
     <div className="memo-view" onKeyDown={preventImplicitSubmit}>
-      {editing ? metadataFields(label, summary, setLabel, setSummary, t) : <section className="memo-summary"><h3>{t('memoSummary')}</h3><p className="pre-line">{item.summary || t('memoNoSummary')}</p></section>}
+      {editing ? <MemoMetadataFields label={label} summary={summary} setLabel={setLabel} setSummary={setSummary} vault={vault}/> : <section className="memo-summary"><h3>{t('memoSummary')}</h3><p className="pre-line">{item.summary || t('memoNoSummary')}</p></section>}
       {blob && !busy && <MemoPlayer blob={blob} durationMs={item.durationMs}/>}
       {!blob && !error && <p role="status">{t('memoLoading')}</p>}
       {error && <Notice error>{t(error)}</Notice>}
@@ -150,7 +159,24 @@ export function SessionMemos({ items, vault, onAdd, onEdit, onDelete, disabled =
       <time dateTime={item.createdAt}>{date(item.createdAt)}</time>{item.summary && <span className="memo-excerpt">{item.summary.slice(0, 180)}{item.summary.length > 180 ? '…' : ''}</span>}
     </button></li>)}</ul>}
     {ordered.length > shown && <button type="button" className="text-link" onClick={() => setShown(n => n + 10)}>{t('memoMore')}</button>}
-    {recording && <MemoRecorderDialog onSave={onAdd} onClose={() => setRecording(false)}/>}
+    {recording && <MemoRecorderDialog onSave={onAdd} onClose={() => setRecording(false)} vault={vault}/>}
     {selected && <MemoView item={selected} vault={vault} onEdit={onEdit} onDelete={onDelete} onClose={() => setOpened(undefined)}/>}
+  </section>;
+}
+
+/** Only metadata is listed. Decryption and creation of a playback URL start on click. */
+export function ClientMemoOverview({ vault, clientId }: { vault: VaultController; clientId: string }) {
+  const { t, language } = useI18n(); const [shown, setShown] = useState(5), [opened, setOpened] = useState<string>();
+  const memos = useMemo(() => vault.data!.audioMemos.filter(m => m.clientId === clientId).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)), [vault.data!.audioMemos, clientId]);
+  const formatter = useMemo(() => new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'de-DE', { dateStyle: 'medium', timeStyle: 'short' }), [language]);
+  const selected = memos.find(memo => memo.id === opened);
+  if (!memos.length) return null;
+  return <section className="card memo-overview" aria-label={t('memoSection')}><div className="section-heading"><h2><Mic size={17}/>{t('memoSection')}</h2><p>{t('memoNewestFirst')}</p></div>
+    <ul className="memo-list">{memos.slice(0, shown).map(memo => <li key={memo.id}><button type="button" className="memo-open" onClick={() => setOpened(memo.id)}>
+      <span className="memo-row-title"><Play size={16}/><strong>{memo.label || t('memoDefaultTitle')}</strong><span className="memo-timer">{memoTime(memo.durationMs)}</span></span>
+      <time dateTime={memo.createdAt}>{Number.isFinite(Date.parse(memo.createdAt)) ? formatter.format(new Date(memo.createdAt)) : t('memoDefaultTitle')}</time>
+    </button></li>)}</ul>
+    {memos.length > shown && <button type="button" className="text-link" onClick={() => setShown(n => n + 10)}>{t('memoMore')}</button>}
+    {selected && <MemoView item={selected} vault={vault} onClose={() => setOpened(undefined)} onEdit={async (id, metadata) => { await vault.update(data => editMemoMetadata(data, id, metadata)); }} onDelete={async id => { await vault.remove(data => deleteAudioMemo(data, id)); }}/>}
   </section>;
 }

@@ -60,6 +60,9 @@ for (const theme of ['light', 'dark'] as const) {
     await recorder.getByRole('button', { name: 'Memo übernehmen', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Speichern', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Überblick', exact: true }).click();
+    await expect(page.locator('.memo-overview')).toBeVisible();
+    await scan(page, found, 'memo overview with dated titles');
     await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
     await scan(page, found, 'session memo list');
     await page.locator('.memo-open').filter({ hasText: 'Barrierefreies Memo' }).click();

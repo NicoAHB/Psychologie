@@ -32,6 +32,8 @@
 .memo-player select { min-height: 44px; }
 .memo-pagination { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 18px; }
 .memo-pagination .btn { min-height: 44px; }
+.memo-overview .section-heading { flex-wrap: wrap; gap: 8px; }
+.memo-overview .section-heading p { margin: 0; color: var(--muted); }
 @media screen { :root[data-theme=dark] .memo-record-time.is-recording { color: #ffb9ac; } }
 @media (max-width: 600px) {
   .memo-section-head { align-items: stretch; }
