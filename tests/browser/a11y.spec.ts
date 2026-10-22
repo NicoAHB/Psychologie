@@ -44,6 +44,16 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await scan(page, found, 'session form');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Profil bearbeiten' }).first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await scan(page, found, 'client profile form');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: /Videosprechstunde/ }).first().click();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: /Videosprechstunde/ })).toBeVisible();
+    await scan(page, found, 'video consultation');
     expect(found).toEqual({});
   });
 }
