@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { bankFor } from '../lib/currency';
-import { addDays, money, parseMoney, today } from '../lib/dates';
+import { money, parseMoney, today } from '../lib/dates';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { reviseInvoice, validDay } from '../lib/invoice';
 import { uid, type Invoice, type Language } from '../lib/types';
@@ -9,7 +9,7 @@ import { Field, Modal, Notice } from './ui';
 
 export function InvoiceRevisionDialog({ vault, invoice, correct, onClose, onSaved }: { vault: VaultController; invoice: Invoice; correct: boolean; onClose: () => void; onSaved: (invoice: Invoice) => void }) {
   const { t, language } = useI18n(); const [issuedAt, setIssuedAt] = useState(today() < invoice.issuedAt ? invoice.issuedAt : today());
-  const [dueOn, setDueOn] = useState(addDays(issuedAt, 14)); const [reason, setReason] = useState('');
+  const [dueOn, setDueOn] = useState(issuedAt); const [reason, setReason] = useState('');
   const [recipient, setRecipient] = useState({ ...invoice.recipient }); const [sender, setSender] = useState(structuredClone(invoice.sender));
   const [account, setAccount] = useState(invoice.paymentAccount ?? bankFor(invoice.sender, invoice.currency ?? 'EUR'));
   const [lang, setLang] = useState(invoice.language);
@@ -32,7 +32,7 @@ export function InvoiceRevisionDialog({ vault, invoice, correct, onClose, onSave
     <Notice>{t(correct ? 'invoiceCorrectionHint' : 'invoiceCancellationHint')}</Notice>
     {anyPaid && <Notice>{t('invoiceRefundHint')}{correct && <p>{t('invoicePaidAmountLocked')}</p>}</Notice>}
     <Field label={t('invoiceRevisionReason')} hint={t('invoiceReasonHint')}><textarea rows={2} maxLength={600} value={reason} onChange={e => setReason(e.target.value)}/></Field>
-    <div className="form-grid"><Field label={t('invoiceDate')}><input type="date" min={invoice.issuedAt} value={issuedAt} onChange={e => { setIssuedAt(e.target.value); if (validDay(e.target.value)) setDueOn(addDays(e.target.value, 14)); }}/></Field>{correct && <Field label={t('invoiceDueOn')}><input type="date" min={issuedAt} value={dueOn} onChange={e => setDueOn(e.target.value)}/></Field>}</div>
+    <div className="form-grid"><Field label={t('invoiceDate')}><input type="date" min={invoice.issuedAt} value={issuedAt} onChange={e => { setIssuedAt(e.target.value); if (validDay(e.target.value)) setDueOn(e.target.value); }}/></Field>{correct && <Field label={t('invoiceDueOn')} hint={t('invoiceDueHint')}><input type="date" min={issuedAt} value={dueOn} onChange={e => setDueOn(e.target.value)}/></Field>}</div>
     {correct && <><Field label={t('invoiceRecipientName')}><input value={recipient.name} maxLength={160} onChange={e => setRecipient({ ...recipient, name: e.target.value })}/></Field><Field label={t('invoiceRecipientAddress')}><textarea value={recipient.address} rows={3} maxLength={1000} onChange={e => setRecipient({ ...recipient, address: e.target.value })}/></Field>
       <Field label={t('invoiceLanguage')}><select value={lang} onChange={e => setLang(e.target.value as Language)}><option value="de">Deutsch</option><option value="uk">Українська</option></select></Field>
       <div className="revision-lines">{lines.map((line, index) => <fieldset key={line.sessionId} className="bank-account"><legend>{t('invoicePosition')} {index + 1}</legend><Field label={t('invoiceItem')}><textarea value={line.description} rows={2} maxLength={1000} onChange={e => setLines(lines.map((l, i) => i === index ? { ...l, description: e.target.value } : l))}/></Field><Field label={`${t('invoiceAmount')} (${invoice.currency ?? 'EUR'})`}><input inputMode="numeric" readOnly={anyPaid} value={line.amount} onChange={e => setLines(lines.map((l, i) => i === index ? { ...l, amount: e.target.value } : l))}/></Field></fieldset>)}</div>

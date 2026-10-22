@@ -2,7 +2,7 @@
 
 ## Zahlungsziel und Zahlungserinnerung
 
-Neue Rechnungen erhalten zunächst ein Zahlungsziel von 14 Tagen nach dem Rechnungsdatum. Das Datum lässt sich vor dem Ausstellen ändern und erscheint in Vorschau und PDF. Bestehende Rechnungen erhalten keine nachträglich erfundene Frist.
+Neue Rechnungen und Ersatzrechnungen sind standardmäßig sofort am Rechnungsdatum fällig. Vorschau und PDF zeigen dafür „Zahlungsziel: Sofort“ beziehungsweise „Термін оплати: Негайно“. Ein abweichendes Datum lässt sich vor dem Ausstellen wählen. Bereits ausgestellte Rechnungen behalten ihre gespeicherte Frist; Rechnungen ohne Zahlungsziel erhalten keine nachträglich erfundene Frist.
 
 Unter **Übersicht → Im Blick behalten** stehen Rechnungen, deren Zahlungsziel in der Praxiszeitzone überschritten ist. Maßgeblich sind die noch unbezahlten Positionen und ihre fest vereinbarten Originalbeträge. Bereits bezahlte Positionen, stornierte Rechnungen und unklare Zahlungsstände werden nicht angemahnt. „Bezahlt“ bezeichnet eine vollständig beglichene Position; Teilzahlungen innerhalb einer einzelnen Sitzung werden weiterhin nicht separat verbucht. In **Finanzen → Rechnungen** lassen sich offene, bezahlte, überfällige und stornierte Belege filtern.
 

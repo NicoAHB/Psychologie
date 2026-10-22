@@ -34,6 +34,7 @@ test('a Ukrainian invoice PDF can be generated offline under the Pages project p
   await page.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click(); const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Sprache der Rechnung').selectOption('uk'); await dialog.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
   await expect(dialog.locator('.invoice-sheet')).toContainText('Рахунок');
+  await expect(dialog.locator('.invoice-meta')).toContainText('Термін оплатиНегайно');
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: 'PDF herunterladen', exact: true }).click();
   expect((await readFile((await (await download).path())!)).subarray(0, 5).toString()).toBe('%PDF-');
 });

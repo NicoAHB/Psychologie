@@ -7,9 +7,11 @@ test('corrections create a linked reversal and replacement; the original and cli
   const { data, invoice } = workflowData(); const original = structuredClone(invoice); const read = await seedWorkflow(page, data);
   await page.locator('.follow-up-invoices').getByRole('button', { name: `Rechnung öffnen ${invoice.number}` }).click(); let dialog = page.locator('dialog[open]').last();
   await dialog.getByRole('button', { name: 'Rechnung korrigieren', exact: true }).click();
+  await expect(dialog.getByLabel('Zahlungsziel', { exact: true })).toHaveValue(await dialog.getByLabel('Rechnungsdatum', { exact: true }).inputValue());
   await dialog.getByLabel('Grund der Korrektur / des Stornos').fill('Anschrift und Betrag korrigiert'); await dialog.getByLabel('Name auf der Rechnung').fill('Олена Виправлена'); await dialog.getByLabel('Betrag (UAH)', { exact: true }).first().fill('4200');
   await dialog.getByRole('button', { name: 'Storno und Ersatzrechnung erstellen', exact: true }).click();
   dialog = page.locator('dialog[open]').last(); await expect(dialog.locator('.invoice-sheet')).toContainText('Олена Виправлена'); await expect(dialog.locator('.invoice-sheet')).toContainText(invoice.number); await expect(dialog.locator('.invoice-sheet')).not.toContainText(/EUR|€/);
+  await expect(dialog.locator('.invoice-meta')).toContainText('Термін оплатиНегайно');
   const state = await read(); expect(state.invoices).toHaveLength(3); expect(state.invoices[0]).toEqual(original); expect(state.invoices[1].totalCents).toBe(-818200); expect(state.invoices[2].totalCents).toBe(829100); expect(state.sessions[0].feeCents).toBe(8700); expect(state.sessions[0].notes).toBe('Sitzungsnotiz bleibt erhalten');
   await dialog.locator('.invoice-relations').getByRole('button', { name: `Rechnung ${invoice.number}`, exact: true }).click(); await expect(dialog.locator('.notice').filter({ hasText: 'Storniert' }).first()).toBeVisible(); await expect(dialog.getByRole('button', { name: 'Rechnung stornieren', exact: true })).toHaveCount(0);
   await dialog.locator('.notice').getByRole('button', { name: /Stornorechnung/ }).click(); await expect(dialog.locator('.invoice-sheet')).toContainText('Сторнувальний рахунок'); await expect(dialog.locator('.invoice-sheet')).not.toContainText('UA-TEST'); await expect(dialog.locator('.invoice-sheet')).toContainText(/−|-|–/);

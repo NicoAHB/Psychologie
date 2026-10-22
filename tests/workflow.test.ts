@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
-import { attachInvoice, billingConflicts, buildInvoice, canRemindInvoice, cancellationOf, invoiceOutstanding, invoiceOverdue, isSessionVoided, paidOn, reviseInvoice, uninvoiced } from '../src/lib/invoice';
+import { attachInvoice, billingConflicts, buildInvoice, canRemindInvoice, cancellationOf, invoiceOutstanding, invoiceOverdue, invoicePaymentTerm, isSessionVoided, paidOn, reviseInvoice, uninvoiced } from '../src/lib/invoice';
 import { invoiceMessage } from '../src/lib/invoiceMessage';
 import { invoicePdf } from '../src/lib/invoicePdf';
 import { incomeCsv } from '../src/lib/invoice';
@@ -18,14 +18,20 @@ function sample(currency: 'EUR' | 'UAH' = 'EUR') {
   data.sessions.push({ id: 's1', clientId: client.id, date: '2026-10-01', time: '14:00', feeCents: 8500, paidAt: null, notes: '', tags: [] }, { id: 's2', clientId: client.id, date: '2026-10-02', time: '14:00', feeCents: 8500, paidAt: null, notes: '', tags: [] });
   const invoice = buildInvoice(data, client, data.sessions, '2026-10-03', 'uk', uid()); attachInvoice(data, invoice); return { data, client, invoice };
 }
-test('new invoices have a 14-day deadline, custom dates validate and legacy invoices acquire no artificial deadline', () => {
-  const { data, client, invoice } = sample(); assert.equal(invoice.dueOn, '2026-10-17');
-  assert.equal(buildInvoice(data, client, data.sessions, '2026-12-25', 'de', uid()).dueOn, '2027-01-08');
+test('new invoices are due immediately, custom terms remain valid and legacy invoices keep their deadline', () => {
+  const { data, client, invoice } = sample(); assert.equal(invoice.dueOn, '2026-10-03');
+  assert.equal(invoicePaymentTerm(invoice, 'de'), 'Sofort'); assert.equal(invoicePaymentTerm(invoice, 'uk'), 'Негайно');
+  assert.equal(invoiceOverdue(data, invoice, '2026-10-03'), false); assert.equal(invoiceOverdue(data, invoice, '2026-10-04'), true);
+  assert.equal(buildInvoice(data, client, data.sessions, '2026-12-25', 'de', uid()).dueOn, '2026-12-25');
+  const custom = buildInvoice(data, client, data.sessions, '2026-10-03', 'de', uid(), { dueOn: '2026-10-17' });
+  assert.equal(custom.dueOn, '2026-10-17'); assert.equal(invoicePaymentTerm(custom), '17.10.2026');
+  invoice.dueOn = '2026-10-17'; const before = structuredClone(invoice);
+  buildInvoice(data, client, data.sessions, '2026-10-21', 'de', uid()); assert.deepEqual(invoice, before);
   assert.throws(() => buildInvoice(data, client, data.sessions, '2026-10-03', 'de', uid(), { dueOn: '2026-10-02' }), /invalidInvoiceDate/);
-  delete invoice.dueOn; assert.equal(invoiceOverdue(data, invoice, '2026-12-01'), false);
+  delete invoice.dueOn; assert.equal(invoiceOverdue(data, invoice, '2026-12-01'), false); assert.equal(invoicePaymentTerm(invoice), '—');
 });
 test('overdue balance includes only unpaid invoice positions; paid, reversed and ambiguous invoices cannot trigger reminders', () => {
-  const { data, invoice } = sample('UAH'); assert.equal(invoiceOverdue(data, invoice, '2026-10-17'), false); assert.equal(invoiceOverdue(data, invoice, '2026-10-18'), true);
+  const { data, invoice } = sample('UAH'); invoice.dueOn = '2026-10-17'; assert.equal(invoiceOverdue(data, invoice, '2026-10-17'), false); assert.equal(invoiceOverdue(data, invoice, '2026-10-18'), true);
   data.sessions[0].paidAt = '2026-10-10'; assert.equal(invoiceOutstanding(data, invoice), invoice.lines[1].amountCents);
   data.sessions[1].paidAt = '2026-10-11'; assert.equal(invoiceOutstanding(data, invoice), 0); assert.equal(invoiceOverdue(data, invoice, '2026-10-18'), false);
   data.sessions.pop(); assert.equal(invoiceOutstanding(data, invoice), null); assert.equal(paidOn(data, invoice), null);
@@ -75,7 +81,7 @@ test('duplicate active invoice numbers are flagged even for distinct sessions; c
 
 test('correspondence uses client language and only native outstanding money, with reversal and replacement references', () => {
   const { data, invoice, client } = sample('UAH'); data.sessions[0].paidAt = '2026-10-10'; const body = invoiceMessage(invoice, client, 'paymentReminder', invoiceOutstanding(data, invoice)!).body;
-  assert.match(body, /Добрий день/); assert.doesNotMatch(body, /€|EUR/); assert.match(body, /17.10.2026/); assert.ok(body.includes(new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', maximumFractionDigits: 0 }).format(invoice.lines[1].amountCents / 100)));
+  assert.match(body, /Добрий день/); assert.doesNotMatch(body, /€|EUR/); assert.match(body, /03.10.2026/); assert.ok(body.includes(new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH', maximumFractionDigits: 0 }).format(invoice.lines[1].amountCents / 100)));
   const result = reviseInvoice(data, invoice.id, { issuedAt: '2026-10-21', cancellationId: uid(), reason: 'Виправлення' }); const message = invoiceMessage(result.cancellation, { ...client, language: 'de' }); assert.match(message.subject, /Storno/); assert.match(message.body, new RegExp(invoice.number)); assert.match(message.body, /keine Zahlung/);
 });
 test('return queue distinguishes unsent, waiting and overdue; received or closed documents disappear without deleting history', () => {

@@ -4,7 +4,7 @@ import { bankFor } from './currency';
 import { dateLabel, money } from './dates';
 import { translate, type TextKey } from './i18n';
 import type { Invoice } from './types';
-import { invoiceTitleKey, isCancellation } from './invoice';
+import { invoicePaymentTerm, invoiceTitleKey, isCancellation } from './invoice';
 
 /** Local, searchable A4 export with embedded Cyrillic fonts. No clinical notes or internal EUR comparison. */
 export async function invoicePdf(invoice: Invoice, paid: string | null, regularBytes: Uint8Array, boldBytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
@@ -48,7 +48,7 @@ export async function invoicePdf(invoice: Invoice, paid: string | null, regularB
   paragraph(T(invoiceTitleKey(invoice)), 28, bold, sage); y -= 4;
   paragraph(`${T('invoiceNumber')}: ${invoice.number}`, 10, bold);
   paragraph(`${T('invoiceDate')}: ${date(invoice.issuedAt)}`, 10, regular, muted);
-  if (invoice.dueOn && !isCancellation(invoice)) paragraph(`${T('invoiceDueOn')}: ${date(invoice.dueOn)}`, 10, regular, muted);
+  if (invoice.dueOn && !isCancellation(invoice)) paragraph(`${T('invoiceDueOn')}: ${invoicePaymentTerm(invoice)}`, 10, regular, muted);
   y -= 19;
   if (invoice.sender.name) paragraph(invoice.sender.name, 16, bold);
   if (invoice.sender.address) paragraph(invoice.sender.address, 9.5, regular, muted);

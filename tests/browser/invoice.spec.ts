@@ -1,5 +1,6 @@
 import { test, expect, type Page } from './fixtures';
 import { readFile } from 'node:fs/promises';
+import { addDays } from '../../src/lib/dates';
 async function nav(page: Page, text: string) {
   await expect(page.locator('.app-shell')).toBeVisible();
   const menu = page.getByRole('button', { name: 'Navigation öffnen' });
@@ -31,13 +32,18 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await dialog.getByLabel('Bezahlt', { exact: true }).check(); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
 
   await nav(page, 'Finanzen'); await page.getByRole('button', { name: 'Rechnung erstellen' }).click();
+  const invoiceDate = dialog.getByLabel('Rechnungsdatum', { exact: true }); const paymentTerm = dialog.getByLabel('Zahlungsziel', { exact: true });
+  await expect(paymentTerm).toHaveValue(await invoiceDate.inputValue());
+  await invoiceDate.fill(addDays(await invoiceDate.inputValue(), 1)); await expect(paymentTerm).toHaveValue(await invoiceDate.inputValue());
   await dialog.getByRole('button', { name: 'Rechnung erstellen' }).click();
   await expect(dialog.getByRole('heading', { name: /Rechnung \d{4}-001/, level: 2 })).toBeVisible();
   await expect(dialog.locator('.invoice-sheet')).toContainText('Praxis Dr. Muster'); await expect(dialog.locator('.invoice-sheet')).toContainText('Lindenallee 3');
   await expect(dialog.locator('.invoice-sheet')).toContainText('85'); await expect(dialog.locator('.invoice-sheet')).toContainText('dankend erhalten');
+  await expect(dialog.locator('.invoice-meta')).toContainText('ZahlungszielSofort');
   await expect(page.locator('#print-root .invoice-sheet')).toHaveCount(1);
   await page.emulateMedia({ media: 'print' });
   await expect(page.locator('#print-root .invoice-sheet')).toBeVisible(); await expect(page.locator('#root')).toBeHidden();
+  await expect(page.locator('#print-root .invoice-meta')).toContainText('ZahlungszielSofort');
   const pdf = await page.pdf({ format: 'A4' }); if (process.env.SAVE_PDF) await (await import('node:fs/promises')).writeFile(process.env.SAVE_PDF, pdf); expect(pdf.subarray(0, 5).toString()).toBe('%PDF-'); expect(pdf.length).toBeGreaterThan(5000);
   await page.emulateMedia({ media: 'screen' });
   await dialog.getByRole('button', { name: 'Schließen' }).first().click(); await expect(dialog).not.toBeVisible();

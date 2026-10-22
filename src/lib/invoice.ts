@@ -1,6 +1,6 @@
 import { translate } from './i18n';
 import { bankFor, convertWhole, currencyOf, wholeCents } from './currency';
-import { addDays, isIsoDay, money } from './dates';
+import { dateLabel, isIsoDay, money } from './dates';
 import type { BankAccount, Client, Currency, ExchangeRate, Invoice, Language, PracticeProfile, Session, VaultData } from './types';
 
 export const validDay = isIsoDay;
@@ -29,6 +29,11 @@ export const cancellationOf = (data: VaultData, invoiceId: string) => billingInd
 export const isSessionVoided = (data: VaultData, session: Session) => !!session.invoiceId && !!cancellationOf(data, session.invoiceId);
 export const invoiceTitleKey = (invoice: Invoice) => isCancellation(invoice) ? 'cancellationTitle' as const : 'invoiceTitle' as const;
 
+export function invoicePaymentTerm(invoice: Invoice, language: Language = invoice.language): string {
+  if (!invoice.dueOn || isCancellation(invoice)) return '—';
+  return invoice.dueOn === invoice.issuedAt ? translate(language, 'invoiceDueImmediately') : dateLabel(invoice.dueOn, language, { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 /** Next gap-free number of the form `<prefix><year>-001`; counting continues per prefix and year. */
 export function nextInvoiceNumber(data: VaultData, issuedAt: string, prefix = data.settings.practice.invoicePrefix): string {
   const year = issuedAt.slice(0, 4); const head = `${prefix}${year}-`;
@@ -40,7 +45,7 @@ export const uninvoiced = (data: VaultData, clientId: string) => data.sessions.f
 
 export function buildInvoice(data: VaultData, client: Client, sessions: Session[], issuedAt: string, language: Language, id: string, options: { currency?: Currency; rate?: ExchangeRate; dueOn?: string } = {}): Invoice {
   if (!sessions.length) throw new Error('noSessions');
-  const dueOn = options.dueOn ?? addDays(issuedAt, 14);
+  const dueOn = options.dueOn ?? issuedAt;
   if (!validDay(issuedAt) || !validDay(dueOn) || dueOn < issuedAt) throw new Error('invalidInvoiceDate');
   const service = data.settings.practice.serviceName.trim() || translate(language, 'invoiceDefaultService');
   const currency = options.currency ?? currencyOf(client);
