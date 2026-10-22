@@ -52,7 +52,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: /Videosprechstunde/ }).first().click();
-    await expect(page.getByRole('dialog').getByRole('heading', { name: /Videosprechstunde/ })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: /Videosprechstunde/ })).toBeVisible(); // a dialog announces its title to screen readers
     await scan(page, found, 'video consultation');
     expect(found).toEqual({});
   });

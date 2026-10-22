@@ -10,10 +10,10 @@ export function Botanical({ small = false }: { small?: boolean }) {
 }
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const { t } = useI18n();
-  const ref = useRef<HTMLDialogElement>(null);
+  const ref = useRef<HTMLDialogElement>(null); const titleId = useId();
   useEffect(() => { const d = ref.current!; d.showModal(); return () => d.close(); }, []);
-  return <dialog ref={ref} className={`modal ${wide ? 'modal-wide' : ''}`} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }}>
-    <div className="modal-heading"><h2>{title}</h2><LanguageSwitch/><button className="icon-btn" type="button" aria-label={t('close')} onClick={onClose}><X size={20}/></button></div>{children}
+  return <dialog ref={ref} aria-labelledby={titleId} className={`modal ${wide ? 'modal-wide' : ''}`} onCancel={e => { e.preventDefault(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }}>
+    <div className="modal-heading"><h2 id={titleId}>{title}</h2><LanguageSwitch/><button className="icon-btn" type="button" aria-label={t('close')} onClick={onClose}><X size={20}/></button></div>{children}
   </dialog>;
 }
 export function Empty({ icon, title, text, action }: { icon: ReactNode; title: string; text?: string; action?: ReactNode }) {
