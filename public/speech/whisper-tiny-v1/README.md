@@ -13,6 +13,7 @@ Quellen und Lizenzen:
   Archiv-SHA-256: `c46116994e539aa165266d96b325252728429c12535eb9d8b6a2b10f129e66b1`.
 - ONNX Runtime Web 1.24.3: Microsoft, MIT, siehe `LICENSE-onnxruntime.txt`
   und `ThirdPartyNotices-onnxruntime.txt`. Dateien aus dem exakt gepinnten NPM-Paket.
+- FFT.js 4.0.4: Fedor Indutny, MIT, siehe `LICENSE-fftjs.txt`. Lizenztext aus dem NPM-README; die FFT-Bibliothek steckt im Sprach-Worker.
 
 Die ONNX-Dateien werden in unveränderte, aufeinanderfolgende 24-MiB-Teile zerlegt,
 damit jede Datei deutlich unter GitHubs Dateigrößenlimit bleibt. `manifest.json`
