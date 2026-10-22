@@ -19,6 +19,13 @@ test('independent fields of one client merge, regardless of clock skew', () => {
   const b = edit(base, 'laptop', d => { d.clients[0].email = 'private@example.com'; }, 1);
   const result = mergeVaults(a, b); assert.equal(result.clients[0].preparation, 'New preparation'); assert.equal(result.clients[0].email, 'private@example.com'); assert.equal(syncConflicts(result).length, 0);
 });
+test('unrelated device operations do not multiply every field causal context', () => {
+  let data = fixture();
+  for (let i = 0; i < 100; i++) data = edit(data, `device-${i}`, d => { d.clients[0].contact = `Contact ${i}`; });
+  data = edit(data, 'notes-device', d => { d.sessions[0].notes = 'One changed session'; });
+  const registers = data.crdt!.entities[JSON.stringify(['sessions', 'session'])];
+  assert.equal(Object.keys(registers.notes.seen).length, 2); assert.ok(Object.keys(data.crdt!.clock).length > 100);
+});
 test('same text field retains every offline alternative, with explicit causal resolution', () => {
   const base = fixture(); const a = edit(base, 'phone', d => { d.clients[0].preparation = 'Phone content'; }); const b = edit(base, 'laptop', d => { d.clients[0].preparation = 'Laptop content'; });
   const merged = mergeVaults(a, b); const conflict = syncConflicts(merged).find(c => c.field === 'preparation')!;

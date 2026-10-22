@@ -103,7 +103,10 @@ function put(state: CrdtState, entity: string, field: string, value: Json | unde
   // Only the dedicated conflict resolver acknowledges every alternative.
   const keep = preserveAlternatives && previous ? previous.values.filter(v => !same(v.value, preferred(previous, field))) : [];
   const stamp = keep.length ? Math.max(at, ...previous!.values.map(v => v.at + 1)) : at;
-  (state.entities[entity] ??= {})[field] = { seen: { ...state.clock }, values: ordered([...keep, { actor, sequence, at: stamp, ...(value === undefined ? {} : { value: structuredClone(value) }) }]) };
+  // Causality is scoped to this register. Copying the entire vault clock into every
+  // field would multiply metadata with every app restart and unrelated clinical edit.
+  const seen = join(previous?.seen ?? {}, { [actor]: sequence });
+  (state.entities[entity] ??= {})[field] = { seen, values: ordered([...keep, { actor, sequence, at: stamp, ...(value === undefined ? {} : { value: structuredClone(value) }) }]) };
 }
 
 export function recordChanges(before: VaultData, after: VaultData, at: number, actor: string = crypto.randomUUID()) {
