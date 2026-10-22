@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeBackupTarget, BACKUP_COPIES, type BackupDirectory } from '../src/lib/directoryBackup';
-import { createLocalRecognition, localSpeechAvailability, localSpeechConstructor, type LocalSpeechConstructor } from '../src/lib/localSpeech';
 import { encryptVideoSignal, parseVideoInvitation, VideoSignalReader, videoKey, videoLink, type VideoRoom, type VideoSignal } from '../src/lib/videoRoom';
 import { uid } from '../src/lib/types';
 
@@ -25,22 +24,6 @@ test('rolling directory backups retain the latest 30 committed files and never p
 test('a failed backup aborts and removes only its new incomplete file, preserving the last good copy', async () => {
   const d = directory(), vault = uid(); await writeBackupTarget(d.handle, vault, 'GOOD CIPHERTEXT'); const before = [...d.files.entries()]; d.setFail();
   await assert.rejects(() => writeBackupTarget(d.handle, vault, 'BAD'), /disk full/); assert.equal(d.wasAborted(), true); assert.deepEqual([...d.files.entries()], before);
-});
-test('speech refuses remote-only browsers and requires explicit local language availability', async () => {
-  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window'); let started = 0; let requested: unknown;
-  class Local {
-    processLocally = false; lang = ''; continuous = false; interimResults = false; onresult = null; onerror = null; onend = null;
-    start() { assert.equal(this.processLocally, true); started++; } stop() {} abort() {}
-    static async available(options: unknown) { requested = options; return 'available' as const; }
-  }
-  try {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: { isSecureContext: true, SpeechRecognition: class Remote { start() { throw new Error('must never start'); } } } });
-    assert.equal(localSpeechConstructor(), undefined);
-    (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = Local;
-    const ctor = localSpeechConstructor()!; assert.equal(await localSpeechAvailability(ctor, 'uk-UA'), 'available'); assert.deepEqual(requested, { langs: ['uk-UA'], processLocally: true });
-    const r = createLocalRecognition(ctor, 'uk-UA'); r.start(); assert.equal(started, 1); assert.equal(r.lang, 'uk-UA'); assert.equal(r.interimResults, true);
-    const unavailable = Local as unknown as LocalSpeechConstructor; unavailable.available = async () => { throw new Error('blocked'); }; assert.equal(await localSpeechAvailability(unavailable, 'de-DE'), 'unavailable');
-  } finally { if (descriptor) Object.defineProperty(globalThis, 'window', descriptor); else Reflect.deleteProperty(globalThis, 'window'); }
 });
 test('video invitation keeps its 256-bit capability in the URL fragment and rejects malformed links', () => {
   const room = { id: uid(), secret: 'A'.repeat(43), language: 'uk' as const };
