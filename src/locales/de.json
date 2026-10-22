@@ -717,5 +717,11 @@
   "availabilityInvalid": "Bitte gültige Daten und Uhrzeiten wählen. Das Ende muss nach dem Beginn liegen.",
   "invoiceOpenBalance": "Offen",
   "calendarGoTo": "Woche ab Datum anzeigen",
-  "invoiceSessionPricingLocked": "Diese Sitzung ist bereits abgerechnet. Beträge bitte über „Rechnung korrigieren“ ändern."
+  "invoiceSessionPricingLocked": "Diese Sitzung ist bereits abgerechnet. Beträge bitte über „Rechnung korrigieren“ ändern.",
+  "updateAvailable": "Eine neue Version von Praxisraum ist bereit.",
+  "updateApply": "Jetzt aktualisieren",
+  "updateHint": "Die App lädt neu; Ihre Daten bleiben verschlüsselt gespeichert. Danach bitte erneut entsperren.",
+  "skipToContent": "Zum Inhalt springen",
+  "rowsShown": "{n} von {total} Einträgen angezeigt.",
+  "showMoreRows": "Weitere anzeigen"
 }

@@ -63,7 +63,7 @@ function useNarrow() {
 }
 
 export function AppointmentsPage({ vault, onNew, onClient, onComplete, onEdit }: { vault: VaultController; onNew: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
-  const { t, language } = useI18n(); const data = vault.data!;
+  const { t } = useI18n(); const data = vault.data!;
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming'); const [mode, setMode] = useState<'list' | 'week'>('list');
   const [absenceForm, setAbsenceForm] = useState<CalendarAbsence | 'new'>(); const [weekFocusDate, setWeekFocusDate] = useState<string>();
   const [message, setMessage] = useState<string>(); const [exporting, setExporting] = useState(false);

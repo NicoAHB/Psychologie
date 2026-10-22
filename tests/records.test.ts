@@ -30,7 +30,7 @@ test('deleting a session re-opens its completed appointment; deleting a note orp
   deleteNote(data, data.notes[1].id); assert.deepEqual(orphanedBlobs(before, data), [ids.photoB]);
 });
 test('an image shared by two records is only orphaned when the last reference disappears', () => {
-  const { data, ids } = sample(); data.notes.push({ ...data.notes[0], id: uid() }); const before = referencedBlobs(data);
+  const { data } = sample(); data.notes.push({ ...data.notes[0], id: uid() }); const before = referencedBlobs(data);
   deleteNote(data, data.notes[0].id); assert.deepEqual(orphanedBlobs(before, data), []);
 });
 test("double-booking detection: overlap, adjacency, other days, other zones, cancelled and self", () => {

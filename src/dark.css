@@ -40,7 +40,7 @@
 
   :root[data-theme="dark"] :is(body, .welcome-page) { background: radial-gradient(ellipse at 8% 4%, #253e604f, transparent 48%), radial-gradient(ellipse at 94% 45%, #27375b40, transparent 52%), #0c1628; }
   :root[data-theme="dark"] :is(.sidebar) { background: #101d32; }
-  :root[data-theme="dark"] :is(.card, .stat-card, .welcome-card, .modal, .week-grid, .chart-grid, :where(.recent-list, .search-results) button) { background: var(--surface); color: #e5edf9; border-color: var(--border); }
+  :root[data-theme="dark"] :is(.card, .stat-card, .welcome-card, .modal, .week-grid, :where(.recent-list, .search-results) button) { background: var(--surface); color: #e5edf9; border-color: var(--border); }
   :root[data-theme="dark"] :is(.topbar, .sync-bar) { background: #132139e8; color: var(--dark-muted); }
   :root[data-theme="dark"] .modal::backdrop { background: #030914cc; }
   :root[data-theme="dark"] .nav-backdrop { background: #03091499; }
@@ -102,6 +102,8 @@
   :root[data-theme="dark"] .chart-column.is-selected .bar { background: #9bc9f7; }
   :root[data-theme="dark"] .chart-column:hover .bar { background: #b5dcff; }
   :root[data-theme="dark"] .chart-column.is-selected .bar-label { color: #d1e7ff; }
+  :root[data-theme="dark"] .chart-grid { background: transparent; }
+  @media (max-width: 600px) { :root[data-theme="dark"] .chart-grid { background: #1a2b44; } }
   :root[data-theme="dark"] .chart-bars { background-image: repeating-linear-gradient(to top,transparent,transparent calc(50% - 1px),#384b67 calc(50% - 1px),#384b67 50%); }
   :root[data-theme="dark"] .chart-tick { fill: #b9cbe6; }
   :root[data-theme="dark"] .score-dot { fill: var(--surface); }

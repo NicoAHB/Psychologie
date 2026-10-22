@@ -2,7 +2,6 @@ import type { PasskeyWrap, VaultData, VaultEnvelope } from './types';
 import { reconcileBillingLinks } from './invoice';
 
 const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability'] as const;
-type Collection = typeof COLLECTIONS[number];
 type Record_ = { id: string; updatedAt?: number };
 const TOMBSTONE_DAYS = 400;
 

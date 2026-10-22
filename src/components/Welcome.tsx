@@ -8,6 +8,7 @@ import { cloudError, currentUser, fetchRemote, remoteEnvelope } from '../lib/clo
 import { setRevision } from '../lib/db';
 import { Botanical, Field, Logo, Modal, Notice } from './ui';
 import { CloudAuth } from './CloudAuth';
+import { UpdateBanner } from './UpdateBanner';
 export function Welcome({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [passphrase, setPassphrase] = useState(''); const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>(); const [restoreOpen, setRestoreOpen] = useState(false);
@@ -40,7 +41,7 @@ export function Welcome({ vault }: { vault: VaultController }) {
       await setRevision(user.id, remote.vault_id, remote.revision); setRestoreOpen(false);
     } catch (err) { setError(cloudError(err) as TextKey); } finally { setBusy(false); }
   }
-  return <div className="welcome-page"><header className="welcome-header"><Logo/><div className="welcome-controls"><ThemeToggle/><LanguageSwitch/></div></header><main className="welcome-main">
+  return <div className="welcome-page"><header className="welcome-header"><Logo/><div className="welcome-controls"><ThemeToggle/><LanguageSwitch/></div></header><div className="welcome-update"><UpdateBanner/></div><main className="welcome-main">
     <section className="welcome-intro"><span className="eyebrow">{t('welcomeEyebrow')}</span><h1>{t('welcomeTitle')}</h1><p className="welcome-description">{t('welcomeText')}</p><div className="welcome-art"><div className="art-orbit orbit-one"/><div className="art-orbit orbit-two"/><Botanical/><div className="art-label"><Flower2 size={25}/><span>{t('welcomePreviewTitle')}<small>{t('welcomePreviewText')}</small></span></div></div><div className="security-line"><ShieldCheck size={18}/>{t('welcomeSecurity')}</div></section>
     <section className="welcome-card"><span className="key-symbol"><KeyRound size={26}/></span><h2>{t(exists ? 'unlockTitle' : 'createVault')}</h2><p>{t(exists ? 'unlockText' : 'passphraseHint')}</p>
       {vault.loadError ? <Notice error>{t('loadError')}</Notice> : vault.envelope === undefined ? <LoaderCircle className="spin"/> : <form onSubmit={submit} noValidate>

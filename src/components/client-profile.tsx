@@ -114,7 +114,7 @@ function ClientFinances({ vault, client, actions }: { vault: VaultController; cl
 }
 
 export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string }) {
-  const { t, language } = useI18n(); const data = vault.data!;
+  const { t } = useI18n();
   const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
   return <div className="profile-content">
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
