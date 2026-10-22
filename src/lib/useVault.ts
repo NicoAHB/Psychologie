@@ -29,6 +29,7 @@ export function useVault() {
   const key = useRef<CryptoKey | null>(null);
   const recoveredKey = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const current = useRef<VaultData | null>(null);
+  const persisted = useRef<VaultData | null>(null);
   const info = useRef<VaultEnvelope | null>(null);
   const demoRef = useRef(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -55,7 +56,7 @@ export function useVault() {
       const base = info.current!;
       const encrypted = await encryptVault(activeKey, value, base.vaultId, base.salt, { format: base.format, wraps: base.wraps, ...wraps });
       const discarded = await commitVaultSnapshot(encrypted, referencedBlobs(value));
-      info.current = encrypted; setEnvelope(encrypted);
+      info.current = encrypted; persisted.current = value; setEnvelope(encrypted);
       if (discarded.length) await purgeBlobs(base.vaultId, discarded).catch(() => {});
     });
   }, [enqueue]);
@@ -82,10 +83,20 @@ export function useVault() {
     for (;;) { const task = queue.current; await task; if (queue.current === task) break; }
     if (failure.current) throw new Error('storageError');
   }, []);
+  /** An envelope and its exact plaintext/blob references must travel together, even if React
+   * has not rendered the latest update yet. Never derive this pair from separate async reads. */
+  const snapshotForSync = async () => {
+    for (;;) {
+      await flush();
+      if (!current.current || !key.current || !info.current || demoRef.current) throw new Error('locked');
+      if (persisted.current !== current.current) continue;
+      return { data: current.current, envelope: info.current, generation: generationRef.current };
+    }
+  };
 
   const open = async (dataKey: CryptoKey, envelopeValue: VaultEnvelope) => {
     const { value, migrated } = await runSecureTask('openVault', { key: dataKey, envelope: envelopeValue });
-    key.current = dataKey; current.current = value; setData(value); generationRef.current = 0; setGeneration(0);
+    key.current = dataKey; current.current = value; persisted.current = migrated ? null : value; setData(value); generationRef.current = 0; setGeneration(0);
     if (migrated) { await persist(value); bump(); }
   };
   const create = async (passphrase: string) => {
@@ -95,7 +106,7 @@ export function useVault() {
     const value = emptyVault();
     const encrypted = await encryptVault(dataKey, value, vaultId, salt, { format: 'praxisraum-v2', wraps: { passphrase: wrap } });
     await writeVault(encrypted);
-    key.current = dataKey; current.current = value; info.current = encrypted;
+    key.current = dataKey; current.current = value; persisted.current = value; info.current = encrypted;
     demoRef.current = false; setDemo(false); setEnvelope(encrypted); setData(value);
     void navigator.storage?.persist?.();
   };
@@ -138,7 +149,7 @@ export function useVault() {
     await flush();
     recoveredKey.current?.fill(0); recoveredKey.current = null; setPassphraseReset(false);
     stopSecureWorker();
-    key.current = null; current.current = null; setData(null); generationRef.current = 0; setGeneration(0);
+    key.current = null; current.current = null; persisted.current = null; setData(null); generationRef.current = 0; setGeneration(0);
     memoryBlobs.current.clear(); demoRef.current = false; setDemo(false);
     const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null);
   }, [flush]);
@@ -248,6 +259,7 @@ export function useVault() {
     const ids = referencedBlobs(current.current);
     for (const id of ids) if (!await readBlob(id)) await downloadBlob(snapshot.vaultId, id);
     const blobs = (await allBlobs()).filter(b => b.vaultId === snapshot.vaultId && ids.includes(b.id));
+    if (blobs.length !== ids.length) throw new Error('storageError');
     return { type: 'praxisraum-backup-v1', envelope: snapshot, blobs };
   };
   const importBackup = async (value: unknown) => {
@@ -284,11 +296,12 @@ export function useVault() {
     }
     const clientErased = current.current.clients.some(client => !merged.clients.some(remaining => remaining.id === client.id));
     current.current = merged; setData(merged); bump();
+    const installedGeneration = generationRef.current;
     await persist(merged, { wraps: result.envelope.wraps, format: result.envelope.format });
     await setRevision(result.userId, result.vaultId, result.revision);
     if (clientErased) await clearHistory();
     await purgeUnused(before);
-    return { data: merged, generation: generationRef.current };
+    return { data: merged, generation: installedGeneration };
   };
   const retry = () => current.current ? persist(current.current) : Promise.resolve();
   /** Replace the vault contents by an earlier version (undo of a deletion); stamped like a normal edit so other devices follow. */
@@ -298,6 +311,6 @@ export function useVault() {
     for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
-  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
+  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
 }
 export type VaultController = ReturnType<typeof useVault>;

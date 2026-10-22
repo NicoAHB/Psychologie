@@ -7,7 +7,7 @@ import { ThemeToggle } from './lib/theme';
 import { financeRows, type FinanceView, type PaymentFilter } from './lib/finance';
 import { useVault, type VaultController } from './lib/useVault';
 import { cloudConfigured, cloudError, currentUser, fetchRemote, remoteEnvelope, syncVault } from './lib/cloud';
-import { readVault, setRevision } from './lib/db';
+import { setRevision } from './lib/db';
 import { dateLabel, localeFor, money, monthlyIncome, today } from './lib/dates';
 import type { Appointment, Client, Invoice, PhotoNote, Route, Session } from './lib/types';
 import { deleteNote } from './lib/records';
@@ -42,7 +42,8 @@ export default function App() {
   const [backupInfo, setBackupInfo] = useState<BackupState | null>(); // undefined = not read yet, null = no copy yet
   const [followInvoiceId, setFollowInvoiceId] = useState<string>(); const [documentFocusId, setDocumentFocusId] = useState<string>();
   const [profileTab, setProfileTab] = useState<ProfileTab>('overview'); const [searching, setSearching] = useState(false); const [search, setSearch] = useState(''); const [tag, setTag] = useState(''); const [photo, setPhoto] = useState<string>();
-  const syncBusy = useRef(false); const currentVault = useRef(vault); currentVault.current = vault;
+  const syncBusy = useRef(false); const syncAlive = useRef(true); const syncRetry = useRef<number | undefined>(undefined);
+  useEffect(() => { syncAlive.current = true; return () => { syncAlive.current = false; clearTimeout(syncRetry.current); }; }, []); const currentVault = useRef(vault); currentVault.current = vault;
   const navigate = (next: Route) => { setRoute(next); setDocumentFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
   const openClient = (id: string) => { setSelectedId(id); setProfileTab('overview'); navigate('clients'); };
   useEffect(() => {
@@ -60,25 +61,19 @@ export default function App() {
     if (!v.data || v.demo || syncBusy.current) return;
     if (!cloudConfigured || !user) { setSyncMessage('cloudMissing'); setRoute('settings'); return; }
     syncBusy.current = true; setSyncing(true); setSyncMessage(undefined);
-    const generation = v.generation;
+    let coveredGeneration = v.getGeneration();
     try {
-      await v.flush();
-      let envelope = await readVault(); if (!envelope) throw new Error('storageError');
-      // No update can interleave between these synchronous reads after the flush.
-      const snapshot = currentVault.current;
-      if (snapshot.generation !== generation) return;
-      let synced = generation;
-      try { await syncVault(envelope, v.data); }
+      let snapshot = await v.snapshotForSync(); coveredGeneration = snapshot.generation;
+      try { await syncVault(snapshot.envelope, snapshot.data); }
       catch (err) {
         if (cloudError(err) !== 'syncConflict') throw err;
-        // Another device saved first: join causal field registers, then save the combined state.
-        const merged = await v.mergeRemote(); await v.flush();
-        envelope = await readVault(); if (!envelope) throw new Error('storageError');
-        if (currentVault.current.generation !== merged.generation) return;
-        await syncVault(envelope, merged.data); synced = merged.generation;
+        await v.mergeRemote();
+        snapshot = await v.snapshotForSync(); coveredGeneration = snapshot.generation;
+        await syncVault(snapshot.envelope, snapshot.data);
       }
+      const synced = snapshot.generation; const envelope = snapshot.envelope;
       setLastSyncedGeneration(synced); setSyncMessage('synced'); void markBackup(envelope.vaultId, 'cloud').catch(() => {});
-    } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); if (currentVault.current.data?.settings.autoSync && currentVault.current.generation !== generation) window.setTimeout(() => void syncNow(), 2500); }
+    } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); if (syncAlive.current && currentVault.current.data?.settings.autoSync && currentVault.current.getGeneration() !== coveredGeneration) syncRetry.current = window.setTimeout(() => void syncNow(), 2500); }
   }, [user]);
   useEffect(() => {
     if (!vault.data?.settings.autoSync || vault.demo || !online || !user || vault.generation === lastSyncedGeneration || syncMessage === 'syncConflict' || syncMessage === 'differentVault') return;
