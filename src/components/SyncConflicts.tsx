@@ -6,16 +6,18 @@ import type { Invoice } from '../lib/types';
 import { dateLabel, money } from '../lib/dates';
 import { ImageView, Modal, Notice } from './ui';
 import { InvoiceSheet } from './invoices';
+import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from '../lib/audioMemos';
 
 function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict: SyncConflict }) {
   const { t, language } = useI18n(); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(false);
   const record = conflict.collection !== 'settings' ? vault.data![conflict.collection].find(r => r.id === conflict.id) : undefined;
   const clientId = record && 'clientId' in record ? record.clientId : conflict.collection === 'clients' ? conflict.id : undefined;
   const clientName = vault.data!.clients.find(c => c.id === clientId)?.name;
-  const collectionLabels: Record<SyncConflict['collection'], TextKey> = { clients: 'clients', appointments: 'appointments', sessions: 'sessions', notes: 'addNote', invoices: 'invoiceTitle', assessments: 'questionnaires', templates: 'templates', documents: 'clientDocuments', availability: 'availabilityList', settings: 'settings' };
-  const fieldLabels: Record<string, TextKey> = { preparation: 'preparation', notes: 'sessionNotes', name: 'name', address: 'clientAddress', email: 'clientEmail', contact: 'contact', language: 'language', currency: 'billingCurrency', homework: 'homeworkFor', caption: 'caption', $amount: 'syncConflictBilling', $snapshot: 'invoiceTitle', $exists: 'syncConflictDeleted', avatarId: 'syncConflictAvatar' };
+  const collectionLabels: Record<SyncConflict['collection'], TextKey> = { clients: 'clients', appointments: 'appointments', sessions: 'sessions', notes: 'addNote', invoices: 'invoiceTitle', assessments: 'questionnaires', templates: 'templates', documents: 'clientDocuments', availability: 'availabilityList', audioMemos: 'memoSection', settings: 'settings' };
+  const fieldLabels: Record<string, TextKey> = { preparation: 'preparation', notes: 'sessionNotes', name: 'name', address: 'clientAddress', email: 'clientEmail', contact: 'contact', language: 'language', currency: 'billingCurrency', homework: 'homeworkFor', caption: 'caption', label: 'memoLabel', summary: 'memoSummary', $recording: 'memoSection', $amount: 'syncConflictBilling', $snapshot: 'invoiceTitle', $exists: 'syncConflictDeleted', avatarId: 'syncConflictAvatar' };
   const title = clientName ?? (record && 'name' in record ? record.name : t(collectionLabels[conflict.collection]));
   const canCombine = conflict.variants.every(v => typeof v.value === 'string');
+  const textLimit = conflict.collection === 'audioMemos' ? conflict.field === 'summary' ? MEMO_MAX_SUMMARY : conflict.field === 'label' ? MEMO_MAX_LABEL : 50000 : 50000;
   const save = async (index: number, combined?: string) => {
     setBusy(true); setError(false);
     try { await vault.update(d => resolveConflict(d, conflict, conflict.variants[index], combined)); }
@@ -31,7 +33,7 @@ function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict:
               : <pre>{conflict.field === '$exists' ? t(v.value ? 'syncConflictRestore' : 'syncConflictKeepDeleted') : v.value === undefined ? t('syncConflictRemoved') : typeof v.value === 'string' ? v.value : JSON.stringify(v.value, null, 2)}</pre>}
         <button className="btn btn-secondary" disabled={busy} onClick={() => void save(i)}>{t('syncConflictChoose')} {i + 1}</button></div>;
     })}
-    {canCombine && <><label className="field"><span>{t('syncConflictCombine')}</span><textarea value={text} rows={5} maxLength={50000} onChange={e => setText(e.target.value)}/></label><button className="btn btn-primary" disabled={busy || !text.trim()} onClick={() => void save(0, text)}>{t('syncConflictSave')}</button></>}
+    {canCombine && <><label className="field"><span>{t('syncConflictCombine')}</span><textarea value={text} rows={5} maxLength={textLimit} onChange={e => setText(e.target.value)}/></label><button className="btn btn-primary" disabled={busy || !text.trim()} onClick={() => void save(0, text)}>{t('syncConflictSave')}</button></>}
     {error && <Notice error>{t('storageError')}</Notice>}</section>;
 }
 export function SyncConflicts({ vault }: { vault: VaultController }) {

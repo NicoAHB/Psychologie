@@ -4,7 +4,8 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 // A project Pages site lives below /Psychologie/, while local development uses /.
 const base = process.env.VITE_BASE_PATH || '/';
 if (!/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(base)) throw new Error('VITE_BASE_PATH must be an absolute directory path ending with /.');
-const assets = (await readdir('dist/assets')).sort().map(name => `${base}assets/${name}`);
+// Session audio is never an app-shell asset and must never enter a service-worker cache.
+const assets = (await readdir('dist/assets')).filter(name => !/\.(?:mp4|m4a|webm|ogg|wav|mp3|aac)$/i.test(name)).sort().map(name => `${base}assets/${name}`);
 const manifest = JSON.parse(await readFile('public/manifest.webmanifest', 'utf8'));
 Object.assign(manifest, { id: base, start_url: base, scope: base });
 manifest.icons = manifest.icons.map(icon => ({ ...icon, src: `${base}${icon.src.split('/').pop()}` }));
@@ -26,6 +27,7 @@ self.addEventListener('activate', event => event.waitUntil(caches.keys().then(ke
 self.addEventListener('message', event => { if (event.data?.type === 'SKIP_WAITING') self.skipWaiting(); });
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
+  if (event.request.destination === 'audio' || /\\.(?:mp4|m4a|webm|ogg|wav|mp3|aac)$/i.test(url.pathname)) return;
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (event.request.mode === 'navigate' && url.pathname.startsWith(${JSON.stringify(base)})) {
     event.respondWith(fetch(event.request).catch(() => caches.open(CACHE).then(cache => cache.match(NAVIGATION))));

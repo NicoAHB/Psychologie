@@ -38,8 +38,9 @@ revoke all on function public.save_encrypted_vault(bigint, uuid, text, jsonb) fr
 grant execute on function public.save_encrypted_vault(bigint, uuid, text, jsonb) to authenticated;
 
 insert into storage.buckets(id, name, public, file_size_limit, allowed_mime_types)
-values ('encrypted-notes', 'encrypted-notes', false, 16777216, array['application/json'])
-on conflict(id) do update set public = false, file_size_limit = 16777216, allowed_mime_types = array['application/json'];
+-- 25 MiB audio + AES-GCM tag + base64 JSON stays below 40 MiB (the free-tier cap remains unchanged).
+values ('encrypted-notes', 'encrypted-notes', false, 41943040, array['application/json'])
+on conflict(id) do update set public = false, file_size_limit = 41943040, allowed_mime_types = array['application/json'];
 drop policy if exists "own encrypted image select" on storage.objects;
 drop policy if exists "own encrypted image insert" on storage.objects;
 drop policy if exists "own encrypted image update" on storage.objects;

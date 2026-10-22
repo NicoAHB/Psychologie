@@ -59,6 +59,16 @@ test('deleted images are removed from device and cloud only after the new vault 
   await sync(vaultWith(rest)); assert.deepEqual(log.splice(0), [`remove ${gone}.json`]);
   assert.equal(files.has(`${user}/${vaultId}/${gone}.json`), false); assert.equal((await getRemovals(vaultId)).size, 0);
 });
+test('memo files participate in the same encrypted cloud file list and deletion queue as photos', async () => {
+  const file = await image(), data = vaultWith([]), clientId = data.clients[0].id;
+  data.sessions.push({ id: 'memo-session', clientId, date: '2026-10-22', time: '10:00', feeCents: 8500, paidAt: null, tags: [], notes: '' });
+  data.audioMemos.push({ id: 'memo', clientId, sessionId: 'memo-session', blobId: file, mimeType: 'audio/mp4', size: 3, durationMs: 1000, label: 'PRIVATE MEMO LABEL', summary: 'PRIVATE SUMMARY', createdAt: '2026-10-22T10:00:00Z' });
+  await sync(data); assert.deepEqual(log.splice(0), [`upload ${file}.json`]);
+  const uploaded = files.get(`${user}/${vaultId}/${file}.json`)!;
+  assert.doesNotMatch(uploaded, /PRIVATE|audio\/mp4/); assert.ok(JSON.parse(uploaded).payload.ciphertext);
+  data.audioMemos = []; await purgeBlobs(vaultId, [file]); await sync(data);
+  assert.deepEqual(log.splice(0), [`remove ${file}.json`]); assert.equal(await readBlob(file), undefined);
+});
 test('a vault changed on another device is never overwritten', async () => {
   remote = { ...remote!, revision: remote!.revision + 1 };
   await assert.rejects(() => sync(vaultWith([])), /SYNC_CONFLICT/);

@@ -51,3 +51,27 @@ export async function clearSnapshots(vault: string) {
   for (const entry of await listSnapshots(vault)) await metaDelete(itemKey(vault, entry.at));
   await metaDelete(indexKey(vault));
 }
+/** Rewrite recovery points without ever putting plaintext in storage. Preparation is
+ * outside the transaction; the transaction only replaces snapshots still present,
+ * so a concurrent clear cannot resurrect an already removed recovery point. */
+export async function rewriteSnapshots(vault: string, transform: (envelope: VaultEnvelope) => Promise<{ envelope: VaultEnvelope; blobIds: string[] } | undefined>) {
+  const replacements = new Map<number, { envelope: VaultEnvelope; blobIds: string[] }>();
+  for (const entry of await listSnapshots(vault)) {
+    const envelope = await readSnapshot(vault, entry.at); if (!envelope) continue;
+    const replacement = await transform(envelope); if (replacement) replacements.set(entry.at, replacement);
+  }
+  if (!replacements.size) return;
+  const db = await database();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('meta', 'readwrite'), store = tx.objectStore('meta'), request = store.get(indexKey(vault));
+    request.onsuccess = () => {
+      const entries = (request.result ?? []) as SnapshotEntry[];
+      for (const entry of entries) {
+        const replacement = replacements.get(entry.at); if (!replacement) continue;
+        store.put(replacement.envelope, itemKey(vault, entry.at)); entry.blobIds = replacement.blobIds;
+      }
+      store.put(entries, indexKey(vault));
+    };
+    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storageError'));
+  });
+}

@@ -47,6 +47,12 @@ export interface PhotoNote extends Stamped {
   /** Set when the photo (e.g. a handwritten note sheet) belongs to a session. */
   sessionId?: string;
 }
+/** An audio-only session attachment. Metadata lives inside the encrypted vault;
+ * blobId points to the same AES-GCM file store used for session photos. */
+export interface AudioMemo extends Stamped {
+  id: string; clientId: string; sessionId: string; blobId: string; createdAt: string;
+  mimeType: string; size: number; durationMs: number; label: string; summary: string;
+}
 export interface InvoiceLine { sessionId: string; date: string; description: string; amountCents: number; euroCents?: number; rate?: ExchangeRate }
 export interface Invoice extends Stamped {
   id: string; number: string; clientId: string; issuedAt: string; lines: InvoiceLine[]; totalCents: number;
@@ -103,7 +109,7 @@ export interface VaultData {
   crdt?: CrdtState;
   schema: 1; clients: Client[]; appointments: Appointment[]; sessions: Session[]; notes: PhotoNote[];
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
-  availability: CalendarAbsence[];
+  availability: CalendarAbsence[]; audioMemos: AudioMemo[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
   settings: Settings;
@@ -122,14 +128,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], availability: value.availability ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

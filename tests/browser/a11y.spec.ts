@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { fakeMemoCapture } from './memo-fixture';
 import { test, expect, type Page } from './fixtures';
 
 const nav = async (page: Page, name: string) => {
@@ -16,6 +17,8 @@ async function scan(page: Page, found: Record<string, string[]>, view: string) {
 
 for (const theme of ['light', 'dark'] as const) {
   test(`no detectable accessibility violations in ${theme} mode`, async ({ page }) => {
+    test.setTimeout(90000);
+    await fakeMemoCapture(page);
     await page.addInitScript(t => { try { localStorage.setItem('praxisraum-theme', t); localStorage.setItem('praxisraum-language', 'de'); } catch { /* storage may be blocked */ } }, theme);
     const found: Record<string, string[]> = {};
     await page.goto('/');
@@ -44,6 +47,27 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await scan(page, found, 'session form');
+    await page.getByRole('dialog').getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).click();
+    const recorder = page.getByRole('dialog', { name: 'Sprach-Memo aufnehmen', exact: true });
+    await scan(page, found, 'memo recorder idle');
+    await recorder.getByRole('button', { name: 'Aufnahme starten', exact: true }).click();
+    await expect(recorder.getByRole('status')).toContainText('Aufnahme läuft');
+    await scan(page, found, 'memo recorder recording');
+    await recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
+    await recorder.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Barrierefreies Memo');
+    await recorder.getByLabel('Kurzfassung', { exact: true }).fill('Manuell erfasste Gedanken zur Sitzung.');
+    await scan(page, found, 'memo recorder preview');
+    await recorder.getByRole('button', { name: 'Memo übernehmen', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Speichern', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
+    await scan(page, found, 'session memo list');
+    await page.locator('.memo-open').filter({ hasText: 'Barrierefreies Memo' }).click();
+    const memo = page.getByRole('dialog', { name: 'Barrierefreies Memo', exact: true });
+    await expect(memo.getByRole('slider', { name: 'Wiedergabeposition', exact: true })).toBeVisible();
+    await scan(page, found, 'memo playback');
+    await memo.getByRole('button', { name: 'Bezeichnung / Kurzfassung bearbeiten', exact: true }).click();
+    await scan(page, found, 'memo manual summary form');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Profil bearbeiten' }).first().click();
@@ -97,4 +121,24 @@ test('tablet in portrait keeps appointment names readable and the page free of s
   expect((await person.boundingBox())!.width).toBeGreaterThan(200);
   await expect(person.locator('strong')).not.toHaveText(/…|\.\.\./);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+for (const width of [820, 390]) test(`voice memo controls fit ${width}px portrait without sideways scrolling`, async ({ page }) => {
+  await fakeMemoCapture(page); await page.setViewportSize({ width, height: 1180 });
+  await page.goto('/'); await page.getByRole('button', { name: 'Mit Beispieldaten entdecken', exact: true }).click();
+  await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click();
+  await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
+  await page.getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Sprach-Memo aufnehmen', exact: true });
+  await dialog.getByRole('button', { name: 'Aufnahme starten', exact: true }).click(); await dialog.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
+  await dialog.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Дуже довга назва '.repeat(7));
+  await dialog.getByLabel('Kurzfassung', { exact: true }).fill('Ручний текст без пробілів'.replaceAll(' ', '').repeat(50));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  const slider = dialog.getByRole('slider', { name: 'Wiedergabeposition', exact: true });
+  expect((await slider.boundingBox())!.width).toBeGreaterThan(200);
+  await dialog.getByRole('button', { name: 'Memo übernehmen', exact: true }).click();
+  const row = page.locator('.memo-open').first(); await expect(row).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect((await row.boundingBox())!.width).toBeGreaterThan(200);
 });

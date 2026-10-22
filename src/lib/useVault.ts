@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { allBlobs, purgeBlobs, readBlob, readVault, setRevision, writeBlob, writeVault } from './db';
+import { allBlobs, finishBlobCleanup as completeBlobCleanup, pendingBlobCleanup, purgeBlobs, queueBlobCleanup, readBlob, readVault, setRevision, writeBlob, writeVault } from './db';
 import {
   deriveBits, deriveKey, importDataKey, passphraseSalt, randomKeyBytes, secretKek,
   unwrapDataKey, validateEnvelope, wrapDataKey, wrapWithPassphrase,
@@ -14,7 +14,9 @@ import { orphanedBlobs } from './records';
 import { stampChanges } from './merge';
 import { formatRecoveryKey, newRecoveryBytes, parseRecoveryKey } from './recovery';
 import { createPasskey, unlockWithPasskey as assertPasskey } from './passkey';
-import { clearSnapshots, commitVaultSnapshot, historyBlobIds, listSnapshots, readSnapshot, recordSnapshot } from './history';
+import { clearSnapshots, commitVaultSnapshot, historyBlobIds, listSnapshots, readSnapshot, recordSnapshot, rewriteSnapshots } from './history';
+import { erasedAudioMemoIds, redactAudioMemos } from './crdt';
+import { stopMemoMedia } from './autoLock';
 
 export function useVault() {
   const [envelope, setEnvelope] = useState<VaultEnvelope | null | undefined>(undefined);
@@ -39,6 +41,7 @@ export function useVault() {
   const generationRef = useRef(0);
   const bump = () => { generationRef.current += 1; setGeneration(generationRef.current); };
   const memoryBlobs = useRef(new Map<string, EncryptedBlob>());
+  const locking = useRef(false), unattachedFiles = useRef(new Set<string>());
   useEffect(() => { readVault().then(v => { setEnvelope(v ?? null); info.current = v ?? null; }).catch(() => setLoadError(true)); }, []);
 
   /** Everything that writes to storage goes through one queue so envelope changes and data saves never interleave. */
@@ -54,9 +57,20 @@ export function useVault() {
     return enqueue(async () => {
       if (isDemo) return;
       const base = info.current!;
+      const previous = persisted.current;
+      const alreadyErased = previous ? erasedAudioMemoIds(previous) : new Set<string>();
+      const erased = new Set([...erasedAudioMemoIds(value)].filter(id => !alreadyErased.has(id)));
+      const beforeIds = previous ? referencedBlobs(previous) : [];
       const encrypted = await encryptVault(activeKey, value, base.vaultId, base.salt, { format: base.format, wraps: base.wraps, ...wraps });
+      if (erased.size) await queueBlobCleanup(base.vaultId, beforeIds);
       const discarded = await commitVaultSnapshot(encrypted, referencedBlobs(value));
-      info.current = encrypted; persisted.current = value; setEnvelope(encrypted);
+      info.current = encrypted;
+      if (erased.size) {
+        await redactMemoHistory(activeKey, base.vaultId, erased);
+        await purgeUnused(beforeIds);
+      }
+      persisted.current = value; setEnvelope(encrypted);
+      await finishBlobCleanup(base.vaultId);
       if (discarded.length) await purgeBlobs(base.vaultId, discarded).catch(() => {});
     });
   }, [enqueue]);
@@ -68,11 +82,12 @@ export function useVault() {
   }), [enqueue]);
 
   const update = useCallback((change: (value: VaultData) => void): Promise<void> => {
-    if (!current.current || !key.current) return Promise.reject(new Error('locked'));
+    if (!current.current || !key.current || locking.current) return Promise.reject(new Error('locked'));
     const next = structuredClone(current.current);
     change(next);
     lastStamp.current = Math.max(Date.now(), lastStamp.current + 1);
     stampChanges(current.current, next, lastStamp.current, actor.current);
+    if (unattachedFiles.current.size) { const ids = new Set(referencedBlobs(next)); for (const id of unattachedFiles.current) if (ids.has(id)) unattachedFiles.current.delete(id); }
     current.current = next;
     setData(next);
     bump();
@@ -96,8 +111,15 @@ export function useVault() {
 
   const open = async (dataKey: CryptoKey, envelopeValue: VaultEnvelope) => {
     const { value, migrated } = await runSecureTask('openVault', { key: dataKey, envelope: envelopeValue });
-    key.current = dataKey; current.current = value; persisted.current = migrated ? null : value; setData(value); generationRef.current = 0; setGeneration(0);
-    if (migrated) { await persist(value); bump(); }
+    key.current = dataKey; current.current = value; persisted.current = migrated ? null : value; generationRef.current = 0; setGeneration(0);
+    try {
+      // Finish interrupted erasures before exposing the unlocked UI to new edits.
+      const erased = erasedAudioMemoIds(value);
+      if (erased.size) await redactMemoHistory(dataKey, envelopeValue.vaultId, erased);
+      await finishBlobCleanup(envelopeValue.vaultId);
+      if (migrated) { await persist(value); bump(); }
+      setData(value);
+    } catch (error) { key.current = null; current.current = null; persisted.current = null; stopSecureWorker(); throw error; }
   };
   const create = async (passphrase: string) => {
     const raw = randomKeyBytes(); const vaultId = uid();
@@ -146,12 +168,16 @@ export function useVault() {
     current.current = demoVault(); setData(current.current); generationRef.current = 0; setGeneration(0);
   };
   const lock = useCallback(async () => {
-    await flush();
+    if (locking.current) return; locking.current = true;
+    stopMemoMedia();
+    try { await flush(); await purgeUnused([...unattachedFiles.current]); }
+    catch (error) { locking.current = false; throw error; }
     recoveredKey.current?.fill(0); recoveredKey.current = null; setPassphraseReset(false);
     stopSecureWorker();
     key.current = null; current.current = null; persisted.current = null; setData(null); generationRef.current = 0; setGeneration(0);
     memoryBlobs.current.clear(); demoRef.current = false; setDemo(false);
-    const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null);
+    try { const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null); }
+    finally { locking.current = false; unattachedFiles.current.clear(); }
   }, [flush]);
 
   // ---- unlock methods and the passphrase (format v2) ----
@@ -188,22 +214,28 @@ export function useVault() {
 
   // ---- images ----
   const addImage = async (bytes: Uint8Array<ArrayBuffer>) => {
-    if (!key.current) throw new Error('locked');
+    if (!key.current || locking.current) throw new Error('locked');
     const id = uid(); const activeKey = key.current;
     const vaultId = demoRef.current ? 'demo' : info.current!.vaultId;
-    const blob: EncryptedBlob = { id, vaultId, payload: await encryptBytes(key.current, bytes, `praxisraum-blob:v1:${vaultId}:${id}`) };
-    if (key.current !== activeKey) throw new Error('locked');
-    if (demoRef.current) memoryBlobs.current.set(id, blob); else await writeBlob(blob);
+    unattachedFiles.current.add(id);
+    await enqueue(async () => {
+      const blob: EncryptedBlob = { id, vaultId, payload: await encryptBytes(activeKey, bytes, `praxisraum-blob:v1:${vaultId}:${id}`) };
+      if (key.current !== activeKey) throw new Error('locked');
+      if (demoRef.current) memoryBlobs.current.set(id, blob);
+      else { await queueBlobCleanup(vaultId, [id]); await writeBlob(blob); }
+    });
     return id;
   };
   const image = useCallback(async (id: string, mimeType = 'image/webp') => {
-    if (!key.current) throw new Error('locked');
+    if (!key.current || locking.current) throw new Error('locked');
     const activeKey = key.current;
     const vaultId = demoRef.current ? 'demo' : info.current!.vaultId;
     const blob = demoRef.current ? memoryBlobs.current.get(id) : (await readBlob(id)) ?? (await downloadBlob(vaultId, id));
     if (!blob || blob.vaultId !== vaultId) throw new Error('storageError');
     if (key.current !== activeKey) throw new Error('locked');
-    return new Blob([await decryptBytes(activeKey, blob.payload, `praxisraum-blob:v1:${vaultId}:${id}`)], { type: mimeType });
+    const bytes = await decryptBytes(activeKey, blob.payload, `praxisraum-blob:v1:${vaultId}:${id}`);
+    if (key.current !== activeKey || locking.current) { bytes.fill(0); throw new Error('locked'); }
+    const result = new Blob([bytes], { type: mimeType }); bytes.fill(0); return result;
   }, []);
   // Images nobody references any more are erased locally and queued for removal from the cloud. Callers run this only
   // after the vault write that dropped the references succeeded, so a failed save can never cost an image.
@@ -211,12 +243,41 @@ export function useVault() {
     if (!ids.length) return;
     if (demoRef.current) { ids.forEach(id => memoryBlobs.current.delete(id)); return; }
     await purgeBlobs(info.current!.vaultId, ids);
+    ids.forEach(id => unattachedFiles.current.delete(id));
   };
   const purgeUnused = async (before: string[]) => {
     if (!current.current) return;
     const kept = info.current && !demoRef.current ? await historyBlobIds(info.current.vaultId) : new Set<string>();
     await purge(orphanedBlobs(before, current.current).filter(id => !kept.has(id)));
   };
+  async function finishBlobCleanup(vaultId: string) {
+    const ids = await pendingBlobCleanup(vaultId);
+    // Files written for an open form are still needed until it is saved/discarded.
+    const ready = ids.filter(id => !unattachedFiles.current.has(id));
+    await purgeUnused(ready);
+    // Preserve pending form files across a crash; live references are checked again on unlock.
+    await completeBlobCleanup(vaultId, ready);
+  }
+  async function redactMemoHistory(activeKey: CryptoKey, vaultId: string, ids: ReadonlySet<string>) {
+    const removedBlobIds = new Set<string>();
+    await rewriteSnapshots(vaultId, async snapshot => {
+      const value = await decryptVault(activeKey, snapshot);
+      const oldReferences = referencedBlobs(value);
+      const present = value.audioMemos.some(m => ids.has(m.id)) || [...ids].some(id => {
+        const fields = value.crdt?.entities[JSON.stringify(['audioMemos', id])];
+        return fields && Object.keys(fields).some(field => field !== '$exists');
+      });
+      if (!present) return;
+      redactAudioMemos(value, ids);
+      const blobIds = referencedBlobs(value); const removed = oldReferences.filter(id => !blobIds.includes(id));
+      for (const id of removed) removedBlobIds.add(id);
+      // Journal before replacing the last snapshot that still knows these IDs.
+      await queueBlobCleanup(vaultId, removed);
+      return { envelope: await encryptVault(activeKey, value, vaultId, snapshot.salt, { format: snapshot.format, wraps: snapshot.wraps }), blobIds };
+    });
+    // Files survive until every affected encrypted recovery point was rewritten successfully.
+    await purgeUnused([...removedBlobIds]);
+  }
   /**
    * Delete records. Normally an undo point is kept first; with `erase` (a whole client) the version history is wiped
    * instead, because it would otherwise keep the deleted person's data around.
@@ -308,6 +369,7 @@ export function useVault() {
   const restoreData = (value: VaultData) => update(next => {
     next.settings = structuredClone(value.settings);
     for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability'] as const) (next[name] as unknown[]) = value[name];
+    next.audioMemos = (value.audioMemos ?? []).filter(m => !Object.hasOwn(next.deleted, m.id));
     for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;

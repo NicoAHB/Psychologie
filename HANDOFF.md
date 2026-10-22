@@ -13,7 +13,7 @@
 
 Die Quellcode-Veröffentlichung funktioniert. Die App-Veröffentlichung ist getrennt davon: Der Workflow `.github/workflows/pages.yml` baut den Unterpfad `/Psychologie/` und veröffentlicht über GitHub Pages. Unter **Settings → Pages** einmalig die Quelle **GitHub Actions** wählen. Einen eventuell vor Aktivierung fehlgeschlagenen Lauf unter **Actions → Publish Praxisraum** erneut starten. Erst ein erfolgreicher Deploy-Lauf bestätigt den Live-Link `https://nicoahb.github.io/Psychologie/`.
 
-Die Cloud-Umgebung blockierte Verwaltungszugriffe auf `api.github.com` mit CONNECT 403. Die Domains `api.github.com` und `nicoahb.github.io` wurden additiv als Netzwerkentwurf gespeichert. Der Entwurf ist kein Nachweis einer bereits angewendeten Freigabe. Sobald die Freigabe angewendet ist, können Aktivierung und Live-Deployment aus dieser Aufgabe geprüft werden. Alternativ die oben genannte GitHub-Einstellung direkt vornehmen. Es wurde keine Repository-Sichtbarkeit verändert und kein kostenpflichtiges Hosting aktiviert.
+GitHub-Zugriff und Pages sind inzwischen eingerichtet; Änderungen auf `main` lösen den Build-/Deploy-Workflow aus. Die früher während der Umgebungseinrichtung aufgetretene Netzwerksperre ist für die aktuelle Weiterarbeit behoben. Repository-Sichtbarkeit und Hostingtarif wurden nicht verändert.
 
 ## Starten und prüfen
 
@@ -36,9 +36,9 @@ Supabase-Schema mit RLS, Revisionsprüfung und privatem Bildspeicher sowie ein s
 
 ## Externe Einrichtung steht aus
 
-Es wurden keine Supabase- oder Telegram-Zugangsdaten bereitgestellt. Die lokale App benötigt sie nicht. Für Live-Synchronisation bzw. Zustellung müssen die in `.env.example` und README genannten eigenen Projekte, Schlüssel und Actions-Secrets eingerichtet werden. Der Erinnerungs-Cron ist absichtlich bis zur Konfiguration deaktiviert. Keine Live-Synchronisation, Bot-Zustellung oder öffentliche Bereitstellung wurde behauptet oder durchgeführt.
+Es wurden keine Supabase- oder Telegram-Zugangsdaten bereitgestellt. Die lokale App benötigt sie nicht. Für Live-Synchronisation bzw. Zustellung müssen die in `.env.example` und README genannten eigenen Projekte, Schlüssel und Actions-Secrets eingerichtet werden. Der Erinnerungs-Cron ist absichtlich bis zur Konfiguration deaktiviert. Live-Synchronisation und Bot-Zustellung wurden ohne echte Zugangsdaten nicht getestet; die Pages-App funktioniert davon unabhängig.
 
-## Geprüfter Stand dieser Übergabe
+## Ursprünglicher Prüfstand der Einrichtung (historisch)
 
 - 87 Funktions-/Datenbanktests bestanden (inklusive tatsächlicher PostgreSQL-Ausführung über PGlite, Kontentrennung/RLS, Worker-Kryptografie, Zeitzonen-Abgleich mit der Temporal-Referenz, Lösch-/Konfliktlogik und einem simulierten Supabase-Client für den Bild-Sync).
 - 26 Chromium-Browserprüfungen bestanden (Desktop und emuliertes Smartphone; Passkey-Test mit virtuellem Authenticator und Auto-Backup-Test laufen nur auf dem Desktop) plus 2 für den GitHub-Pages-Pfad: vollständiger Workflow einschließlich Bild-Upload und zweitem Browserprofil, Bearbeiten/Löschen inkl. Bildentfernung ohne CSP-Verletzung, Demo/Navigation sowie automatische Sperre.
@@ -62,10 +62,24 @@ Schrift-Subsets und Runtime-Cache, Playwright-Browsercache, atomare verschlüsse
 
 ## Neue lokale Werkzeuge und Videosprechstunde
 
-Feldweiser kausaler Offline-Abgleich mit Konfliktprüfung, ein lokaler Crypto-/PDF-Worker, rollierende Ordnersicherung (30 verschlüsselte Dateien), optionale direkte WebRTC-Sprechstunde mit verschlüsseltem Supabase-Signaling und ausschließlich lokale Web-Speech-Diktierfunktion sind integriert. Einrichtung, Dateiliste und Grenzen: [Lokale Werkzeuge und Video](docs/lokale-werkzeuge-und-video.md). Für Video ist die separate additive Migration `supabase/video.sql` nötig. Im verwalteten Arbeitsbereich sind keine Supabase-Zugangsdaten hinterlegt; die Migration wurde deshalb nur gegen lokales PostgreSQL/PGlite geprüft und nicht in einem echten Praxisprojekt ausgeführt.
+Feldweiser kausaler Offline-Abgleich mit Konfliktprüfung, ein lokaler Crypto-/PDF-Worker, rollierende Ordnersicherung (30 verschlüsselte Dateien) und eine optionale direkte WebRTC-Sprechstunde mit verschlüsseltem Supabase-Signaling sind integriert. Einrichtung, Dateiliste und Grenzen: [Lokale Werkzeuge und Video](docs/lokale-werkzeuge-und-video.md). Für Video ist die separate additive Migration `supabase/video.sql` nötig. Im verwalteten Arbeitsbereich sind keine Supabase-Zugangsdaten hinterlegt; die Migration wurde deshalb nur gegen lokales PostgreSQL/PGlite geprüft und nicht in einem echten Praxisprojekt ausgeführt.
 
 Die frühere Offline-Diktierfunktion (Whisper tiny) wurde entfernt, weil sie Deutsch und Ukrainisch zu schlecht erkannte; empfohlen wird das Tastatur-Diktat des Geräts.
 
-Aktuelle lokale Prüfung: 164 Funktions-/PostgreSQL-Tests und alle 78 aktiven Browserprüfungen bestanden (16 bedingte Prüfungen ausgelassen); darunter Worker, native Erkennung, Paket-Download/Abbruch, tatsächliche DE-/UA-Erkennung ohne Netzwerk, AudioWorklet-Aufnahme, Konfliktentscheidung, Ordnersicherung und WebRTC. Auch alle 5 aktiven Prüfungen für `/Psychologie/` bestanden, einschließlich Offline-Modellinitialisierung und der ersten ukrainischen Rechnung offline. GitHub Actions führt die vollständige Browserregression aus. `npm audit --omit=dev` meldete keine bekannten Schwachstellen.
+Die aktuellen Prüfungen und die Umsetzung der Sprach-Memos stehen im folgenden Abschnitt. Frühere Tests für Spracherkennung/Modelle wurden zusammen mit der Diktierfunktion entfernt; sie sind kein Bestandteil der aktuellen App.
 
 Der Sync verwendet jetzt explizit zusammengehörige gespeicherte Akten-/Datei-Snapshots. Ein zusätzlicher Browser-Regressionstest prüft gleichzeitige Schreibvorgänge trotz veralteter React-Ansicht. Playwright-Browser werden nach tatsächlicher Browser-Revision statt jeder Paketänderung gecacht; vorhandene ältere Cache-Schlüssel bleiben als sicher nachinstallierter Fallback nutzbar.
+
+## Sprach-Memos pro Sitzung (22. Oktober 2026)
+
+Grundlage ist Claudes aktualisierter `main`-Stand `10a8b90`, einschließlich der Entfernung der Diktierfunktion. Die Erweiterung enthält **keine KI, Spracherkennung, Transkription, Modelle, neuen Worker oder zusätzlichen Abhängigkeiten**.
+
+- Neue und bearbeitete Sitzungen sowie jede Sitzung unter „Besprochen“ erlauben mehrere Memos. MediaRecorder erkennt MP4/WebM/Ogg; Mikrofon nur nach Klick, maximal 20 Minuten/25 MiB, Timer, Stopp, Verwerfen und Wiederholen.
+- Bestehendes AES-GCM-Dateiformat; nur RAM bis zum Speichern. Metadaten mit Bezeichnung, Zeitpunkt, Dauer und manueller Kurzfassung (2000 Zeichen) bleiben im verschlüsselten Tresor. Die Kurzfassung steht über dem Player, als Auszug im Verlauf und in Strg/Cmd+K. Im Überblick steht die Memo-Anzahl.
+- Player mit Pause, Tastatur-Positionsregler und 1×/1,5×/2×. Blob-URLs werden beim Schließen/Sperren widerrufen. Aufnahme und Wiedergabe enden synchron vor dem Warten auf ausstehende Speicheroperationen.
+- Backups/Import, Dateiverweise, Cloud-Sync, CRDT und lesbarer Klienten-ZIP-Export sind angebunden. Gelöschte Memos werden endgültig aus verschlüsselten Verlaufspunkten und verborgenem Konfliktinhalt entfernt. Ein Journal aus opaken Datei-IDs setzt unterbrochene Bereinigungen beim Entsperren fort. Alte Sicherungsdateien außerhalb der App bleiben unverändert. Fotos und andere Notizen behalten ihre bisherige Wiederherstellungsmöglichkeit.
+- Alte Tresore/Sicherungen erhalten `audioMemos: []`; kein neues Backup-Format. CSP und Mikrofon-Policy reichten bereits aus und wurden nicht erweitert. Der Service Worker schließt Audio explizit vom Caching aus.
+
+Für optionalen Cloud-Sync `supabase/schema.sql` im eigenen Projekt erneut ausführen: Der weiterhin private JSON-Bucket erlaubt jetzt 40 MiB pro verschlüsselter Datei (25 MiB Audio werden durch Base64 größer). Eine Live-Migration wurde mangels Zugangsdaten nicht ausgeführt.
+
+Prüfung: sauberes `npm ci`, 172 Unit-/PostgreSQL-Tests sowie vollständiger Browserlauf mit 93 bestandenen aktiven Prüfungen; bedingte Anbieter-/Plattformtests ausgelassen. Zusätzlich bestanden alle 6 Prüfungen für `/Psychologie/`, einschließlich Offline-PDF und Offline-Memo-Wiedergabe unter der Produktions-CSP. axe prüft Recorder, Vorschau, Player und Kurzfassung in Hell/Dunkel. Portrait-Layouts bei 820/390 px sind geprüft. Browseraufnahmen verwenden ausschließlich gefälschte MediaRecorder-/getUserMedia-APIs und drei Sekunden synthetischen Ton; echter iPad/iPhone-Safari-Mikrofontest bleibt erforderlich. Einzelheiten, Dateiliste und Bedienung: [Sprach-Memos](docs/lokale-werkzeuge-und-video.md#sprach-memos-ohne-spracherkennung).

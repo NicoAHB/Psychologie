@@ -1,7 +1,8 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import type { VaultData } from './types';
+import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;
@@ -32,12 +33,14 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
   for (const [k, v] of Object.entries(row)) {
     if (k === 'id' || k === 'updatedAt' || collection === 'settings' && k === 'autoSync') continue;
     if ('feeCents' in row && ['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].includes(k)) continue;
+    if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
     else if (k === 'tags') { for (const tag of v as string[]) result[`tag:${tag}`] = true; }
     else if (['deliveries', 'returns', 'telegramDeliveries'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
     else result[k] = v as Json;
   }
   if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
+  if (collection === 'audioMemos') result.$recording = Object.fromEntries(['blobId', 'mimeType', 'size', 'durationMs'].map(k => [k, row[k]])) as Json;
   return result;
 }
 function seed(value: Json | undefined, at: number, actor: string): Register {
@@ -50,7 +53,7 @@ export function stateOf(data: VaultData): CrdtState {
   const actor = `legacy-${digest({ ...data, settings: { ...data.settings, autoSync: false } })}`;
   const state: CrdtState = { version: 1, clock: { [actor]: 1 }, entities: {} };
   for (const collection of [...COLLECTIONS, 'settings'] as const) {
-    const rows = collection === 'settings' ? [{ ...data.settings, id: 'settings' }] : data[collection] as unknown as Row[];
+    const rows = collection === 'settings' ? [{ ...data.settings, id: 'settings' }] : (data[collection] ?? []) as unknown as Row[];
     rows.forEach((row, index) => {
       const registers = Object.fromEntries(Object.entries({ ...fields(row, collection), $exists: true, $order: index }).map(([k, v]) => [k, seed(v, row.updatedAt ?? 0, actor)]));
       state.entities[keyOf(collection, row.id)] = registers;
@@ -72,12 +75,12 @@ function preferred(register: Register, field = '') {
  * changed fields as deterministic causal writes; never silently ignore an unstamped receipt. */
 function adoptUnstamped(data: VaultData, state: CrdtState): CrdtState {
   for (const collection of [...COLLECTIONS, 'settings'] as const) {
-    const rows = collection === 'settings' ? [{ ...data.settings, id: 'settings' }] : data[collection] as unknown as Row[];
+    const rows = collection === 'settings' ? [{ ...data.settings, id: 'settings' }] : (data[collection] ?? []) as unknown as Row[];
     for (const [index, row] of rows.entries()) {
       const entity = keyOf(collection, row.id), registers = state.entities[entity] ?? {}, actual = fields(row, collection);
       // A tombstone remains authoritative until an explicit normal edit/restore acknowledges it.
       if (registers.$exists?.values.some(v => v.value === false)) continue;
-      for (const field of new Set([...Object.keys(actual), ...Object.keys(registers).filter(k => !k.startsWith('$') || k === '$snapshot' || k === '$amount')])) {
+      for (const field of new Set([...Object.keys(actual), ...Object.keys(registers).filter(k => !k.startsWith('$') || k === '$snapshot' || k === '$amount' || k === '$recording')])) {
         if (same(actual[field], registers[field] && preferred(registers[field], field))) continue;
         const actor = `legacy-edit-${digest([entity, field, actual[field] ?? null, row.updatedAt ?? 0])}`;
         const sequence = (state.clock[actor] ?? 0) + 1; state.clock[actor] = sequence;
@@ -91,7 +94,7 @@ function adoptUnstamped(data: VaultData, state: CrdtState): CrdtState {
   }
   for (const [id, at] of Object.entries(data.deleted)) for (const collection of COLLECTIONS) {
     const entity = keyOf(collection, id), registers = state.entities[entity];
-    if (!registers?.$exists || registers.$exists.values.some(v => v.value === false) || data[collection].some(row => row.id === id)) continue;
+    if (!registers?.$exists || registers.$exists.values.some(v => v.value === false) || data[collection]?.some(row => row.id === id)) continue;
     const actor = `legacy-delete-${digest([entity, at])}`, sequence = (state.clock[actor] ?? 0) + 1;
     state.clock[actor] = sequence; put(state, entity, '$exists', false, actor, sequence, at);
   }
@@ -110,10 +113,12 @@ function put(state: CrdtState, entity: string, field: string, value: Json | unde
 }
 
 export function recordChanges(before: VaultData, after: VaultData, at: number, actor: string = crypto.randomUUID()) {
+  // A permanently erased recording cannot return through an older local snapshot.
+  after.audioMemos = (after.audioMemos ?? []).filter(m => !Object.hasOwn(before.deleted, m.id));
   const state = stateOf(after.crdt && !same(before.crdt, after.crdt) ? after : before); const sequence = (state.clock[actor] ?? 0) + 1; state.clock[actor] = sequence;
   for (const collection of [...COLLECTIONS, 'settings'] as const) {
-    const oldRows = collection === 'settings' ? [{ ...before.settings, id: 'settings' }] : before[collection] as unknown as Row[];
-    const rows = collection === 'settings' ? [{ ...after.settings, id: 'settings' }] : after[collection] as unknown as Row[];
+    const oldRows = collection === 'settings' ? [{ ...before.settings, id: 'settings' }] : (before[collection] ?? []) as unknown as Row[];
+    const rows = collection === 'settings' ? [{ ...after.settings, id: 'settings' }] : (after[collection] ?? []) as unknown as Row[];
     const old = new Map(oldRows.map(row => [row.id, row]));
     rows.forEach((row, index) => {
       const prev = old.get(row.id), entity = keyOf(collection, row.id), nextFields = fields(row, collection), previous = prev ? fields(prev, collection) : {};
@@ -151,7 +156,7 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
     const row: Row = { id, updatedAt: Math.max(0, ...Object.values(registers).flatMap(r => r.values.map(v => v.at))) };
     for (const [field, register] of Object.entries(registers)) {
       const value = preferred(register, field); if (value === undefined || field === '$exists' || field === '$order') continue;
-      if (field === '$snapshot' || field === '$amount') Object.assign(row, structuredClone(value));
+      if (field === '$snapshot' || field === '$amount' || field === '$recording') Object.assign(row, structuredClone(value));
       else if (field.startsWith('practice.')) { row.practice ??= {}; (row.practice as Record<string, Json>)[field.slice(9)] = value; }
       else if (field.startsWith('tag:')) { if (value) (row.tags ??= [] as string[]); if (value) (row.tags as string[]).push(field.slice(4)); }
       else if (/^(deliveries|returns|telegramDeliveries):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
@@ -176,18 +181,33 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
 function scrubErasedClients(data: VaultData) {
   const state = data.crdt; if (!state) return;
   const erased = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'clients' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
+  const erasedSessions = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'sessions' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
   for (const [entity, fields] of Object.entries(state.entities)) {
     const [collection, id] = JSON.parse(entity) as [Collection, string];
     if (collection === 'settings') continue;
     const owner = fields.clientId?.values.some(v => typeof v.value === 'string' && erased.has(v.value)) || fields.$snapshot?.values.some(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && typeof v.value.clientId === 'string' && erased.has(v.value.clientId));
     const permanentlyDeleted = fields.$exists?.values.every(v => v.value === false);
-    if (collection === 'clients' && erased.has(id) || owner || permanentlyDeleted) {
+    const erasedMemo = collection === 'audioMemos' && (fields.$exists?.values.some(v => v.value === false) || fields.sessionId?.values.some(v => typeof v.value === 'string' && erasedSessions.has(v.value)));
+    if (collection === 'clients' && erased.has(id) || owner || permanentlyDeleted || erasedMemo) {
       const deletedAt = Math.max(0, ...Object.values(fields).flatMap(r => r.values.map(v => v.at)));
       const deletion = fields.$exists?.values.find(v => v.value === false) ?? { actor: 'erasure', sequence: 1, at: deletedAt, value: false };
       state.entities[entity] = { $exists: { seen: join(state.clock, { [deletion.actor]: deletion.sequence }), values: [{ ...deletion, value: false }] } };
       data.deleted[id] = deletedAt;
+      if (collection === 'audioMemos') data.audioMemos = (data.audioMemos ?? []).filter(m => m.id !== id);
     }
   }
+}
+/** IDs whose audio is irrevocably erased; used to scrub local encrypted recovery points. */
+export function erasedAudioMemoIds(data: VaultData): Set<string> {
+  return new Set(Object.entries(data.crdt?.entities ?? {}).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'audioMemos' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
+}
+export function redactAudioMemos(data: VaultData, ids: ReadonlySet<string>, at = Date.now()) {
+  const state = stateOf(data);
+  for (const id of ids) {
+    const actor = `memo-erasure-${id}`, sequence = (state.clock[actor] ?? 0) + 1; state.clock[actor] = sequence;
+    put(state, keyOf('audioMemos', id), '$exists', false, actor, sequence, at); data.deleted[id] = at;
+  }
+  data.audioMemos = (data.audioMemos ?? []).filter(m => !ids.has(m.id)); data.crdt = state; scrubErasedClients(data);
 }
 const conflictCache = new WeakMap<CrdtState, SyncConflict[]>();
 export function syncConflicts(data: VaultData): SyncConflict[] {
@@ -207,8 +227,11 @@ export function syncConflicts(data: VaultData): SyncConflict[] {
 }
 /** Resolution acknowledges every current alternative, so merging an old device cannot revive it. */
 export function resolveConflict(data: VaultData, conflict: SyncConflict, chosen: Version, text?: string) {
+  const value = text ?? chosen.value;
+  if (conflict.collection === 'audioMemos' && typeof value === 'string' &&
+    (conflict.field === 'summary' && value.length > MEMO_MAX_SUMMARY || conflict.field === 'label' && value.length > MEMO_MAX_LABEL)) throw new Error('memoTextLimit');
   const state = stateOf(data); const actor = crypto.randomUUID(), sequence = 1; state.clock[actor] = sequence;
-  put(state, conflict.entity, conflict.field, text ?? chosen.value, actor, sequence, Date.now());
+  put(state, conflict.entity, conflict.field, value, actor, sequence, Date.now());
   Object.assign(data, materialize(data, state));
 }
 
@@ -225,7 +248,7 @@ export function conflictBlobIds(data: VaultData): string[] {
     if (collection === 'settings') continue;
     if (collection === 'clients' && !liveClients.has(id)) continue;
     if (fields.clientId?.values.some(v => typeof v.value === 'string' && !liveClients.has(v.value))) continue;
-    const visible = data[collection].some(r => r.id === id);
+    const visible = data[collection]?.some(r => r.id === id);
     if (!visible && !(fields.$exists?.values.some(v => v.value === true) && fields.$exists.values.some(v => v.value === false))) continue;
     for (const [field, register] of Object.entries(fields)) for (const version of register.values) walk(version.value, field);
   }

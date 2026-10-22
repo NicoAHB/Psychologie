@@ -1,0 +1,42 @@
+/* Voice memos use the existing light/dark palette and large native controls. */
+.session-memos { min-width: 0; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.memo-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.memo-section-head h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.memo-section-head .btn { min-height: 44px; max-width: 100%; }
+.memo-list { display: grid; gap: 8px; list-style: none; margin: 12px 0 0; padding: 0; }
+.memo-list li { min-width: 0; }
+.memo-open { display: flex; flex-direction: column; gap: 5px; width: 100%; min-width: 0; min-height: 64px; padding: 12px; text-align: start; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: inherit; overflow-wrap: anywhere; }
+.memo-open:hover { border-color: var(--sage); }
+.memo-row-title { display: flex; gap: 8px; align-items: center; width: 100%; min-width: 0; flex-wrap: wrap; }
+.memo-row-title strong { min-width: 0; flex: 1; font-size: 13px; }
+.memo-timer { flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+.memo-open time, .memo-excerpt { font-size: 12px; color: var(--muted); line-height: 1.65; }
+.memo-excerpt { white-space: pre-line; }
+.memo-recorder, .memo-view, .memo-player { min-width: 0; }
+.memo-recorder > .hint { margin-bottom: 10px; }
+.memo-recorder > [role=status] { font-weight: 550; }
+.memo-record-time { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px; font-size: 32px; font-variant-numeric: tabular-nums; }
+.memo-record-time.is-recording { color: #a23830; }
+.memo-recorder > .field { margin-top: 18px; }
+.memo-actions { flex-wrap: wrap; gap: 10px; }
+.memo-actions .btn { min-height: 44px; flex: 1 1 130px; }
+.memo-summary { margin-bottom: 18px; overflow-wrap: anywhere; }
+.memo-summary h3 { font-size: 14px; margin-bottom: 8px; }
+.memo-summary p { color: inherit; }
+.memo-player { border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 16px; }
+.memo-player audio { display: none; }
+.memo-player-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.memo-player .field { margin-bottom: 12px; }
+.memo-player .field:last-child { margin-bottom: 0; }
+.memo-player .field input[type=range] { accent-color: var(--sage); padding: 0; border: 0; min-height: 44px; width: 100%; cursor: pointer; }
+.memo-player select { min-height: 44px; }
+.memo-pagination { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 18px; }
+.memo-pagination .btn { min-height: 44px; }
+@media screen { :root[data-theme=dark] .memo-record-time.is-recording { color: #ffb9ac; } }
+@media (max-width: 600px) {
+  .memo-section-head { align-items: stretch; }
+  .memo-section-head h4 { width: 100%; }
+  .memo-section-head .btn { width: 100%; }
+  .memo-player { padding: 12px; }
+  .memo-actions .btn { flex-basis: 100%; }
+}

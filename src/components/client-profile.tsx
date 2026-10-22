@@ -1,6 +1,6 @@
 import { BillingMoney } from './money';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Mic, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, money } from '../lib/dates';
 import { INSTRUMENTS, history, scoreOf, severityOf } from '../lib/assessments';
@@ -16,6 +16,9 @@ import { InvoiceForm, InvoiceView } from './invoices';
 import { isSessionVoided, uninvoiced } from '../lib/invoice';
 import { clockText } from './DualTime';
 import { ClientExportButton } from './client-export';
+import { SessionMemos } from './AudioMemos';
+import { deleteAudioMemo } from '../lib/records';
+import { validateMemo } from '../lib/audioMemos';
 
 const VideoConsultation = lazy(() => import('./VideoConsultation').then(m => ({ default: m.VideoConsultation })));
 
@@ -51,6 +54,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
   const next = o.nextAppointment && appointmentView(o.nextAppointment, client, data.settings, language);
   const latest = (['phq9', 'gad7'] as AssessmentKind[]).map(kind => ({ kind, entries: history(data.assessments, client.id, kind) })).filter(g => g.entries.length).sort((a, b) => b.entries.at(-1)!.date.localeCompare(a.entries.at(-1)!.date))[0];
   const photoCount = (s: Session) => data.notes.filter(n => n.sessionId === s.id).length;
+  const memoCount = (s: Session) => data.audioMemos.filter(m => m.sessionId === s.id).length;
   const ago = (date: string) => { const days = daysSince(date); return days === 0 ? t('today') : days === 1 ? t('daysAgoOne') : t('daysAgo').replace('{n}', String(days)); };
   async function copyHomework(s: Session) { setMessage(await copyText(homeworkMessage(client, s, o.nextAppointment, data.settings)) ? t('copiedHomework') : t('copyFailed')); }
   return <>
@@ -71,30 +75,55 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
       {message && <Notice>{message}</Notice>}</section>
     <section className="card"><div className="section-heading"><h2>{t('recentDiscussed')}</h2>{o.sessions.length > 0 && <button className="text-link" onClick={() => openTab('discussed')}>{t('viewAll')}<ArrowRight size={15}/></button>}</div>
       {o.recent.length ? <ul className="recent-list">{o.recent.map(s => <li key={s.id}><button onClick={() => actions.onEditSession(s)} aria-label={`${t('editThisSession')}: ${dateLabel(s.date, language, { day: 'numeric', month: 'long' })}`}>
-        <span className="recent-head"><strong>{dateLabel(s.date, language, { day: 'numeric', month: 'long', year: 'numeric' })}</strong>{photoCount(s) > 0 && <span className="tag-chip"><FileImage size={12}/> {t('photoCount').replace('{n}', String(photoCount(s)))}</span>}{s.tags.slice(0, 3).map(tag => <span className="tag-chip" key={tag}>#{tag}</span>)}</span>
+        <span className="recent-head"><strong>{dateLabel(s.date, language, { day: 'numeric', month: 'long', year: 'numeric' })}</strong>{photoCount(s) > 0 && <span className="tag-chip"><FileImage size={12}/> {t('photoCount').replace('{n}', String(photoCount(s)))}</span>}{memoCount(s) > 0 && <span className="tag-chip"><Mic size={12}/> {t('memoCount').replace('{n}', String(memoCount(s)))}</span>}{s.tags.slice(0, 3).map(tag => <span className="tag-chip" key={tag}>#{tag}</span>)}</span>
         <span className="recent-text">{excerpt(s.notes, 220) || '—'}</span></button></li>)}</ul> : <p className="hint">{t('nothingDiscussedYet')}</p>}
       {o.threads.length > 0 && <><h3 className="mini-heading">{t('recurringThemes')}</h3><div className="tag-filters">{o.threads.map(([tag, count]) => <button key={tag} className="tag-chip" onClick={() => openTab('discussed', tag)}>#{tag} · {count}</button>)}</div></>}</section>
   </>;
 }
-function Discussed({ vault, client, tag, setTag, actions }: { vault: VaultController; client: Client; tag: string; setTag: (tag: string) => void; actions: ProfileActions }) {
+function Discussed({ vault, client, tag, setTag, actions, focusMemoId, onMemoFocusHandled }: { vault: VaultController; client: Client; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
   const { t, language } = useI18n(); const data = vault.data!; const sessionIds = new Set(data.sessions.map(s => s.id));
+  const [page, setPage] = useState(0);
+  const memos = useMemo(() => {
+    const map = new Map<string, typeof data.audioMemos>();
+    for (const memo of data.audioMemos) { if (!map.has(memo.sessionId)) map.set(memo.sessionId, []); map.get(memo.sessionId)!.push(memo); }
+    return map;
+  }, [data.audioMemos]);
   const attached = (s: Session) => data.notes.filter(n => n.sessionId === s.id);
   const entries = [...data.sessions.filter(s => s.clientId === client.id).map(s => ({ kind: 'session' as const, date: `${s.date}T${s.time}`, item: s })),
     ...data.notes.filter(n => n.clientId === client.id && !(n.sessionId && sessionIds.has(n.sessionId))).map(n => ({ kind: 'note' as const, date: n.createdAt, item: n }))].sort((a, b) => b.date.localeCompare(a.date));
   const tags = [...new Set(entries.flatMap(e => e.item.tags))];
+  const filtered = entries.filter(e => !tag || e.item.tags.includes(tag));
+  const focusSession = focusMemoId && data.audioMemos.find(m => m.id === focusMemoId)?.sessionId;
+  const focusIndex = focusSession ? filtered.findIndex(e => e.item.id === focusSession) : -1;
+  useEffect(() => { setPage(0); }, [tag]);
+  useEffect(() => { if (focusIndex >= 0) setPage(Math.floor(focusIndex / 50)); }, [focusIndex]);
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / 50) - 1));
   return <section className="card timeline-card"><div className="section-heading flex-wrap"><h2>{t('timeline')}</h2></div>
     {tags.length > 0 && <div className="tag-filters" role="group" aria-label={t('filterTags')}><button className={`tag-chip ${!tag ? 'active' : ''}`} onClick={() => setTag('')}>{t('allTags')}</button>{tags.map(value => <button key={value} className={`tag-chip ${tag === value ? 'active' : ''}`} onClick={() => setTag(value)}>#{value}</button>)}</div>}
-    {!entries.length ? <Empty icon={<Leaf size={26}/>} title={t('emptyTimeline')} text={t('emptyTimelineText')}/> : <div className="timeline">{entries.filter(e => !tag || e.item.tags.includes(tag)).map(entry => <article className="timeline-entry" key={entry.item.id}>
+    {!entries.length ? <Empty icon={<Leaf size={26}/>} title={t('emptyTimeline')} text={t('emptyTimelineText')}/> : <div className="timeline">{filtered.slice(currentPage * 50, (currentPage + 1) * 50).map(entry => <article className="timeline-entry" key={entry.item.id}>
       <span className={`timeline-dot ${entry.kind === 'note' ? 'dot-beige' : ''}`}>{entry.kind === 'note' ? <FileImage size={15}/> : <Check size={15}/>}</span>
       <div className="timeline-entry-heading"><h3>{t(entry.kind === 'note' ? 'photoNote' : 'session')}</h3><time dateTime={entry.date}>{dateLabel(entry.date.slice(0, 10), language, { day: 'numeric', month: 'long', year: 'numeric' })}{entry.kind === 'session' && ` · ${clockText(entry.item.time, language)}`}</time><span className="entry-actions">{entry.kind === 'session' ? <button className="icon-btn" title={t('editSession')} aria-label={t('editSession')} onClick={() => actions.onEditSession(entry.item)}><PencilIcon size={16}/></button> : <button className="icon-btn danger" title={t('deleteNote')} aria-label={t('deleteNote')} onClick={() => actions.onDeleteNote(entry.item)}><Trash2 size={16}/></button>}</span></div>
       {entry.kind === 'session' ? <>
         {entry.item.notes && <p className="pre-line">{entry.item.notes}</p>}
         {attached(entry.item).length > 0 && <div className="photo-strip">{attached(entry.item).map(n => <button key={n.id} className="note-thumbnail" aria-label={t('viewPhoto')} onClick={() => actions.onPhoto(n.blobId)}><ImageView id={n.blobId} vault={vault} alt={t('photoNote')}/><span>{t('viewPhoto')}<ArrowRight size={15}/></span></button>)}</div>}
+        <SessionMemos items={memos.get(entry.item.id) ?? []} vault={vault} focusId={focusMemoId} onFocusHandled={onMemoFocusHandled}
+          onAdd={async draft => {
+            validateMemo(draft, draft); const bytes = new Uint8Array(await draft.blob.arrayBuffer()); let blobId: string | undefined;
+            try {
+              blobId = await vault.addFile(bytes);
+              const { id, label, summary, createdAt, mimeType, size, durationMs } = draft;
+              await vault.update(d => { if (!d.sessions.some(s => s.id === entry.item.id && s.clientId === client.id)) throw new Error('storageError'); d.audioMemos.push({ id, label, summary, createdAt, mimeType, size, durationMs, blobId: blobId!, sessionId: entry.item.id, clientId: client.id }); });
+            } catch (error) { if (blobId) await vault.purgeUnused([blobId]).catch(() => {}); throw error; } finally { bytes.fill(0); }
+          }}
+          onEdit={async (id, patch) => { await vault.update(d => { const memo = d.audioMemos.find(m => m.id === id); if (!memo) throw new Error('storageError'); validateMemo(memo, patch); Object.assign(memo, patch); }); }}
+          onDelete={async id => { await vault.remove(d => deleteAudioMemo(d, id)); }}/>
         {entry.item.homework && <div className={`homework-note ${entry.item.homeworkDone ? 'is-done' : ''}`}><strong><Home size={14}/> {t('homework')}{entry.item.homeworkDone ? ` · ${t('homeworkReviewed')}` : ''}</strong><p className="pre-line">{entry.item.homework}</p></div>}
         {!entry.item.notes && <button className="text-link" onClick={() => actions.onEditSession(entry.item)}><PencilIcon size={14}/>{t('addSessionNotes')}</button>}</>
         : <><p>{entry.item.caption}</p><button className="note-thumbnail" aria-label={t('viewPhoto')} onClick={() => actions.onPhoto(entry.item.blobId)}><ImageView id={entry.item.blobId} vault={vault} alt={t('photoNote')}/><span>{t('viewPhoto')}<ArrowRight size={15}/></span></button></>}
       {entry.item.tags.length > 0 && <div className="entry-tags">{entry.item.tags.map(value => <button className="tag-chip" key={value} onClick={() => setTag(value)}>#{value}</button>)}</div>}
-    </article>)}{tag && !entries.some(e => e.item.tags.includes(tag)) && <p>{t('noTagResults')}</p>}</div>}</section>;
+    </article>)}{tag && !entries.some(e => e.item.tags.includes(tag)) && <p>{t('noTagResults')}</p>}</div>}
+    {filtered.length > 50 && <div className="memo-pagination"><button type="button" className="btn btn-secondary btn-small" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>{t('memoPreviousPage')}</button><span>{t('memoPage').replace('{n}', String(currentPage + 1)).replace('{total}', String(Math.ceil(filtered.length / 50)))}</span><button type="button" className="btn btn-secondary btn-small" disabled={(currentPage + 1) * 50 >= filtered.length} onClick={() => setPage(currentPage + 1)}>{t('memoNextPage')}</button></div>}
+  </section>;
 }
 
 function ClientFinances({ vault, client, actions }: { vault: VaultController; client: Client; actions: ProfileActions }) {
@@ -117,7 +146,7 @@ function ClientFinances({ vault, client, actions }: { vault: VaultController; cl
   </section>;
 }
 
-export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string }) {
+export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId, focusMemoId, onMemoFocusHandled }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
   const { t } = useI18n(); const [videoOpen, setVideoOpen] = useState(false);
   const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
   return <div className="profile-content">{videoOpen && <Suspense fallback={<p role="status">…</p>}><VideoConsultation vault={vault} client={client} onClose={() => setVideoOpen(false)}/></Suspense>}
@@ -127,7 +156,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
     <div className="profile-tabs" role="tablist" aria-label={t('profileSections')}>{tabs.map(x => <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls="profile-panel" className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.icon}{x.label}</button>)}</div>
     <div role="tabpanel" id="profile-panel" aria-labelledby={`tab-${tab}`} className="profile-panel">
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
-      {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions}/>}
+      {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions} focusMemoId={focusMemoId} onMemoFocusHandled={onMemoFocusHandled}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
       {tab === 'documents' && <DocumentsSection vault={vault} client={client} focusId={focusDocumentId}/>}
       {tab === 'finances' && <ClientFinances vault={vault} client={client} actions={actions}/>}

@@ -1,6 +1,6 @@
 import type { VaultData } from './types';
 
-export type HitKind = 'client' | 'session' | 'note' | 'invoice' | 'assessment';
+export type HitKind = 'client' | 'session' | 'note' | 'invoice' | 'assessment' | 'audioMemo';
 export interface Hit { kind: HitKind; id: string; clientId: string; title: string; text: string; /** [start, end) ranges in `text` that matched */ marks: [number, number][]; date?: string }
 
 /** Lowercase, ignore accents (ä→a, é→e, й→и) and treat ß as ss. `map[i]` is the index in the original text of folded char i. */
@@ -53,6 +53,7 @@ export function searchVault(data: VaultData, query: string, limit = 40): Hit[] {
   for (const c of data.clients) consider('client', c.id, c.id, c.name, [c.name, c.contact, c.address ?? '', c.preparation], undefined, c);
   for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.homework ?? '', s.tags.map(t => `#${t}`).join(' '), s.date], s.date, s);
   for (const n of data.notes) consider('note', n.id, n.clientId, nameOf(n.clientId), [n.caption, n.tags.map(t => `#${t}`).join(' ')], n.createdAt.slice(0, 10), n);
+  for (const m of data.audioMemos ?? []) consider('audioMemo', m.id, m.clientId, nameOf(m.clientId), [m.label, m.summary, m.createdAt.slice(0, 10)], m.createdAt.slice(0, 10), m);
   for (const i of data.invoices) consider('invoice', i.id, i.clientId, nameOf(i.clientId), [i.number, i.recipient.name], i.issuedAt);
   return hits.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)).slice(0, limit);
 }

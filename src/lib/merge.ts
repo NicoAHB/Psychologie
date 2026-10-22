@@ -14,8 +14,10 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
   const invoiceIds = new Set(merged.invoices.map(i => i.id));
   for (const session of merged.sessions) if (session.invoiceId && !invoiceIds.has(session.invoiceId)) delete session.invoiceId;
   const clientIds = new Set(merged.clients.map(c => c.id));
-  for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents'] as const)
+  for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents', 'audioMemos'] as const)
     (merged[name] as { clientId: string }[]) = (merged[name] as { clientId: string }[]).filter(r => clientIds.has(r.clientId));
+  const sessions = new Map(merged.sessions.map(s => [s.id, s.clientId]));
+  merged.audioMemos = merged.audioMemos.filter(m => sessions.get(m.sessionId) === m.clientId);
   reconcileBillingLinks(merged);
   return merged;
 }

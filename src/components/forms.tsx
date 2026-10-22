@@ -1,22 +1,24 @@
 import { conflictsWithAbsence } from '../lib/availability';
 import { isSessionVoided } from '../lib/invoice';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Camera, Check, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
-import { uid, type Appointment, type Client, type Currency, type ExchangeRate, type Session } from '../lib/types';
+import { uid, type Appointment, type AudioMemo, type Client, type Currency, type ExchangeRate, type Session } from '../lib/types';
 import { addDays, addMonths, appointmentInstant, clientZone, dateLabel, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
 import { ZoneSelect } from './ZoneSelect';
 import { isValidZone, utcOffset, zonePlace } from '../lib/zones';
 import { FeeInput } from './money';
 import { billAmount, convertWhole, currencyOf } from '../lib/currency';
 import { DualTimeBox } from './DualTime';
-import { deleteClient, deleteSession, feeText, findConflict, suggestedFee } from '../lib/records';
+import { deleteAudioMemo, deleteClient, deleteSession, feeText, findConflict, suggestedFee } from '../lib/records';
 import { pendingHomework } from '../lib/discussion';
 import { referencedBlobs } from '../lib/blobs';
 import { useTemplates, withTemplate } from '../lib/templates';
 import { compressImage } from '../lib/images';
 import type { VaultController } from '../lib/useVault';
 import { Avatar, Field, Modal, Notice } from './ui';
+import { SessionMemos } from './AudioMemos';
+import { validateMemo, type MemoDraft, type MemoMetadata } from '../lib/audioMemos';
 function Actions({ busy, onClose, label, onDelete, deleteLabel }: { busy: boolean; onClose: () => void; label?: string; onDelete?: () => void; deleteLabel?: string }) {
   const { t } = useI18n();
   return <div className="form-actions">{onDelete && <button type="button" className="btn btn-danger" disabled={busy} onClick={onDelete}><Trash2 size={16}/>{deleteLabel || t('delete')}</button>}<button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <Check size={17}/>} {busy ? t('working') : label || t('save')}</button></div>;
@@ -147,6 +149,10 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
 const zoneLabel = (zone: string, language: 'de' | 'uk') => `${zonePlace(zone, language)} (${utcOffset(zone, Date.now())})`;
 export function SessionForm({ vault, clientId, appointment, session, onClose }: { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; onClose: () => void }) {
   const { t, language } = useI18n(); const data = vault.data!;
+  const [sessionId] = useState(() => session?.id ?? uid());
+  const [memoDrafts, setMemoDrafts] = useState<MemoDraft[]>([]), [removedMemos, setRemovedMemos] = useState<string[]>([]);
+  const [editedMemos, setEditedMemos] = useState<Record<string, MemoMetadata>>({});
+  const memos = useMemo(() => [...data.audioMemos.filter(m => m.sessionId === sessionId && !removedMemos.includes(m.id)).map(m => ({ ...m, ...editedMemos[m.id] })), ...memoDrafts], [data.audioMemos, sessionId, removedMemos, editedMemos, memoDrafts]);
   const [selected, setSelected] = useState(session?.clientId || appointment?.clientId || clientId || data.clients[0]?.id || '');
   const [date, setDate] = useState(session?.date || appointment?.date || today()); const [time, setTime] = useState(session?.time || appointment?.time || '10:00');
   const lockedPricing = !!session?.invoiceId && !isSessionVoided(data, session);
@@ -180,28 +186,40 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
       const pricing = lockedPricing && session ? { feeCents: session.feeCents, billing: session.billing ?? { currency: 'EUR' as const, amountCents: session.feeCents } } : !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
         ? { feeCents: session?.feeCents ?? appointment!.feeCents, billing: originalBilling } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
       const originalFeeCents = session?.originalFeeCents ?? appointment?.originalFeeCents;
-      const result: Session = { id: session?.id ?? uid(), clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
+      const result: Session = { id: sessionId, clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
         ...(originalFeeCents !== undefined && { originalFeeCents }),
         ...session?.invoiceId && { invoiceId: session.invoiceId }, ...text && { homework: text, homeworkDone } };
       for (const file of files) added.push(await vault.addImage(await compressImage(file)));
+      const photoIds = [...added]; const savedMemos: AudioMemo[] = [];
+      for (const draft of memoDrafts) {
+        validateMemo(draft, draft);
+        const bytes = new Uint8Array(await draft.blob.arrayBuffer()); let blobId: string;
+        try { blobId = await vault.addFile(bytes); } finally { bytes.fill(0); }
+        added.push(blobId);
+        const { id, label, summary, createdAt, mimeType, size, durationMs } = draft;
+        savedMemos.push({ id, label, summary, createdAt, mimeType, size, durationMs, blobId, clientId: selected, sessionId });
+      }
       await vault.update(d => {
         if (pricing.billing.rate) d.settings.exchangeRate = pricing.billing.rate;
-        if (session) { const index = d.sessions.findIndex(s => s.id === session.id); if (index < 0) return; d.sessions[index] = result; }
+        if (session) { const index = d.sessions.findIndex(s => s.id === session.id); if (index < 0) throw new Error('storageError'); d.sessions[index] = result; }
         else {
-          if (appointment && d.sessions.some(s => s.appointmentId === appointment.id)) return;
+          if (appointment && d.sessions.some(s => s.appointmentId === appointment.id)) throw new Error('storageError');
           d.sessions.push(result);
           if (appointment) d.appointments.find(a => a.id === appointment.id)!.status = 'completed';
         }
         d.notes = d.notes.filter(n => !removedPhotos.includes(n.id));
-        for (const blobId of added) d.notes.push({ id: uid(), clientId: selected, blobId, sessionId: result.id, caption: '', tags: result.tags, createdAt: new Date().toISOString() });
+        for (const blobId of photoIds) d.notes.push({ id: uid(), clientId: selected, blobId, sessionId: result.id, caption: '', tags: result.tags, createdAt: new Date().toISOString() });
+        d.audioMemos = d.audioMemos.filter(m => !removedMemos.includes(m.id) && !savedMemos.some(saved => saved.id === m.id));
+        for (const memo of d.audioMemos) if (memo.sessionId === sessionId) { Object.assign(memo, editedMemos[memo.id]); memo.clientId = selected; }
+        d.audioMemos.push(...savedMemos);
         if (reviewPrevious && previous) { const earlier = d.sessions.find(s => s.id === previous.id); if (earlier) earlier.homeworkDone = true; }
         const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
       });
       await vault.purgeUnused([...before, ...added]); onClose();
-    } catch (err) { setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
+    } catch (err) { await vault.purgeUnused(added).catch(() => {}); setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
-    if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}${data.notes.some(n => n.sessionId === session.id) ? `\n\n${t('deleteSessionPhotosNote')}` : ''}`)) return;
+    if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}${data.notes.some(n => n.sessionId === session.id) ? `\n\n${t('deleteSessionPhotosNote')}` : ''}${data.audioMemos.some(m => m.sessionId === session.id) ? `\n\n${t('memoDeleteSessionNote')}` : ''}`)) return;
     setBusy(true);
     try { await vault.remove(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
@@ -217,6 +235,13 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
       {(files.length > 0 || attached.length > 0) && <ul className="photo-list" aria-label={t('photosAttached')}>
         {attached.map(n => <li key={n.id}><span><ImagePlus size={14}/> {t('photoNote')}</span><button type="button" className="icon-btn danger" aria-label={t('photoRemove')} title={t('photoRemove')} onClick={() => setRemovedPhotos([...removedPhotos, n.id])}><Trash2 size={15}/></button></li>)}
         {files.map((f, i) => <li key={`${f.name}${i}`}><span><ImagePlus size={14}/> {f.name}</span><button type="button" className="icon-btn danger" aria-label={`${t('photoRemove')}: ${f.name}`} title={t('photoRemove')} onClick={() => setFiles(files.filter((_, j) => j !== i))}><Trash2 size={15}/></button></li>)}</ul>}
+      <SessionMemos items={memos} vault={vault} disabled={busy} onAdd={draft => setMemoDrafts(previous => [...previous, draft])}
+        onEdit={(id, metadata) => { setMemoDrafts(previous => previous.map(m => m.id === id ? { ...m, ...metadata } : m)); setEditedMemos(previous => ({ ...previous, [id]: metadata })); }}
+        onDelete={async id => {
+          if (data.audioMemos.some(m => m.id === id)) await vault.remove(d => deleteAudioMemo(d, id));
+          setRemovedMemos(previous => [...previous, id]); setMemoDrafts(previous => previous.filter(m => m.id !== id));
+        }}/>
+      {memoDrafts.length > 0 && <p className="hint">{t('memoSaveSessionHint')}</p>}
       <Field label={t('tags')} hint={t('tagsHelp')}><input value={tags} maxLength={500} placeholder={t('tagsPlaceholder')} onChange={e => setTags(e.target.value)}/></Field></div>
     <div className="form-section"><h3>{t('homework')}</h3>
       {previous && <div className="previous-homework"><strong>{t('homeworkPrevious')} · {dateLabel(previous.date, language, { day: 'numeric', month: 'short' })}</strong><p className="pre-line">{previous.homework}</p><label className="check-label"><input type="checkbox" checked={reviewPrevious} onChange={e => setReviewPrevious(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label></div>}
