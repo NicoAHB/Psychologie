@@ -61,9 +61,21 @@ Neben Sitzungsnotizen, Hausaufgaben und Sitzungsvorbereitung steht **Diktieren**
 - `SpeechRecognition.available({ langs: ['de-DE' bzw. 'uk-UA'], processLocally: true }) === 'available'`;
 - `processLocally = true` unmittelbar vor `start()`.
 
-Die native Sprachprüfung wird ausschließlich nach einem ausdrücklichen Klick auf „Diktieren“ ausgeführt; beim Öffnen einer Akte wird weder ein Spracherkennungsobjekt erzeugt noch ein nativer Sprachdienst abgefragt. Browser, die Web Speech nur über externe Anbieter ausführen, bleiben deaktiviert. Ein lokal verfügbares Sprachpaket ist zusätzlich nötig; gerade Ukrainisch wird nicht überall unterstützt. Wenn der Browser ein lokales Paket zum Download anbietet, kann es ausdrücklich geladen werden. Das überträgt keine Audiodaten. Es gibt weder einen Cloud-Fallback noch `MediaRecorder`, Audio-Uploads oder gespeicherte Audiodateien. Auf dem iPad kann die Funktion deshalb deaktiviert bleiben. Eine allgemeine iOS-Tastatur-Diktierfunktion ist unabhängig von dieser App und deren Garantie.
+Die native Sprachprüfung wird ausschließlich nach einem ausdrücklichen Klick auf „Diktieren“ ausgeführt; beim Öffnen einer Akte wird weder ein Spracherkennungsobjekt erzeugt noch ein nativer Sprachdienst abgefragt. Native Browser-Sprachpakete lassen sich nicht über GitHub installieren: Der Browser verwaltet sie selbst. Wenn er ein lokales Paket anbietet, kann es ausdrücklich geladen werden. Browser, die Web Speech nur über externe Anbieter ausführen, bleiben für diese Variante deaktiviert.
 
-Zwischenergebnisse werden direkt im Feld ersetzt, endgültige Ergebnisse angefügt. Manuelle Änderungen während der Aufnahme beenden das Diktieren, statt Text zu überschreiben. Sprachwechsel, Ausblenden und Schließen beenden die Aufnahme. Die Beraterin prüft den erkannten Text wie jede klinische Dokumentation vor der Übernahme.
+Die native Variante ersetzt Zwischenergebnisse direkt im Feld. Manuelle Änderungen beenden sie, statt Text zu überschreiben.
+
+### Eigenes Offline-Paket auf GitHub
+
+Als unabhängige Alternative steht **Offline-Paket DE / UA laden (116 MB)** bereit. Die unveränderten, quantisierten Whisper-tiny-Modelle und ONNX Runtime Web liegen unter `public/speech/whisper-tiny-v1/` direkt im Repository und werden mit GitHub Pages ausgeliefert. Lizenzen, Herkunft, Prüfsummen und die reproduzierbare Aufbereitung stehen in dessen [README](../public/speech/whisper-tiny-v1/README.md). Es werden weder Hugging Face noch ein CDN oder ein Erkennungsserver zur Laufzeit aufgerufen. GitHub-Pages-Kontingente gelten für die einmaligen öffentlichen Downloads.
+
+1. App aktualisieren/neu öffnen, Klientenakte öffnen und das Paket ausdrücklich laden. Bei Abbruch bleiben bereits verifizierte Teile für den nächsten Versuch erhalten; auch unvollständige Downloads lassen sich entfernen. Vorab wird der verfügbare Browserspeicher geprüft, soweit der Browser eine Schätzung liefert. Der App-Start lädt keine Modelldateien.
+2. **Offline diktieren** wählen, die Mikrofonfreigabe erteilen und bis zu 20 Sekunden sprechen. **Aufnahme beenden und Text einfügen** beendet das Mikrofon und startet die lokale Erkennung im eigenen Worker. Der Schalter DE / UA bestimmt die Erkennungssprache. Diese Variante fügt den Text nach der Aufnahme ein; die native Variante kann laufende Zwischenergebnisse anzeigen.
+3. Den eingefügten Text sorgfältig prüfen. Das kleine Modell macht Fehler, auch bei Namen, Verneinungen und klinischen Begriffen. Es ist kein validiertes medizinisches Transkriptionssystem.
+
+Audio bleibt ausschließlich flüchtig im Arbeitsspeicher und gelangt weder in IndexedDB, Cloud-Sync noch Paket-Cache. Der Worker erlaubt nur GET-Zugriffe auf die eigenen öffentlichen Modell-/WASM-Dateien; kein Audio-Upload und keine entfernte Erkennung. Sprachewechsel, Sperren, Ausblenden, Abbrechen oder Schließen stoppen die Aufnahme und beenden den Worker. Manuelle Eingaben während der Berechnung werden nicht überschrieben. Der gesonderte Cache enthält nur öffentliche Modelle, bleibt bei App-Updates erhalten und kann mit **Offline-Paket entfernen** gelöscht werden. Verdrängt das Betriebssystem den Cache, muss das Paket erneut geladen werden.
+
+Voraussetzungen: HTTPS, Web Worker, WebAssembly SIMD, AudioWorklet, Mikrofonfreigabe und genügend freier Speicher/RAM. Single-Thread-WASM benötigt weder WebGPU noch SharedArrayBuffer oder spezielle COOP/COEP-Header; damit ist auch der GitHub-Pages-Unterpfad unterstützt. Moderne Safari-/iPad-Versionen können diese Standards unterstützen; eine Prüfung auf einem echten Ziel-iPad bleibt nötig. Ältere oder knapp ausgestattete Geräte können langsam sein oder das Modell nicht laden. Die eigentliche Notizeingabe bleibt verfügbar. Eine iOS-Tastatur-Diktierfunktion ist unabhängig von dieser App.
 
 ## Betroffene Dateien und Prüfung
 
@@ -71,7 +83,7 @@ Zwischenergebnisse werden direkt im Feld ersetzt, endgültige Ergebnisse angefü
 - Worker: `src/lib/workerTasks.ts`, `src/workers/secure.worker.ts`, PDF-Aufrufe in `invoices.tsx`/`documents.tsx`.
 - Sicherungen: `src/lib/directoryBackup.ts`, `useAutoBackup.ts`, `src/components/backup.tsx`.
 - Video: `src/lib/videoRoom.ts`, `directCall.ts`, `src/components/VideoConsultation.tsx`, `supabase/video.sql`.
-- Diktieren: `src/lib/localSpeech.ts`, `src/components/DictationButton.tsx`, Einbindung in Sitzung/Profil/Video.
+- Diktieren: `src/lib/localSpeech.ts`, `offlineDictation.ts`, `speechPack.ts`, `speechFeatures.ts`, `src/workers/speech.worker.ts`, `src/components/DictationButton.tsx`, `OfflineDictation.tsx`, `public/speech/pcm.worklet.js` und Modellpaket; Einbindung in Sitzung/Profil/Video. Neue Pakete: `onnxruntime-web@1.24.3` (MIT), `fft.js@4.0.4` (MIT).
 - Gemeinsame Integration: `App.tsx`, `main.tsx`, `vite.config.ts`, `_headers`, CSS sowie `de.json`/`uk.json`.
 
 Prüfung mit `npm test`, `npm run build`, `npm run test:e2e` und dem separaten Build-/Browsertest für `/Psychologie/`. Neue Tests decken die CRDT-Algebra, Uhrenfehler, Finanzkonflikte, Migration, Löschung, Ordnerrotation/Schreibfehler, strikt lokale Spracherkennung, authentifizierte und ablaufende Signale, Raum-RLS und echte Browser-Worker ab.
