@@ -71,4 +71,38 @@ test('sync preserves sent flags and removes cancelled pending jobs', async () =>
   await db.query('select public.replace_reminder_jobs($1::jsonb)', ['[]']);
   assert.equal((await db.query('select * from public.reminder_jobs')).rows.length, 0);
 });
+test('recipient sending markers survive a crashed worker; expired claims cannot send again or cross owners', async () => {
+  await login(owner);
+  const reminder = { id: job, due_at: '2020-01-01T17:00:00Z', expires_at: '2099-01-01T12:00:00Z', payload: { version: 1, wrappedKey: 'encrypted-key', ...payload } };
+  await db.query('select public.replace_reminder_jobs($1::jsonb)', [JSON.stringify([reminder])]);
+  await assert.rejects(() => db.query("select public.begin_reminder_delivery($1,$2,$3,'client')", [owner, job, other]), /permission denied/);
+  await db.exec('reset role; set role service_role');
+  const claim = (await db.query<{ claim_token: string }>('select * from public.claim_reminder_jobs($1)', [owner])).rows[0].claim_token;
+  const begin = (account: string, token: string) => db.query<{ started: boolean }>("select public.begin_reminder_delivery($1,$2,$3,'client') as started", [account, job, token]);
+  assert.equal((await begin(other, claim)).rows[0].started, false); assert.equal((await begin(owner, other)).rows[0].started, false);
+  assert.equal((await begin(owner, claim)).rows[0].started, true); assert.equal((await begin(owner, claim)).rows[0].started, false);
+  // Simulate the process disappearing after Telegram accepted, before the success acknowledgement.
+  await db.query("update public.reminder_jobs set lease_until = now() - interval '1 minute' where id=$1", [job]);
+  assert.equal((await db.query('select * from public.claim_reminder_jobs($1)', [owner])).rows.length, 0);
+  const state = (await db.query<{ status: string; client_sending_at: string }>('select status,client_sending_at from public.reminder_jobs where id=$1', [job])).rows[0];
+  assert.equal(state.status, 'uncertain'); assert.ok(state.client_sending_at); assert.equal((await begin(owner, claim)).rows[0].started, false);
+  await login(owner); await db.query('select public.replace_reminder_jobs($1::jsonb)', [JSON.stringify([reminder])]);
+  assert.equal((await db.query<{ status: string }>('select status from public.reminder_jobs where id=$1', [job])).rows[0].status, 'uncertain');
+  await db.query('select public.replace_reminder_jobs($1::jsonb)', ['[]']);
+});
+test('a new claim fences stale workers and definite rejections remain retryable without duplicating confirmed recipients', async () => {
+  await login(owner);
+  const reminder = { id: job, due_at: '2020-01-01T17:00:00Z', expires_at: '2099-01-01T12:00:00Z', payload: { version: 1, wrappedKey: 'encrypted-key', ...payload } };
+  await db.query('select public.replace_reminder_jobs($1::jsonb)', [JSON.stringify([reminder])]); await db.exec('reset role; set role service_role');
+  const claim = async () => (await db.query<{ claim_token: string }>('select * from public.claim_reminder_jobs($1)', [owner])).rows[0].claim_token;
+  const old = await claim(); await db.query("update public.reminder_jobs set lease_until=now()-interval '1 minute' where id=$1", [job]); const fresh = await claim(); assert.notEqual(old, fresh);
+  assert.equal((await db.query<{ ok: boolean }>("select public.begin_reminder_delivery($1,$2,$3,'advisor') as ok", [owner, job, old])).rows[0].ok, false);
+  await db.query("select public.begin_reminder_delivery($1,$2,$3,'advisor')", [owner, job, fresh]);
+  await db.query("select public.complete_reminder_delivery($1,$2,$3,'advisor',true)", [owner, job, fresh]);
+  await db.query("select public.begin_reminder_delivery($1,$2,$3,'client')", [owner, job, fresh]);
+  await db.query("select public.complete_reminder_delivery($1,$2,$3,'client',false)", [owner, job, fresh]);
+  await db.query("select public.finish_reminder_job($1,$2,$3,'retry')", [owner, job, fresh]);
+  const state = (await db.query<{ status: string; advisor_sent: boolean; client_sent: boolean; client_sending_at: null }>('select * from public.reminder_jobs where id=$1', [job])).rows[0];
+  assert.equal(state.status, 'pending'); assert.equal(state.advisor_sent, true); assert.equal(state.client_sent, false); assert.equal(state.client_sending_at, null);
+});
 test.after(async () => { await db.close(); });

@@ -44,12 +44,21 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
 }
 export function HistoryCard({ vault }: { vault: VaultController }) {
   const { t, language } = useI18n(); const [entries, setEntries] = useState<SnapshotEntry[]>([]); const [done, setDone] = useState(false);
+  const [error, setError] = useState(false); const [busy, setBusy] = useState(false);
+  const [all, setAll] = useState(false);
   const refresh = () => { void vault.history().then(setEntries).catch(() => {}); };
-  useEffect(refresh, [vault.generation]);
+  useEffect(refresh, [vault.generation, vault.envelope]);
   if (vault.demo) return null;
-  const label = (e: SnapshotEntry) => `${new Date(e.at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA')} · ${t(e.reason === 'delete' ? 'historyReasonDelete' : 'historyReasonAuto')}`;
+  const label = (e: SnapshotEntry) => `${new Date(e.at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA')} · ${t(e.reason === 'delete' ? 'historyReasonDelete' : e.reason === 'checkpoint' ? 'historyReasonCheckpoint' : 'historyReasonAuto')}`;
+  async function download(at: number) {
+    setBusy(true); setError(false);
+    try { const backup = await vault.exportSnapshot(at); downloadText(`praxisraum-${new Date(at).toISOString().replaceAll(':', '-')}.encrypted.json`, JSON.stringify(backup), 'application/json'); await markBackup(backup.envelope.vaultId, 'download'); }
+    catch { setError(true); } finally { setBusy(false); }
+  }
   return <section className="card settings-card"><span className="settings-icon tone-beige"><History size={24}/></span><h2>{t('history')}</h2><p>{t('historyText')}</p>
-    {entries.length ? <ul className="passkey-list">{entries.slice(0, 10).map(e => <li key={e.at}><span>{label(e)}</span><button className="btn btn-secondary btn-small" onClick={() => { if (window.confirm(t('historyConfirm'))) void vault.restoreSnapshot(e.at).then(() => { setDone(true); refresh(); }).catch(() => {}); }}>{t('historyRestore')}</button></li>)}</ul> : <p className="hint">{t('historyEmpty')}</p>}
+    {entries.length ? <ul className="passkey-list">{entries.slice(0, all ? undefined : 10).map(e => <li key={e.at}><span>{label(e)}</span><button className="btn btn-secondary btn-small" disabled={busy} aria-label={`${t('historyDownload')} ${label(e)}`} onClick={() => void download(e.at)}><Download size={15}/>{t('historyDownload')}</button><button className="btn btn-secondary btn-small" disabled={busy} onClick={() => { if (window.confirm(t('historyConfirm'))) void vault.restoreSnapshot(e.at).then(() => { setDone(true); refresh(); }).catch(() => setError(true)); }}>{t('historyRestore')}</button></li>)}</ul> : <p className="hint">{t('historyEmpty')}</p>}
+    {!all && entries.length > 10 && <button className="text-link" onClick={() => setAll(true)}>{t('followUpShowMore')}</button>}
+    {error && <Notice error>{t('storageError')}</Notice>}
     {done && <Notice>{t('historyRestored')}</Notice>}
     {entries.length > 0 && <button className="btn btn-ghost" onClick={() => { void vault.clearHistory().then(refresh); }}>{t('historyClear')}</button>}</section>;
 }

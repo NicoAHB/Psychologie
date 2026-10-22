@@ -54,10 +54,9 @@ export function InvoiceView({ vault, invoice: initialInvoice, onClose }: { vault
       if (purpose === 'paymentReminder' && (!(outstanding && outstanding > 0) || conflict)) throw new Error('invoiceReminderUnavailable');
       let copy = copies.find(d => d.invoicePaidOn === paid);
       if (!copy) {
-        const [{ invoicePdf }, { default: fontUrl }, { default: boldFontUrl }] = await Promise.all([import('../lib/invoicePdf'), import('../assets/DejaVuSans.ttf?url'), import('../assets/DejaVuSans-Bold.ttf?url')]);
-        const [regular, bold] = await Promise.all([fetch(fontUrl), fetch(boldFontUrl)]);
-        if (!regular.ok || !bold.ok) throw new Error('invoicePdfError');
-        const bytes = await invoicePdf(invoice, paid, new Uint8Array(await regular.arrayBuffer()), new Uint8Array(await bold.arrayBuffer()));
+        const [{ invoicePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/invoicePdf'), import('../lib/pdfFonts')]);
+        const { regular, bold } = await loadPdfFonts(JSON.stringify(invoice));
+        const bytes = await invoicePdf(invoice, paid, regular, bold);
         added = await vault.addFile(bytes);
         copy = { id: uid(), clientId: client.id, title: `${translate(invoice.language, invoiceTitleKey(invoice))} ${invoice.number}`, createdAt: new Date().toISOString(), invoiceId: invoice.id, invoicePaidOn: paid, language: invoice.language, returnExpected: false, deliveries: [], returns: [], file: { blobId: added, fileName: invoiceFilename(invoice), mimeType: 'application/pdf', size: bytes.byteLength } } satisfies ClientDocument;
         const stored = copy; await vault.update(d => { d.documents.push(stored); }); added = undefined;

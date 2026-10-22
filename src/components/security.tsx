@@ -4,6 +4,7 @@ import { Copy, Fingerprint, KeyRound, Printer, ShieldCheck, Trash2 } from 'lucid
 import { useI18n, type TextKey } from '../lib/i18n';
 import { copyText } from '../lib/files';
 import { passkeysAvailable } from '../lib/passkey';
+import { AUTO_LOCK_MINUTES, autoLockMinutes } from '../lib/autoLock';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
 
@@ -52,6 +53,7 @@ export function SecurityCard({ vault }: { vault: VaultController }) {
   const wraps = vault.envelope?.wraps; const passkeys = wraps?.passkeys ?? []; const supported = passkeysAvailable();
   if (vault.demo) return null;
   return <section className="card settings-card"><span className="settings-icon tone-blue"><KeyRound size={24}/></span><h2>{t('securityAccess')}</h2><p>{t('accessText')}</p>
+    <Field label={t('autoLockTimeout')} hint={t('autoLockHint')}><select value={autoLockMinutes(vault.data!.settings.autoLockMinutes)} onChange={e => { const minutes = Number(e.target.value); void vault.update(d => { d.settings.autoLockMinutes = autoLockMinutes(minutes); }).catch(() => setNotice('storageError')); }}>{AUTO_LOCK_MINUTES.map(minutes => <option key={minutes} value={minutes}>{t('autoLockOption').replace('{minutes}', String(minutes))}</option>)}</select></Field>
     <h3 className="mini-heading">{t('recoveryKey')} · <span className={wraps?.recovery ? 'ok-text' : 'warn-text'}>{t(wraps?.recovery ? 'recoveryOn' : 'recoveryOff')}</span></h3>
     <button className="btn btn-secondary" onClick={() => setMode('recovery')}><ShieldCheck size={16}/>{t(wraps?.recovery ? 'recoveryRenew' : 'recoveryCreate')}</button>
     <h3 className="mini-heading">{t('passkeys')}</h3>

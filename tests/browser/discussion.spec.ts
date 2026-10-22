@@ -61,13 +61,14 @@ test('what we discussed: typed notes, photos of the handwritten sheet, homework,
   await page.getByRole('tab', { name: 'Überblick' }).click();
   await expect(page.locator('.homework-list li')).toHaveCount(1); await expect(page.locator('.homework-list')).toContainText('Spaziergang');
 
-  // Photos can be removed from a session later; deleting the session removes the rest, including the encrypted images.
+  // Removing a photo updates shared references; deleting the session retains its remaining photo in encrypted history.
   await page.getByRole('tab', { name: 'Besprochen' }).click();
   await page.getByRole('button', { name: 'Sitzung bearbeiten' }).nth(1).click();
   await dialog.getByRole('button', { name: 'Foto entfernen' }).first().click(); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await expect.poll(() => storedImages(page)).toBe(1);
   await page.getByRole('button', { name: 'Sitzung bearbeiten' }).nth(1).click(); await dialog.getByRole('button', { name: 'Sitzung löschen' }).click(); await expect(dialog).not.toBeVisible();
-  await expect.poll(() => storedImages(page)).toBe(0);
+  await expect.poll(() => storedImages(page)).toBe(1);
+  await nav(page, 'Einstellungen'); await page.getByRole('button', { name: 'Verlauf löschen', exact: true }).click(); await expect.poll(() => storedImages(page)).toBe(0);
 
   // Everything typed is searchable, including homework.
   await page.keyboard.press('Control+k'); await dialog.getByLabel('Alles durchsuchen').fill('spaziergang'); await expect(dialog.locator('.search-results mark').first()).toBeVisible();

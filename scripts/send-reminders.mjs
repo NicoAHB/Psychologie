@@ -35,31 +35,39 @@ export async function processJobs({ env = process.env, request = fetch, now = ()
     if (!response.ok) throw new Error('database_request_failed');
     return response.status === 204 ? null : response.json();
   }
-  async function patch(id, value) { await api(`reminder_jobs?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(env.REMINDER_OWNER_ID)}`, 'PATCH', value); }
+  const rpc = (name, job, extra = {}) => api(`rpc/${name}`, 'POST', { p_owner: env.REMINDER_OWNER_ID, p_job: job.id, p_claim: job.claim_token, ...extra });
   const jobs = await api('rpc/claim_reminder_jobs', 'POST', { p_owner: env.REMINDER_OWNER_ID, p_limit: 20 });
   const results = { claimed: jobs.length, sent: 0, failed: 0, expired: 0 };
   await Promise.all(jobs.map(async (job) => {
     try {
       // Defense in depth: a malformed response cannot cross account boundaries.
-      if (job.user_id !== env.REMINDER_OWNER_ID) throw new Error('wrong_owner');
+      if (job.user_id !== env.REMINDER_OWNER_ID || !/^[0-9a-f-]{36}$/i.test(job.claim_token ?? '')) throw new Error('invalid_claim');
       if (new Date(job.due_at) > now()) throw new Error('not_due');
-      if (new Date(job.expires_at) <= now()) { await patch(job.id, { status: 'failed', last_error: 'expired', lease_until: null }); results.expired++; return; }
+      if (new Date(job.expires_at) <= now()) { await rpc('finish_reminder_job', job, { p_result: 'expired' }); results.expired++; return; }
       const payload = await decryptJob(env.REMINDER_PRIVATE_KEY, job.payload, job.id);
       for (const recipient of ['advisor', 'client']) {
         const chat = recipient === 'advisor' ? payload.advisorChatId : payload.clientChatId;
         if (!chat || job[`${recipient}_sent`]) continue;
+        if (await rpc('begin_reminder_delivery', job, { p_recipient: recipient }) !== true) throw new Error('claim_lost');
         const response = await request(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(15000),
           body: JSON.stringify({ chat_id: chat, text: reminderText(recipient, payload), protect_content: true }),
         });
-        if (!response.ok || !(await response.json()).ok) throw new Error('telegram_delivery_failed');
-        await patch(job.id, { [`${recipient}_sent`]: true });
+        const receipt = await response.json();
+        if (receipt?.ok === false) {
+          // Only a definite API rejection permits retry. Timeouts and malformed receipts remain uncertain.
+          await rpc('complete_reminder_delivery', job, { p_recipient: recipient, p_sent: false });
+          throw new Error('telegram_delivery_failed');
+        }
+        if (!response.ok || receipt?.ok !== true || !Number.isSafeInteger(receipt.result?.message_id) || receipt.result.message_id <= 0 || String(receipt.result?.chat?.id) !== chat) throw new Error('delivery_uncertain');
+        if (await rpc('complete_reminder_delivery', job, { p_recipient: recipient, p_sent: true }) !== true) throw new Error('claim_lost');
       }
-      await patch(job.id, { status: 'sent', sent_at: now().toISOString(), lease_until: null, last_error: null }); results.sent++;
+      if (await rpc('finish_reminder_job', job, { p_result: 'sent' }) !== true) throw new Error('claim_lost'); results.sent++;
     } catch {
       // Never log response bodies, URLs with bot tokens, chat IDs, ciphertext or plaintext.
       results.failed++;
-      await patch(job.id, { status: job.attempts >= 5 ? 'failed' : 'pending', lease_until: null, last_error: 'delivery_failed', next_attempt_at: new Date(now().getTime() + Math.min(60, 2 ** job.attempts) * 60000).toISOString() });
+      // SQL retains sending markers as "uncertain". An old lease cannot update a newer worker's claim.
+      if (job.user_id === env.REMINDER_OWNER_ID && job.claim_token) await rpc('finish_reminder_job', job, { p_result: 'retry' }).catch(() => {});
     }
   }));
   log(JSON.stringify(results));

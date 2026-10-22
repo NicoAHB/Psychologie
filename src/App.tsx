@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDownLeft, ArrowRight, CalendarDays, CheckCheck, ChevronRight, CircleDollarSign, Clock3, Cloud, Download, LayoutDashboard, Leaf, LoaderCircle, LockKeyhole, Menu, FileText, Plus, Search, Settings2, ShieldCheck, Sparkles, TrendingUp, Users, Wallet, WifiOff, X } from 'lucide-react';
 import { LanguageSwitch, useI18n, type TextKey } from './lib/i18n';
+import { autoLockMinutes } from './lib/autoLock';
 import { ThemeToggle } from './lib/theme';
 import { financeRows, type FinanceView, type PaymentFilter } from './lib/finance';
 import { useVault, type VaultController } from './lib/useVault';
@@ -85,10 +86,13 @@ export default function App() {
     if (!vault.data) return;
     const warn = (e: BeforeUnloadEvent) => { if (currentVault.current.saving || currentVault.current.storageError) { e.preventDefault(); } };
     let active = Date.now(); let wasLocking = false;
-    const touch = () => { active = Date.now(); };
-    const timer = window.setInterval(() => { if (Date.now() - active >= 10 * 60 * 1000 && !wasLocking) { wasLocking = true; void currentVault.current.lock().catch(() => { wasLocking = false; }); } }, 15000);
+    const check = () => { if (Date.now() - active >= autoLockMinutes(currentVault.current.data?.settings.autoLockMinutes) * 60 * 1000 && !wasLocking) { wasLocking = true; void currentVault.current.lock().catch(() => { wasLocking = false; }); } };
+    const touch = () => { check(); if (!wasLocking) active = Date.now(); };
+    const visible = () => { if (document.visibilityState === 'visible') check(); };
+    const timer = window.setInterval(check, 15000);
+    document.addEventListener('visibilitychange', visible); window.addEventListener('pageshow', check);
     window.addEventListener('pointerdown', touch); window.addEventListener('keydown', touch); window.addEventListener('beforeunload', warn);
-    return () => { clearInterval(timer); window.removeEventListener('pointerdown', touch); window.removeEventListener('keydown', touch); window.removeEventListener('beforeunload', warn); };
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('pageshow', check); window.removeEventListener('pointerdown', touch); window.removeEventListener('keydown', touch); window.removeEventListener('beforeunload', warn); };
   }, [!!vault.data]);
   // Clear plaintext form drafts and image object URLs when the vault locks.
   useEffect(() => { if (!vault.data) { setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setDocumentFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);

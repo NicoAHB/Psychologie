@@ -125,35 +125,54 @@ test('worker honors successful recipient flags, claims only configured owner and
   const calls: { url: string; body: Record<string, unknown> }[] = []; const logs: string[] = [];
   const request = async (url: string, options: RequestInit) => {
     const body = JSON.parse(String(options.body)); calls.push({ url, body });
-    if (url.includes('claim_reminder_jobs')) { assert.equal(body.p_owner, owner); return new Response(JSON.stringify([{ id, user_id: owner, due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-14T12:00:00Z', payload: encrypted, advisor_sent: true, client_sent: false, attempts: 1 }])); }
-    if (url.includes('telegram.org')) return new Response(JSON.stringify({ ok: true }));
-    return new Response(null, { status: 204 });
+    if (url.includes('claim_reminder_jobs')) { assert.equal(body.p_owner, owner); return new Response(JSON.stringify([{ id, user_id: owner, claim_token: uid(), due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-14T12:00:00Z', payload: encrypted, advisor_sent: true, client_sent: false, attempts: 1 }])); }
+    if (url.includes('telegram.org')) return new Response(JSON.stringify({ ok: true, result: { message_id: 42, chat: { id: 222 } } }));
+    return Response.json(true);
   };
   const result = await processJobs({ env: { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake-service-key', TELEGRAM_BOT_TOKEN: 'fake-token', REMINDER_PRIVATE_KEY: privatePem, REMINDER_OWNER_ID: owner }, request, now: () => new Date('2026-07-13T16:02:00Z'), log: (line: string) => logs.push(line) });
   assert.equal(result.sent, 1);
   const telegram = calls.filter(call => call.url.includes('telegram.org'));
   assert.equal(telegram.length, 1); assert.equal(telegram[0].body.chat_id, '222');
   assert.match(String(telegram[0].body.text), /^Нагадування про Вашу зустріч: вівторок, 14 липня 2026 р\., 15:00 \(Київ, UTC\+3\)/);
-  assert.ok(calls.some(call => call.body.client_sent === true));
+  assert.ok(calls.some(call => call.body.p_recipient === 'client' && call.body.p_sent === true));
   assert.deepEqual(logs, [JSON.stringify({ claimed: 1, sent: 1, failed: 0, expired: 0 })]);
 });
 test('worker does not deliver before the due time and records retry without sensitive details', async () => {
   const owner = uid(); const id = uid(); let deliveries = 0; const patches: Record<string, unknown>[] = [];
   const result = await processJobs({ env: { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake', TELEGRAM_BOT_TOKEN: 'fake', REMINDER_PRIVATE_KEY: privatePem, REMINDER_OWNER_ID: owner },
     request: async (url: string, options: RequestInit) => {
-      if (url.includes('claim_reminder_jobs')) return new Response(JSON.stringify([{ id, user_id: owner, due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-14T12:00:00Z', attempts: 1 }]));
+      if (url.includes('claim_reminder_jobs')) return new Response(JSON.stringify([{ id, user_id: owner, claim_token: uid(), due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-14T12:00:00Z', attempts: 1 }]));
       if (url.includes('telegram.org')) deliveries++;
       patches.push(JSON.parse(String(options.body))); return new Response(null, { status: 204 });
     }, now: () => new Date('2026-07-13T15:59:00Z'), log: () => {} });
-  assert.equal(deliveries, 0); assert.equal(result.failed, 1); assert.equal(patches[0].status, 'pending'); assert.equal(patches[0].last_error, 'delivery_failed');
+  assert.equal(deliveries, 0); assert.equal(result.failed, 1); assert.equal(patches[0].p_result, 'retry');
 });
 test('worker never sends expired tomorrow reminders on appointment day', async () => {
   const owner = uid(); const id = uid(); let deliveries = 0; const patches: Record<string, unknown>[] = [];
   const result = await processJobs({ env: { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake', TELEGRAM_BOT_TOKEN: 'fake', REMINDER_PRIVATE_KEY: privatePem, REMINDER_OWNER_ID: owner },
     request: async (url: string, options: RequestInit) => {
-      if (url.includes('claim_reminder_jobs')) return new Response(JSON.stringify([{ id, user_id: owner, due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-13T22:00:00Z', attempts: 1 }]));
+      if (url.includes('claim_reminder_jobs')) return new Response(JSON.stringify([{ id, user_id: owner, claim_token: uid(), due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-13T22:00:00Z', attempts: 1 }]));
       if (url.includes('telegram.org')) deliveries++;
       patches.push(JSON.parse(String(options.body))); return new Response(null, { status: 204 });
     }, now: () => new Date('2026-07-13T22:01:00Z'), log: () => {} });
-  assert.equal(deliveries, 0); assert.equal(result.expired, 1); assert.equal(patches[0].last_error, 'expired');
+  assert.equal(deliveries, 0); assert.equal(result.expired, 1); assert.equal(patches[0].p_result, 'expired');
+});
+test('worker fences sending before Telegram and keeps an uncertain acknowledgement for server-side review', async () => {
+  const owner = uid(); const id = uid(); const claim = uid(); const encrypted = await encryptReminder(publicPem, payload, id);
+  const env = { SUPABASE_URL: 'https://test.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'fake', TELEGRAM_BOT_TOKEN: 'fake', REMINDER_PRIVATE_KEY: privatePem, REMINDER_OWNER_ID: owner };
+  for (const allowed of [false, true]) {
+    let sends = 0; const calls: string[] = [];
+    const result = await processJobs({ env, now: () => new Date('2026-07-13T16:02:00Z'), log: () => {}, request: async (url: string, options: RequestInit) => {
+      const body = JSON.parse(String(options.body));
+      if (url.includes('claim_reminder_jobs')) return Response.json([{ id, user_id: owner, claim_token: claim, due_at: '2026-07-13T16:00:00Z', expires_at: '2026-07-14T12:00:00Z', advisor_sent: true, client_sent: false, payload: encrypted }]);
+      if (url.includes('telegram.org')) { sends++; calls.push('telegram'); return Response.json({ ok: true, result: { message_id: 42, chat: { id: 222 } } }); }
+      assert.equal(body.p_claim, claim); assert.equal(body.p_owner, owner);
+      if (url.includes('begin_reminder_delivery')) { calls.push('begin'); return Response.json(allowed); }
+      if (url.includes('complete_reminder_delivery')) { calls.push('acknowledge'); throw new Error('connection lost after database write'); }
+      if (url.includes('finish_reminder_job')) { calls.push('finish'); assert.equal(body.p_result, 'retry'); return Response.json(true); }
+      throw new Error('unexpected request');
+    } });
+    assert.equal(result.failed, 1); assert.equal(result.sent, 0); assert.equal(sends, allowed ? 1 : 0);
+    assert.deepEqual(calls, allowed ? ['begin', 'telegram', 'acknowledge', 'finish'] : ['begin', 'finish']);
+  }
 });

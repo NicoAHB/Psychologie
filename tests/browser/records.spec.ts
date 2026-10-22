@@ -62,7 +62,12 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog).not.toBeVisible(); await expect.poll(() => storedImages(page)).toBe(2);
   await page.getByRole('button', { name: 'Fotonotiz löschen' }).click();
-  await expect(page.getByRole('button', { name: 'Fotonotiz löschen' })).toHaveCount(0); await expect.poll(() => storedImages(page)).toBe(1);
+  await expect(page.getByRole('button', { name: 'Fotonotiz löschen' })).toHaveCount(0); await expect.poll(() => storedImages(page)).toBe(2);
+  await nav(page, 'Einstellungen'); await page.locator('.passkey-list li', { hasText: 'Vor einer Löschung' }).first().getByRole('button', { name: 'Wiederherstellen', exact: true }).click();
+  await expect(page.getByText('Stand wiederhergestellt.')).toBeVisible(); await nav(page, 'Klienten'); await openProfile(page); await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Fotonotiz löschen' })).toBeVisible(); await page.getByRole('button', { name: 'Fotonotiz löschen' }).click();
+  await nav(page, 'Einstellungen'); await page.getByRole('button', { name: 'Verlauf löschen', exact: true }).click(); await expect.poll(() => storedImages(page)).toBe(1);
+  await nav(page, 'Klienten'); await openProfile(page); await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
 
   await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
   await dialog.getByRole('button', { name: 'Sitzung löschen' }).click();

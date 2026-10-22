@@ -69,7 +69,7 @@ export interface EmailDelivery {
   acceptedAt?: string; providerId?: string;
   purpose?: 'invoice' | 'paymentReminder';
 }
-export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: string; uploadedAt: string }
+export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: string; uploadedAt: string; assessmentId?: string }
 export interface TelegramDelivery {
   id: string; recipient: string; requestedAt: string; text: string;
   acceptedAt?: string; messageId?: number;
@@ -85,6 +85,7 @@ export interface ClientDocument extends Stamped {
 }
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;
+  source?: { documentId: string; returnId: string; fileHash?: string };
 }
 export interface Template extends Stamped { id: string; name: string; body: string }
 export interface PracticeProfile {
@@ -93,6 +94,7 @@ export interface PracticeProfile {
 }
 export interface Settings {
   timeZone: string; advisorChatId: string; autoSync: boolean; remindersEnabled: boolean;
+  autoLockMinutes?: number;
   practice: PracticeProfile; updatedAt?: number;
   exchangeRate?: ExchangeRate;
 }

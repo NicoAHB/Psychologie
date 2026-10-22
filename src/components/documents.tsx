@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Download, FilePlus2, FileText, Mail, Paperclip, Reply } from 'lucide-react';
 import { translate, useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, today } from '../lib/dates';
@@ -9,9 +9,11 @@ import { canRemindInvoice, cancellationOf, invoiceOutstanding, validDay } from '
 import { hasDocumentReceipt } from '../lib/followUp';
 import { Field, Modal, Notice } from './ui';
 import { invoiceMessage } from '../lib/invoiceMessage';
+import { needsAttention } from '../lib/assessments';
+import type { ImportedQuestionnaire } from '../lib/questionnaireImport';
 import { TelegramComposer } from './telegram';
 
-const errorKey = (error: unknown): TextKey => error instanceof Error && ['documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable'].includes(error.message) ? error.message as TextKey : 'storageError';
+const errorKey = (error: unknown): TextKey => error instanceof Error && ['documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
 
 function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { vault: VaultController; client: Client; questionnaire: boolean; onClose: () => void; onSaved: (document: ClientDocument, email: boolean) => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [title, setTitle] = useState('');
@@ -22,15 +24,14 @@ function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { va
     e.preventDefault(); setError(undefined); if (returnExpected && returnDueOn && !validDay(returnDueOn)) { setError('required'); return; } if (!questionnaire && (!file || !title.trim())) { setError('required'); return; }
     setBusy(true); let added: string | undefined;
     try {
-      let bytes: Uint8Array<ArrayBuffer>; let fileName: string; let mimeType: string;
+      let bytes: Uint8Array<ArrayBuffer>; let fileName: string; let mimeType: string; const documentId = uid();
       if (questionnaire) {
-        const [{ questionnairePdf }, { default: fontUrl }] = await Promise.all([import('../lib/questionnairePdf'), import('../assets/DejaVuSans.ttf?url')]);
-        const font = await fetch(fontUrl);
-        if (!font.ok) throw new Error('storageError');
-        bytes = await questionnairePdf(kind, language, new Uint8Array(await font.arrayBuffer())); fileName = `${kind}-${language}-${today()}.pdf`; mimeType = 'application/pdf';
+        const [{ questionnairePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/questionnairePdf'), import('../lib/pdfFonts')]);
+        const { regular } = await loadPdfFonts('', false);
+        bytes = await questionnairePdf(kind, language, regular, documentId); fileName = `${kind}-${language}-${today()}.pdf`; mimeType = 'application/pdf';
       } else ({ bytes, fileName, mimeType } = await inspectDocument(file!));
       added = await vault.addFile(bytes);
-      const document: ClientDocument = { id: uid(), clientId: client.id, title: questionnaire ? translate(language, `${kind}Title`) : title.trim(), createdAt: new Date().toISOString(), file: { blobId: added, fileName, mimeType, size: bytes.byteLength }, returnExpected, ...(returnExpected && returnDueOn && { returnDueOn }), deliveries: [], returns: [], ...(questionnaire && { kind, language }) };
+      const document: ClientDocument = { id: documentId, clientId: client.id, title: questionnaire ? translate(language, `${kind}Title`) : title.trim(), createdAt: new Date().toISOString(), file: { blobId: added, fileName, mimeType, size: bytes.byteLength }, returnExpected, ...(returnExpected && returnDueOn && { returnDueOn }), deliveries: [], returns: [], ...(questionnaire && { kind, language }) };
       await vault.update(d => { d.documents.push(document); }); onSaved(document, email);
     } catch (error) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(errorKey(error)); }
     finally { setBusy(false); }
@@ -104,21 +105,47 @@ function ReturnSettingsDialog({ vault, documentId, onClose }: { vault: VaultCont
 
 function ReturnDialog({ vault, documentId, onClose }: { vault: VaultController; documentId: string; onClose: () => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [receivedOn, setReceivedOn] = useState(today());
-  const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
+  const [busy, setBusy] = useState(false); const [reading, setReading] = useState(false); const [error, setError] = useState<TextKey>();
+  const [result, setResult] = useState<ImportedQuestionnaire>(); const [importError, setImportError] = useState<TextKey>(); const [confirmed, setConfirmed] = useState(false); const [assessmentDate, setAssessmentDate] = useState(today());
+  const document = vault.data!.documents.find(d => d.id === documentId)!;
+  const selection = useRef(0);
+  async function pick(file?: File) {
+    const version = ++selection.current; setFile(file); setResult(undefined); setImportError(undefined); setConfirmed(false); setError(undefined);
+    if (!file || !document.kind) { setReading(false); return; }
+    setReading(true);
+    try {
+      const { bytes, mimeType } = await inspectDocument(file); if (mimeType !== 'application/pdf') throw new Error('questionnaireImportInvalid');
+      const { readQuestionnaire } = await import('../lib/questionnaireImport'); const value = await readQuestionnaire(bytes, document.kind, document.id);
+      if (selection.current !== version) return; setResult(value); setAssessmentDate(value.completedOn ?? '');
+    } catch (error) { if (selection.current === version) setImportError(error instanceof Error && ['questionnaireImportInvalid', 'questionnaireImportIncomplete', 'questionnaireImportMismatch'].includes(error.message) ? error.message as TextKey : 'questionnaireImportInvalid'); }
+    finally { if (selection.current === version) setReading(false); }
+  }
   async function save(e: FormEvent) {
-    e.preventDefault(); if (!file || !/^\d{4}-\d{2}-\d{2}$/.test(receivedOn) || receivedOn > today() || Number.isNaN(Date.parse(receivedOn)) || new Date(receivedOn).toISOString().slice(0, 10) !== receivedOn) { setError('required'); return; }
+    e.preventDefault(); if (reading || !file || !validDay(receivedOn) || receivedOn > today() || confirmed && (!result || !validDay(assessmentDate) || assessmentDate > today())) { setError('required'); return; }
     setBusy(true); let added: string | undefined;
     try {
       const { bytes, fileName, mimeType } = await inspectDocument(file); added = await vault.addFile(bytes);
-      const returned = { id: uid(), receivedOn, uploadedAt: new Date().toISOString(), file: { blobId: added, fileName, mimeType, size: bytes.byteLength } };
-      await vault.update(d => { d.documents.find(x => x.id === documentId)!.returns.push(returned); }); onClose();
+      const fileHash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
+      const returnId = uid(); const assessmentId = confirmed && result ? uid() : undefined;
+      const returned = { id: returnId, receivedOn, uploadedAt: new Date().toISOString(), file: { blobId: added, fileName, mimeType, size: bytes.byteLength }, ...(assessmentId && { assessmentId }) };
+      await vault.update(d => {
+        if (assessmentId && d.assessments.some(a => a.clientId === document.clientId && a.kind === result!.kind && a.source?.fileHash === fileHash)) throw new Error('questionnaireImportDuplicate');
+        const target = d.documents.find(x => x.id === documentId); if (!target) throw new Error('required'); target.returns.push(returned);
+        if (assessmentId && result) d.assessments.push({ id: assessmentId, clientId: target.clientId, kind: result.kind, date: assessmentDate, answers: [...result.answers], note: t('questionnaireImportedNote'), source: { documentId, returnId, fileHash } });
+      }); onClose();
     } catch (error) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(errorKey(error)); } finally { setBusy(false); }
   }
   return <Modal title={t('uploadDocumentReturn')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={save} noValidate>
-    <Field label={t('returnedDocumentFile')} hint={t('documentFormats')}><input type="file" accept={DOCUMENT_ACCEPT} onChange={e => setFile(e.target.files?.[0])}/></Field>
+    <Field label={t('returnedDocumentFile')} hint={t('documentFormats')}><input type="file" accept={DOCUMENT_ACCEPT} disabled={busy} onChange={e => void pick(e.target.files?.[0])}/></Field>
     <Field label={t('documentReceivedOn')}><input type="date" value={receivedOn} max={today()} onChange={e => setReceivedOn(e.target.value)}/></Field>
+    {reading && <p className="hint" role="status">{t('questionnaireImportReading')}</p>}
+    {importError && <Notice>{t(importError)} {t('questionnaireImportFileOnly')}</Notice>}
+    {result && <section className="form-section"><h3>{t('questionnaireImportTitle')}</h3><p>{t(`${result.kind}Title`)} · <strong>{result.score} / {result.kind === 'phq9' ? 27 : 21}</strong></p>{result.name && <p className="hint">{t('pdfClientName')}: {result.name}</p>}<p className="hint">{t('questionnaireImportReview')}</p><ol>{result.answers.map((answer, index) => <li key={index}>{t(`${result.kind}_${index + 1}` as TextKey)}: <strong>{answer}</strong></li>)}</ol>
+      {needsAttention(result.kind, result.answers) && <Notice error>{t('attentionNote')}</Notice>}
+      <Field label={t('questionnaireImportDate')}><input type="date" value={assessmentDate} max={today()} onChange={e => setAssessmentDate(e.target.value)}/></Field>
+      <label className="check-label"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}/><span>{t('questionnaireImportConfirm')}</span></label></section>}
     <p className="hint">{t('documentReturnHint')}</p>{error && <Notice error>{t(error)}</Notice>}
-    <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{t(busy ? 'working' : 'save')}</button></div>
+    <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy || reading}>{t(busy ? 'working' : 'save')}</button></div>
   </form></Modal>;
 }
 
@@ -150,7 +177,7 @@ export function DocumentsSection({ vault, client, focusId }: { vault: VaultContr
         <button className="btn btn-secondary btn-small" disabled={!validEmail(client.email ?? '')} onClick={() => setEmailId(doc.id)}><Mail size={16}/>{t('emailClientDocument')}</button>
         {doc.invoiceId && <button className="btn btn-secondary btn-small" onClick={() => setTelegramId(doc.id)}>{t('invoiceTelegram')}</button>}
       </section><section><h4>{t('documentReturnColumn')}</h4>
-        {doc.returns.length ? <ul className="document-returns">{doc.returns.map(returned => <li key={returned.id}><strong>{t('documentReceivedOn')} <time dateTime={returned.receivedOn}>{day(returned.receivedOn)}</time></strong><button className="document-download" onClick={() => void download(returned.file)}><Download size={17}/>{returned.file.fileName}</button><small>{t('documentAddedOn')} {day(returned.uploadedAt)}</small></li>)}</ul> : <p className="hint">{t(doc.returnClosedAt ? 'returnClose' : doc.returnExpected ? hasDocumentReceipt(doc) ? 'documentAwaitingReturn' : 'returnNotSent' : 'documentNoReturn')}</p>}
+        {doc.returns.length ? <ul className="document-returns">{doc.returns.map(returned => <li key={returned.id}><strong>{t('documentReceivedOn')} <time dateTime={returned.receivedOn}>{day(returned.receivedOn)}</time></strong><button className="document-download" onClick={() => void download(returned.file)}><Download size={17}/>{returned.file.fileName}</button><small>{t('documentAddedOn')} {day(returned.uploadedAt)}</small>{returned.assessmentId && <small>{t('questionnaireImportedStatus')}</small>}</li>)}</ul> : <p className="hint">{t(doc.returnClosedAt ? 'returnClose' : doc.returnExpected ? hasDocumentReceipt(doc) ? 'documentAwaitingReturn' : 'returnNotSent' : 'documentNoReturn')}</p>}
         <div className="button-row"><button className="btn btn-secondary btn-small" onClick={() => setReturnId(doc.id)}><Reply size={16}/>{t('uploadDocumentReturn')}</button><button className="text-link" onClick={() => setSettingsId(doc.id)}>{t('returnSettings')}</button></div>
       </section></div></article>)}</div>}
     <p className="hint">{t('emailHistoryHint')}</p>

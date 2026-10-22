@@ -4,7 +4,7 @@
 
 - Repository in dieser Cloud-Aufgabe: `/workspace/Psychologie`
 - Lokaler Entwicklungsbranch: `codex/praxisraum-foundation`
-- **GitHub-Push erfolgreich:** `codex/praxisraum-foundation` ist jetzt auf GitHub gesichert. Der erste 403-Fehler wurde nach der Berechtigungsänderung behoben.
+- **Aktueller GitHub-Stand:** `main` enthält die veröffentlichte App und ist die Grundlage für die Weiterarbeit auf einem anderen Gerät. Der lokale Entwicklungsbranch heißt `codex/praxisraum-foundation`.
 - Programmcode und Tests werden lokal committed. Ein Projekt-ZIP und ein selbstständiges Git-Bundle werden zusätzlich unter `/workspace` erzeugt. Sie enthalten keine echten Praxisdaten oder Zugangsdaten.
 
 Öffne diesen Chat auf dem Tablet, um die bestehende Aufgabe fortzusetzen. Für eine unabhängige neue Aufgabe oder Codespaces den aktuellen GitHub-Stand oder das Projektarchiv verwenden. Eine langfristige Wiederherstellung lokaler Commits allein aus einem neuen Cloud-Task ist nicht zugesichert.
@@ -54,4 +54,8 @@ Es wurden keine Supabase- oder Telegram-Zugangsdaten bereitgestellt. Die lokale 
 - **Absturzseite:** `ErrorBoundary` statt leerer Seite (zweisprachig, kein Datenverlust).
 - **Barrierefreiheit:** Kontraste in Hell- und Dunkelmodus korrigiert (axe-core, WCAG 2.1 AA), Sprunglink, Seitentitel je Bereich. Test: `tests/browser/a11y.spec.ts` (alle Hauptansichten, Wochenansicht, Termin- und Sitzungsformular; Desktop und Handy; hell und dunkel). Neue Farben bitte nicht unter 4,5 : 1 wählen.
 - Zahlungsliste in Finanzen: 100 Zeilen pro Seite mit „Weitere anzeigen“.
-- Bewusst nicht geändert: Der Service Worker lädt alle Dateien (auch PDF-Schriften, rund 3,5 MB) vorab, damit Rechnungs-PDFs offline funktionieren. Mögliche Verkleinerung: DejaVu-Schriften auf Lateinisch/Kyrillisch reduzieren (Risiko: seltene Schriften in Klientennamen).
+- Aktualisiert: Nur die reguläre lateinisch-kyrillische PDF-Basisschrift wird vorab geladen (137 KB); weitere Schriftdateien liegen im Runtime-Cache. Erstes Offline-PDF nutzt bei Bedarf die reguläre Schrift auch für fette Texte. Weitere unterstützte Alphabete werden online bei Bedarf nachgeladen. Details und neue Funktionen: `docs/performance-und-sicherung.md`.
+
+## Performance und Sicherung (Oktober 2026)
+
+Schrift-Subsets und Runtime-Cache, Playwright-Browsercache, atomare verschlüsselte In-App-Checkpoints einschließlich Dateiaufbewahrung, Sperrzeit bis 90 Minuten, lokal geprüfter und bestätigter PHQ-9-/GAD-7-Rücklauf, lesbarer Klienten-ZIP-Export und NBU-Kurscache sind implementiert. Der Telegram-Worker verwendet pro Empfänger einen gesicherten Versandbeginn, Claim-Token und einen Zustand für unklare Zustellungen. Vor dessen Einsatz alte Worker anhalten und das ergänzte `supabase/schema.sql` im eigenen Projekt ausführen. Anleitung und Grenzen: [Performance und Sicherung](docs/performance-und-sicherung.md). Es wurden keine echten Nachrichten verschickt.

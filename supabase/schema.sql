@@ -57,7 +57,7 @@ create table if not exists public.reminder_jobs (
   due_at timestamptz not null,
   expires_at timestamptz not null,
   payload jsonb not null check (payload->>'version' = '1' and payload ? 'wrappedKey' and payload ? 'iv' and payload ? 'ciphertext'),
-  status text not null default 'pending' check (status in ('pending', 'processing', 'sent', 'failed')),
+  status text not null default 'pending' check (status in ('pending', 'processing', 'sent', 'failed', 'uncertain')),
   advisor_sent boolean not null default false,
   client_sent boolean not null default false,
   attempts integer not null default 0,
@@ -67,6 +67,12 @@ create table if not exists public.reminder_jobs (
   sent_at timestamptz,
   check (due_at < expires_at)
 );
+-- Additive migration for installations that already have the reminder table.
+alter table public.reminder_jobs add column if not exists claim_token uuid;
+alter table public.reminder_jobs add column if not exists advisor_sending_at timestamptz;
+alter table public.reminder_jobs add column if not exists client_sending_at timestamptz;
+alter table public.reminder_jobs drop constraint if exists reminder_jobs_status_check;
+alter table public.reminder_jobs add constraint reminder_jobs_status_check check (status in ('pending', 'processing', 'sent', 'failed', 'uncertain'));
 create index if not exists reminder_jobs_pending on public.reminder_jobs(user_id, due_at) where status in ('pending', 'processing');
 alter table public.reminder_jobs enable row level security;
 drop policy if exists "read own reminders" on public.reminder_jobs;
@@ -99,15 +105,72 @@ revoke all on function public.replace_reminder_jobs(jsonb) from public, anon;
 grant execute on function public.replace_reminder_jobs(jsonb) to authenticated;
 
 create or replace function public.claim_reminder_jobs(p_owner uuid, p_limit integer default 20)
-returns setof public.reminder_jobs language sql security definer set search_path = '' as $$
-  update public.reminder_jobs set status = 'processing', lease_until = now() + interval '5 minutes', attempts = attempts + 1
+returns setof public.reminder_jobs language plpgsql security definer set search_path = '' as $$
+begin
+  -- A timeout after Telegram may mean delivery succeeded. Never automatically resend this recipient.
+  update public.reminder_jobs set status = 'uncertain', last_error = 'delivery_uncertain', lease_until = null
+    where user_id = p_owner and status = 'processing' and lease_until < now()
+      and (advisor_sending_at is not null or client_sending_at is not null);
+  return query update public.reminder_jobs set status = 'processing', lease_until = now() + interval '2 minutes',
+    claim_token = gen_random_uuid(), attempts = attempts + 1
   where id in (
     select id from public.reminder_jobs
     where user_id = p_owner and due_at <= now() and expires_at > now() and next_attempt_at <= now()
       and attempts < 5 and (status = 'pending' or (status = 'processing' and lease_until < now()))
     order by due_at for update skip locked limit greatest(1, least(p_limit, 100))
-  )
-  returning *;
+  ) returning *;
+end;
 $$;
 revoke all on function public.claim_reminder_jobs(uuid, integer) from public, anon, authenticated;
 grant execute on function public.claim_reminder_jobs(uuid, integer) to service_role;
+
+create or replace function public.begin_reminder_delivery(p_owner uuid, p_job uuid, p_claim uuid, p_recipient text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_recipient not in ('advisor', 'client') then return false; end if;
+  update public.reminder_jobs set
+    advisor_sending_at = case when p_recipient = 'advisor' then now() else advisor_sending_at end,
+    client_sending_at = case when p_recipient = 'client' then now() else client_sending_at end,
+    lease_until = now() + interval '2 minutes'
+  where id = p_job and user_id = p_owner and claim_token = p_claim and status = 'processing'
+    and lease_until > now() and expires_at > now() and due_at <= now()
+    and case when p_recipient = 'advisor' then not advisor_sent and advisor_sending_at is null
+      else not client_sent and client_sending_at is null end;
+  return found;
+end;
+$$;
+create or replace function public.complete_reminder_delivery(p_owner uuid, p_job uuid, p_claim uuid, p_recipient text, p_sent boolean)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_recipient not in ('advisor', 'client') then return false; end if;
+  update public.reminder_jobs set
+    advisor_sent = case when p_recipient = 'advisor' then p_sent else advisor_sent end,
+    client_sent = case when p_recipient = 'client' then p_sent else client_sent end,
+    advisor_sending_at = case when p_recipient = 'advisor' then null else advisor_sending_at end,
+    client_sending_at = case when p_recipient = 'client' then null else client_sending_at end
+  where id = p_job and user_id = p_owner and claim_token = p_claim and status = 'processing' and lease_until > now()
+    and case when p_recipient = 'advisor' then advisor_sending_at is not null else client_sending_at is not null end;
+  return found;
+end;
+$$;
+create or replace function public.finish_reminder_job(p_owner uuid, p_job uuid, p_claim uuid, p_result text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_result not in ('sent', 'retry', 'expired') then return false; end if;
+  update public.reminder_jobs set
+    status = case when advisor_sending_at is not null or client_sending_at is not null then 'uncertain'
+      when p_result = 'sent' then 'sent' when p_result = 'expired' or attempts >= 5 then 'failed' else 'pending' end,
+    last_error = case when advisor_sending_at is not null or client_sending_at is not null then 'delivery_uncertain'
+      when p_result = 'sent' then null when p_result = 'expired' then 'expired' else 'delivery_failed' end,
+    sent_at = case when p_result = 'sent' and advisor_sending_at is null and client_sending_at is null then now() else sent_at end,
+    lease_until = null, claim_token = null, next_attempt_at = now() + least(60, power(2, least(attempts, 6))) * interval '1 minute'
+  where id = p_job and user_id = p_owner and claim_token = p_claim and status = 'processing' and lease_until > now();
+  return found;
+end;
+$$;
+revoke all on function public.begin_reminder_delivery(uuid, uuid, uuid, text) from public, anon, authenticated;
+revoke all on function public.complete_reminder_delivery(uuid, uuid, uuid, text, boolean) from public, anon, authenticated;
+revoke all on function public.finish_reminder_job(uuid, uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.begin_reminder_delivery(uuid, uuid, uuid, text) to service_role;
+grant execute on function public.complete_reminder_delivery(uuid, uuid, uuid, text, boolean) to service_role;
+grant execute on function public.finish_reminder_job(uuid, uuid, uuid, text) to service_role;

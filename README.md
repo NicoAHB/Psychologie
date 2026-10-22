@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: kleinere PDF-Basisschriften und Runtime-Cache, Playwright-Browsercache in CI, automatische verschlüsselte In-App-Sicherung auch auf dem iPad, einstellbare Sperrzeit, geprüfter PHQ-9-/GAD-7-PDF-Rücklauf, lesbarer Klienten-ZIP-Export, datierter NBU-Kurscache und Schutz vor wiederholtem Telegram-Versand. Bedienung, Migration und Grenzen: [Performance und Sicherung](docs/performance-und-sicherung.md).
+
 Neu: Zahlungsziele, vorbereitete Zahlungserinnerungen auf DE/UA, verknüpfte Storno- und Ersatzrechnungen, eine zentrale Rücklaufübersicht sowie auffällige Urlaubs- und Abwesenheitseinträge im Kalender. Bedienung und Grenzen: [Rechnungen und Abwesenheiten](docs/rechnungen-und-abwesenheiten.md).
 
 Eine lokale, verschlüsselte Praxis-PWA mit deutscher und ukrainischer Oberfläche, Klientenprofilen einschließlich Profilbildern, Sitzungsvorbereitung, Fotonotizen mit Tags, Terminen und Einnahmenübersicht.
@@ -8,7 +10,7 @@ Der Sonnen-/Mond-Schalter neben der Sprachauswahl wechselt sofort zwischen Hell 
 
 ## Auf einem anderen Gerät weiterarbeiten
 
-Der Entwicklungsstand ist auf GitHub im Branch **`codex/praxisraum-foundation`** gesichert. Der Schreibzugriff funktioniert inzwischen. Für den Gerätewechsel dieses Repository in Codex oder einer lokalen Entwicklungsumgebung öffnen. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
+Der aktuelle veröffentlichte Entwicklungsstand ist auf GitHub im Branch **`main`** gesichert. Der Schreibzugriff funktioniert inzwischen. Für den Gerätewechsel dieses Repository in Codex oder einer lokalen Entwicklungsumgebung öffnen. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
 
 ```sh
 git clone --branch codex/praxisraum-foundation https://github.com/NicoAHB/Psychologie.git

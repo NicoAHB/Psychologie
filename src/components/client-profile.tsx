@@ -15,6 +15,7 @@ import { DocumentsSection } from './documents';
 import { InvoiceForm, InvoiceView } from './invoices';
 import { isSessionVoided, uninvoiced } from '../lib/invoice';
 import { clockText } from './DualTime';
+import { ClientExportButton } from './client-export';
 
 export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances';
 export interface ProfileActions {
@@ -119,7 +120,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
   return <div className="profile-content">
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
     <div className="profile-heading"><Avatar client={client} vault={vault} large/><div><h2>{client.name}</h2><p>{client.contact || t('profile')}</p></div><button className="btn btn-secondary" onClick={actions.onEditClient}>{t('editClient')}</button></div>
-    <div className="button-row profile-actions"><button className="btn btn-primary btn-small" onClick={actions.onNewSession}><Plus size={16}/>{t('addSession')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewNote}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewAppointment}><CalendarDays size={16}/>{t('newAppointment')}</button></div>
+    <div className="button-row profile-actions"><button className="btn btn-primary btn-small" onClick={actions.onNewSession}><Plus size={16}/>{t('addSession')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewNote}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewAppointment}><CalendarDays size={16}/>{t('newAppointment')}</button><ClientExportButton vault={vault} client={client}/></div>
     <div className="profile-tabs" role="tablist" aria-label={t('profileSections')}>{tabs.map(x => <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls="profile-panel" className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.icon}{x.label}</button>)}</div>
     <div role="tabpanel" id="profile-panel" aria-labelledby={`tab-${tab}`} className="profile-panel">
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}

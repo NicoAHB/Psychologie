@@ -10,9 +10,10 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   if (line) lines.push(line); return lines;
 }
 /** Genuine AcroForm fields, no PDF JavaScript, no prefilled patient details, and a local Unicode font for DE/UA. */
-export async function questionnairePdf(kind: AssessmentKind, language: Language, fontBytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+export async function questionnairePdf(kind: AssessmentKind, language: Language, fontBytes: Uint8Array, documentId?: string): Promise<Uint8Array<ArrayBuffer>> {
   const T = (key: TextKey) => translate(language, key); const pdf = await PDFDocument.create(); pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes); const form = pdf.getForm(); const ink = rgb(.17, .27, .22); const muted = rgb(.34, .41, .35);
+  for (const [name, value] of Object.entries({ praxisraum_instrument: kind, praxisraum_version: '1', ...(documentId && { praxisraum_document_id: documentId }) })) { const field = form.createTextField(name); field.setText(value); field.enableReadOnly(); }
   // Readers need the full Unicode font in the form's default resources when the patient enters new text.
   form.acroForm.dict.set(PDFName.of('DR'), pdf.context.obj({ Font: { [font.name]: font.ref } }));
   form.acroForm.dict.set(PDFName.of('DA'), PDFString.of(`/${font.name} 11 Tf 0 g`));

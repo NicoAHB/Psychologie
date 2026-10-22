@@ -23,7 +23,7 @@ test('both questionnaires contain editable, initially unanswered fields in Germa
   const font = new Uint8Array(await readFile('src/assets/DejaVuSans.ttf'));
   for (const language of ['de', 'uk'] as const) for (const kind of ['phq9', 'gad7'] as const) {
     const bytes = await questionnairePdf(kind, language, font); const pdf = await PDFDocument.load(bytes); const form = pdf.getForm();
-    assert.equal(pdf.getPageCount(), 2); assert.equal(form.getFields().length, (kind === 'phq9' ? 9 : 7) + 2);
+    assert.equal(pdf.getPageCount(), 2); assert.equal(form.getFields().length, (kind === 'phq9' ? 9 : 7) + 4);
     assert.equal(form.getTextField('client_name').getText(), undefined);
     for (let i = 1; i <= (kind === 'phq9' ? 9 : 7); i++) {
       const field = form.getRadioGroup(`answer_${i}`); assert.equal(field.getOptions().length, 4); assert.equal(field.getSelected(), undefined);

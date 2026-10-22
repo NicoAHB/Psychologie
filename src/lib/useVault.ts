@@ -13,7 +13,7 @@ import { orphanedBlobs } from './records';
 import { stampChanges } from './merge';
 import { formatRecoveryKey, newRecoveryBytes, parseRecoveryKey } from './recovery';
 import { createPasskey, unlockWithPasskey as assertPasskey } from './passkey';
-import { clearSnapshots, listSnapshots, readSnapshot, recordSnapshot } from './history';
+import { clearSnapshots, commitVaultSnapshot, historyBlobIds, listSnapshots, readSnapshot, recordSnapshot } from './history';
 
 export function useVault() {
   const [envelope, setEnvelope] = useState<VaultEnvelope | null | undefined>(undefined);
@@ -51,10 +51,10 @@ export function useVault() {
     return enqueue(async () => {
       if (isDemo) return;
       const base = info.current!;
-      await recordSnapshot(base).catch(() => {}); // the state before this write: the way back from a mistake
       const encrypted = await encryptVault(activeKey, value, base.vaultId, base.salt, { format: base.format, wraps: base.wraps, ...wraps });
-      await writeVault(encrypted);
+      const discarded = await commitVaultSnapshot(encrypted, referencedBlobs(value));
       info.current = encrypted; setEnvelope(encrypted);
+      if (discarded.length) await purgeBlobs(base.vaultId, discarded).catch(() => {});
     });
   }, [enqueue]);
   /** Change only the key wraps (recovery key, passkeys, passphrase); the encrypted data stays as it is. */
@@ -193,7 +193,11 @@ export function useVault() {
     if (demoRef.current) { ids.forEach(id => memoryBlobs.current.delete(id)); return; }
     await purgeBlobs(info.current!.vaultId, ids);
   };
-  const purgeUnused = async (before: string[]) => { if (current.current) await purge(orphanedBlobs(before, current.current)); };
+  const purgeUnused = async (before: string[]) => {
+    if (!current.current) return;
+    const kept = info.current && !demoRef.current ? await historyBlobIds(info.current.vaultId) : new Set<string>();
+    await purge(orphanedBlobs(before, current.current).filter(id => !kept.has(id)));
+  };
   /**
    * Delete records. Normally an undo point is kept first; with `erase` (a whole client) the version history is wiped
    * instead, because it would otherwise keep the deleted person's data around.
@@ -201,19 +205,32 @@ export function useVault() {
   const remove = async (change: (value: VaultData) => void, erase = false) => {
     const before = referencedBlobs(current.current ?? emptyVault());
     await flush();
-    if (info.current && !demoRef.current && !erase) await recordSnapshot(info.current, true).catch(() => {});
-    await update(change); await purgeUnused(before);
-    if (erase && info.current && !demoRef.current) await clearSnapshots(info.current.vaultId).catch(() => {});
+    if (info.current && !demoRef.current && !erase) await recordSnapshot(info.current, true, Date.now(), before);
+    await update(change);
+    if (erase && info.current && !demoRef.current) await clearHistory();
+    await purgeUnused(before);
   };
   const history = () => info.current && !demoRef.current ? listSnapshots(info.current.vaultId) : Promise.resolve([]);
   const restoreSnapshot = async (at: number) => {
     const env = info.current; if (!env || !key.current) throw new Error('locked');
     const snapshot = await readSnapshot(env.vaultId, at); if (!snapshot) throw new Error('noSnapshot');
     const value = await decryptVault(key.current, snapshot);
-    await flush(); await recordSnapshot(env, true); // the state being replaced stays recoverable
+    await flush(); await recordSnapshot(env, true, Date.now(), referencedBlobs(current.current!));
     await restoreData(value);
   };
-  const clearHistory = () => info.current ? clearSnapshots(info.current.vaultId) : Promise.resolve();
+  const clearHistory = async () => {
+    if (!info.current || !current.current || demoRef.current) return;
+    await flush(); await clearSnapshots(info.current.vaultId);
+    await purgeUnused((await allBlobs()).filter(blob => blob.vaultId === info.current!.vaultId).map(blob => blob.id));
+  };
+  const exportSnapshot = async (at: number) => {
+    if (!info.current || !key.current || demoRef.current) throw new Error('locked');
+    const envelope = await readSnapshot(info.current.vaultId, at); if (!envelope) throw new Error('noSnapshot');
+    const value = await decryptVault(key.current, envelope);
+    const ids = referencedBlobs(value); const blobs: EncryptedBlob[] = [];
+    for (const id of ids) { const blob = await readBlob(id) ?? await downloadBlob(envelope.vaultId, id); if (!blob || blob.vaultId !== envelope.vaultId) throw new Error('storageError'); blobs.push(blob); }
+    return { type: 'praxisraum-backup-v1', envelope: { ...envelope, salt: info.current.salt, wraps: info.current.wraps, format: info.current.format }, blobs };
+  };
 
   // ---- backups, merging ----
   const exportBackup = async () => {
@@ -245,19 +262,22 @@ export function useVault() {
     const before = referencedBlobs(current.current);
     const result = await fetchMerged(key.current, current.current, info.current!);
     const merged = result.data;
+    const clientErased = current.current.clients.some(client => !merged.clients.some(remaining => remaining.id === client.id));
     current.current = merged; setData(merged); bump();
     await persist(merged, { wraps: result.envelope.wraps, format: result.envelope.format });
     await setRevision(result.userId, result.vaultId, result.revision);
+    if (clientErased) await clearHistory();
     await purgeUnused(before);
     return { data: merged, generation: generationRef.current };
   };
   const retry = () => current.current ? persist(current.current) : Promise.resolve();
   /** Replace the vault contents by an earlier version (undo of a deletion); stamped like a normal edit so other devices follow. */
   const restoreData = (value: VaultData) => update(next => {
+    next.settings = structuredClone(value.settings);
     for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability'] as const) (next[name] as unknown[]) = value[name];
     for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
-  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, lock, addImage, image, addFile: addImage, file: image, exportBackup, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
+  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
 }
 export type VaultController = ReturnType<typeof useVault>;
