@@ -6,16 +6,15 @@ import { createLocalRecognition, localSpeechAvailability, localSpeechConstructor
 /** Local recognition only. No MediaRecorder, audio uploads, remote fallback or stored audio. */
 export function DictationButton({ value, onChange, maxLength = 20000 }: { value: string; onChange: (value: string) => void; maxLength?: number }) {
   const { language, t } = useI18n(); const lang = language === 'uk' ? 'uk-UA' : 'de-DE';
-  const [availability, setAvailability] = useState<SpeechAvailability>('unavailable');
+  const [availability, setAvailability] = useState<SpeechAvailability | 'unchecked'>('unavailable');
   const [active, setActive] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState<TextKey>();
   const epoch = useRef(0);
   const recognition = useRef<LocalRecognition | undefined>(undefined); const live = useRef({ value, onChange }); live.current = { value, onChange };
   useEffect(() => {
-    const generation = ++epoch.current; let mounted = true; const ctor = localSpeechConstructor(); setAvailability('unavailable'); setActive(false); setBusy(false); setMessage(undefined);
-    if (ctor) void localSpeechAvailability(ctor, lang).then(status => { if (mounted) setAvailability(status); });
+    const generation = ++epoch.current; const ctor = localSpeechConstructor(); setAvailability(ctor ? 'unchecked' : 'unavailable'); setActive(false); setBusy(false); setMessage(undefined);
     const hidden = () => { if (document.visibilityState === 'hidden') recognition.current?.stop(); };
     document.addEventListener('visibilitychange', hidden);
-    return () => { if (epoch.current === generation) epoch.current++; mounted = false; document.removeEventListener('visibilitychange', hidden); const r = recognition.current; if (r) { r.onend = null; r.onresult = null; r.onerror = null; r.abort(); } recognition.current = undefined; };
+    return () => { if (epoch.current === generation) epoch.current++; document.removeEventListener('visibilitychange', hidden); const r = recognition.current; if (r) { r.onend = null; r.onresult = null; r.onerror = null; r.abort(); } recognition.current = undefined; };
   }, [lang]);
   async function start() {
     if (active) { recognition.current?.stop(); return; }
@@ -44,7 +43,7 @@ export function DictationButton({ value, onChange, maxLength = 20000 }: { value:
     try { await ctor.install({ langs: [lang], processLocally: true }); setAvailability(await localSpeechAvailability(ctor, lang)); }
     catch { setMessage('speechError'); } finally { setBusy(false); }
   }
-  return <div className="dictation-tools"><button className="btn btn-secondary btn-small" type="button" aria-pressed={active} disabled={busy || availability !== 'available'} onClick={() => void start()}>{active ? <Square size={15}/> : <Mic size={15}/>} {t(active ? 'speechStop' : 'speechStart')}</button>
+  return <div className="dictation-tools"><button className="btn btn-secondary btn-small" type="button" aria-pressed={active} disabled={busy || !['available', 'unchecked'].includes(availability)} onClick={() => void start()}>{active ? <Square size={15}/> : <Mic size={15}/>} {t(active ? 'speechStop' : 'speechStart')}</button>
     {availability === 'downloadable' && <button className="btn btn-secondary btn-small" type="button" disabled={busy} onClick={() => void install()}>{t('speechInstall')}</button>}
-    <small role="status">{t(message ?? (active ? 'speechListening' : availability === 'available' ? 'speechLocal' : 'speechUnavailable'))}</small></div>;
+    <small role="status">{t(message ?? (active ? 'speechListening' : availability === 'available' ? 'speechLocal' : availability === 'unchecked' ? 'speechCheckHint' : 'speechUnavailable'))}</small></div>;
 }

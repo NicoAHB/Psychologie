@@ -813,5 +813,6 @@
   "syncConflictDeleted": "Löschung oder Wiederherstellung",
   "syncConflictAvatar": "Profilbild",
   "syncConflictRestore": "Eintrag wiederherstellen",
-  "syncConflictKeepDeleted": "Eintrag gelöscht lassen"
+  "syncConflictKeepDeleted": "Eintrag gelöscht lassen",
+  "speechCheckHint": "Beim Start wird geprüft, ob diese Sprache auf dem Gerät erkannt werden kann. Keine Cloud-Erkennung."
 }

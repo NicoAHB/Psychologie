@@ -813,5 +813,6 @@
   "syncConflictDeleted": "Видалення або відновлення",
   "syncConflictAvatar": "Фото профілю",
   "syncConflictRestore": "Відновити запис",
-  "syncConflictKeepDeleted": "Залишити запис видаленим"
+  "syncConflictKeepDeleted": "Залишити запис видаленим",
+  "speechCheckHint": "Під час запуску перевіряється локальне розпізнавання цієї мови на пристрої. Хмарне розпізнавання не використовується."
 }

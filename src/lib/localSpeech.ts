@@ -17,14 +17,10 @@ export function localSpeechConstructor(): LocalSpeechConstructor | undefined {
   const w = window as unknown as { SpeechRecognition?: LocalSpeechConstructor; webkitSpeechRecognition?: LocalSpeechConstructor };
   const ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
   if (!ctor || typeof ctor.available !== 'function') return;
-  try {
-  const recognition = new ctor();
-  // Older Web Speech implementations silently send audio to a provider. Never use those.
-  if (!('processLocally' in recognition)) return;
-  recognition.processLocally = true;
-  if (recognition.processLocally !== true) return;
+  // Never construct a recognition session or query the native language service merely
+  // by opening a clinical record. Some browser/platform combinations crash there;
+  // capability and local-only checks belong to the explicit user action below.
   return ctor;
-  } catch { return; }
 }
 export async function localSpeechAvailability(ctor: LocalSpeechConstructor, lang: string): Promise<SpeechAvailability> {
   try { return await ctor.available({ langs: [lang], processLocally: true }); } catch { return 'unavailable'; }
