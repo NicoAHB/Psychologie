@@ -19,7 +19,7 @@ export function Welcome({ vault }: { vault: VaultController }) {
     if (!exists && (passphrase.length < 12 || passphrase !== confirm)) { setError('passphraseMismatch'); return; }
     setBusy(true);
     try { if (exists) await vault.unlock(passphrase); else await vault.create(passphrase); setPassphrase(''); setConfirm(''); }
-    catch { setError(exists ? 'wrongPassphrase' : 'storageError'); } finally { setBusy(false); }
+    catch (error) { setError(error instanceof Error && ['workerUnavailable', 'workerFailed'].includes(error.message) ? error.message as TextKey : exists ? 'wrongPassphrase' : 'storageError'); } finally { setBusy(false); }
   }
   async function unlockWith(action: () => Promise<void>, failure: TextKey) {
     setBusy(true); setError(undefined);

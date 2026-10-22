@@ -1,3 +1,4 @@
+import { runSecureTask } from '../lib/workerTasks';
 import { useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Printer, Download, Leaf, Mail, Send } from 'lucide-react';
@@ -54,16 +55,14 @@ export function InvoiceView({ vault, invoice: initialInvoice, onClose }: { vault
       if (purpose === 'paymentReminder' && (!(outstanding && outstanding > 0) || conflict)) throw new Error('invoiceReminderUnavailable');
       let copy = copies.find(d => d.invoicePaidOn === paid);
       if (!copy) {
-        const [{ invoicePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/invoicePdf'), import('../lib/pdfFonts')]);
-        const { regular, bold } = await loadPdfFonts(JSON.stringify(invoice));
-        const bytes = await invoicePdf(invoice, paid, regular, bold);
+        const bytes = await runSecureTask('invoice', { invoice, paid });
         added = await vault.addFile(bytes);
         copy = { id: uid(), clientId: client.id, title: `${translate(invoice.language, invoiceTitleKey(invoice))} ${invoice.number}`, createdAt: new Date().toISOString(), invoiceId: invoice.id, invoicePaidOn: paid, language: invoice.language, returnExpected: false, deliveries: [], returns: [], file: { blobId: added, fileName: invoiceFilename(invoice), mimeType: 'application/pdf', size: bytes.byteLength } } satisfies ClientDocument;
         const stored = copy; await vault.update(d => { d.documents.push(stored); }); added = undefined;
       }
       if (kind === 'download') downloadDocument(await vault.file(copy.file.blobId, copy.file.mimeType), copy.file.fileName);
       else setComposer({ kind, id: copy.id, purpose });
-    } catch (e) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(e instanceof Error && ['invoicePdfError', 'invoiceInactive', 'invoiceReminderUnavailable'].includes(e.message) ? e.message as TextKey : 'storageError'); }
+    } catch (e) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(e instanceof Error && ['invoicePdfError', 'invoiceInactive', 'invoiceReminderUnavailable', 'workerUnavailable', 'workerFailed'].includes(e.message) ? e.message as TextKey : 'storageError'); }
     finally { setBusy(false); }
   }
   return <Modal title={`${t(invoiceTitleKey(invoice))} ${invoice.number}`} onClose={() => { if (!busy) onClose(); }} wide>
@@ -103,7 +102,7 @@ export function InvoiceForm({ vault, clientId, onClose, onCreated }: { vault: Va
       const invoice = buildInvoice(data, client, open.filter(s => ids.includes(s.id)), issuedAt, lang, uid(), { currency, rate, dueOn });
       await vault.update(d => { attachInvoice(d, invoice); if (currency === 'UAH' && rate) d.settings.exchangeRate = rate; });
       onCreated(invoice);
-    } catch (err) { setError(err instanceof Error && ['rateRequired', 'invalidInvoiceDate'].includes(err.message) ? err.message as TextKey : 'required'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error && ['rateRequired', 'invalidInvoiceDate', 'invoiceWorkflowConflict'].includes(err.message) ? err.message as TextKey : 'required'); } finally { setBusy(false); }
   }
   return <Modal title={t('createInvoice')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <Field label={t('client')}><select value={selected} onChange={e => pick(e.target.value)}>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>

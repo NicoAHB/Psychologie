@@ -59,3 +59,9 @@ Es wurden keine Supabase- oder Telegram-Zugangsdaten bereitgestellt. Die lokale 
 ## Performance und Sicherung (Oktober 2026)
 
 Schrift-Subsets und Runtime-Cache, Playwright-Browsercache, atomare verschlüsselte In-App-Checkpoints einschließlich Dateiaufbewahrung, Sperrzeit bis 90 Minuten, lokal geprüfter und bestätigter PHQ-9-/GAD-7-Rücklauf, lesbarer Klienten-ZIP-Export und NBU-Kurscache sind implementiert. Der Telegram-Worker verwendet pro Empfänger einen gesicherten Versandbeginn, Claim-Token und einen Zustand für unklare Zustellungen. Vor dessen Einsatz alte Worker anhalten und das ergänzte `supabase/schema.sql` im eigenen Projekt ausführen. Anleitung und Grenzen: [Performance und Sicherung](docs/performance-und-sicherung.md). Es wurden keine echten Nachrichten verschickt.
+
+## Neue lokale Werkzeuge und Videosprechstunde
+
+Feldweiser kausaler Offline-Abgleich mit Konfliktprüfung, ein lokaler Crypto-/PDF-Worker, rollierende Ordnersicherung (30 verschlüsselte Dateien), optionale direkte WebRTC-Sprechstunde mit verschlüsseltem Supabase-Signaling und ausschließlich lokale Web-Speech-Diktierfunktion sind integriert. Einrichtung, Dateiliste und Grenzen: [Lokale Werkzeuge und Video](docs/lokale-werkzeuge-und-video.md). Für Video ist die separate additive Migration `supabase/video.sql` nötig. Im verwalteten Arbeitsbereich sind keine Supabase-Zugangsdaten hinterlegt; die Migration wurde deshalb nur gegen lokales PostgreSQL/PGlite geprüft und nicht in einem echten Praxisprojekt ausgeführt.
+
+Aktuelle lokale Prüfung dieser Erweiterung: 158 Funktions-/PostgreSQL-Tests bestanden, 74 aktive Browserprüfungen für den Domainwurzel-Build (12 bedingte Prüfungen ausgelassen) sowie 4 aktive Prüfungen für `/Psychologie/`, einschließlich der ersten ukrainischen Rechnung offline. Zusätzlich gezielte Wiederholungen für Worker, Konfliktentscheidung, Wiederherstellung, Löschung und Schlüsselwechsel bestanden.

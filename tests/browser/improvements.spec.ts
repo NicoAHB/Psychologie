@@ -4,7 +4,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
 
 test('iPad fallback checkpoints are encrypted, downloadable and survive reload; client ZIP stays readable and isolated', async ({ page }) => {
-  await page.addInitScript(() => { Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }); });
+  await page.addInitScript(() => { Object.defineProperty(window, 'showSaveFilePicker', { value: undefined, configurable: true }); Object.defineProperty(window, 'showDirectoryPicker', { value: undefined, configurable: true }); });
   const { data, client } = workflowData(); data.invoices = []; data.sessions = [];
   data.clients.push({ ...client, id: 'another-person', name: 'OTHER PERSON SECRET' });
   data.documents.push({ id: 'task', clientId: client.id, title: 'Aufgabe', createdAt: '2026-10-01', file: { blobId: 'original-file', fileName: 'aufgabe.txt', mimeType: 'text/plain', size: 15 }, returnExpected: false, deliveries: [], returns: [] });

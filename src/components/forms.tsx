@@ -1,3 +1,4 @@
+import { DictationButton } from './DictationButton';
 import { conflictsWithAbsence } from '../lib/availability';
 import { isSessionVoided } from '../lib/invoice';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -210,7 +211,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
     <div className="form-section"><h3>{t('discussedTitle')}</h3>
       <Field label={t('insertTemplate')}><select value="" onChange={e => { const chosen = templates.find(x => x.id === e.target.value); if (chosen) setNotes(withTemplate(notes, chosen.body)); }}><option value="">—</option>{templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
-      <Field label={t('sessionNotes')}><textarea rows={4} value={notes} maxLength={20000} placeholder={t('sessionDiscussedPlaceholder')} onChange={e => setNotes(e.target.value)}/></Field>
+      <DictationButton value={notes} onChange={setNotes}/><Field label={t('sessionNotes')}><textarea rows={4} value={notes} maxLength={20000} placeholder={t('sessionDiscussedPlaceholder')} onChange={e => setNotes(e.target.value)}/></Field>
       <div className="photo-pick" role="group" aria-label={t('handwritten')}><span className="photo-pick-label">{t('handwritten')}</span>
         <label className="btn btn-secondary file-label"><Camera size={16}/>{t('photoTake')}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { addFiles(e.target.files); e.target.value = ''; }}/></label>
         <label className="btn btn-secondary file-label"><ImagePlus size={16}/>{t('photoChoose')}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { addFiles(e.target.files); e.target.value = ''; }}/></label></div>
@@ -220,7 +221,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
       <Field label={t('tags')} hint={t('tagsHelp')}><input value={tags} maxLength={500} placeholder={t('tagsPlaceholder')} onChange={e => setTags(e.target.value)}/></Field></div>
     <div className="form-section"><h3>{t('homework')}</h3>
       {previous && <div className="previous-homework"><strong>{t('homeworkPrevious')} · {dateLabel(previous.date, language, { day: 'numeric', month: 'short' })}</strong><p className="pre-line">{previous.homework}</p><label className="check-label"><input type="checkbox" checked={reviewPrevious} onChange={e => setReviewPrevious(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label></div>}
-      <Field label={t('homeworkFor')}><textarea rows={3} value={homework} maxLength={4000} placeholder={t('homeworkPlaceholder')} onChange={e => setHomework(e.target.value)}/></Field>
+      <DictationButton value={homework} onChange={setHomework} maxLength={4000}/><Field label={t('homeworkFor')}><textarea rows={3} value={homework} maxLength={4000} placeholder={t('homeworkPlaceholder')} onChange={e => setHomework(e.target.value)}/></Field>
       {session && homework.trim() && <label className="check-label"><input type="checkbox" checked={homeworkDone} onChange={e => setHomeworkDone(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label>}
       <Field label={t('nextTopicsField')} hint={t('nextTopicsHint')}><textarea rows={3} value={nextTopics} maxLength={30000} onChange={e => { setNextTopics(e.target.value); setNextTouched(true); }}/></Field></div>
     <div className="form-section">{lockedPricing ? <Notice>{t('invoiceSessionPricingLocked')}</Notice> : <FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>}

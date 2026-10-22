@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { duplicateInvoiceNumbers, mergeEnvelopes, mergeVaults, stampChanges } from '../src/lib/merge';
+import { syncConflicts } from '../src/lib/crdt';
 import { emptyPractice, emptyVault, uid, type Client, type VaultData, type VaultEnvelope } from '../src/lib/types';
 
 const client = (name: string): Client => ({ id: uid(), name, contact: '', preparation: '', telegramChatId: '', language: 'de', reminderConsent: false, createdAt: '2026-01-01' });
@@ -13,7 +14,7 @@ test('stamping marks only what changed and records deletions as tombstones', () 
   assert.equal(next.clients[0].updatedAt, 50); assert.equal(next.deleted[b.id], 50);
   const untouched = edit(next, () => {}, 99); assert.equal(untouched.clients[0].updatedAt, 50);
 });
-test('two devices editing different records keep both edits; the same record keeps the newer one', () => {
+test('two devices keep distinct edits and preserve both same-field variants', () => {
   const [a, b] = [client('A'), client('B')]; let base = emptyVault(); base.clients.push(a, b); base = edit(base, () => {}, 1);
   base.clients.forEach(c => { c.updatedAt = 1; });
   const phone = edit(base, d => { d.clients[0].preparation = 'vom Handy'; }, 10);
@@ -22,16 +23,18 @@ test('two devices editing different records keep both edits; the same record kee
   assert.deepEqual(merged.clients.map(c => c.preparation), ['vom Handy', 'vom Tablet']); assert.equal(merged.sessions.length, 1);
   const both = mergeVaults(edit(base, d => { d.clients[0].preparation = 'alt'; }, 20), edit(base, d => { d.clients[0].preparation = 'neu'; }, 30));
   assert.equal(both.clients[0].preparation, 'neu');
+  assert.deepEqual(syncConflicts(both).find(c => c.field === 'preparation')!.variants.map(v => v.value).sort(), ['alt', 'neu']);
   // Merging is symmetric for distinct timestamps.
   assert.deepEqual(mergeVaults(tablet, phone).clients.map(c => c.preparation).sort(), merged.clients.map(c => c.preparation).sort());
 });
-test('a deletion beats an older edit, a newer edit beats an older deletion, nothing is resurrected', () => {
+test('client erasure wins concurrent edits regardless of wall-clock time; nothing is resurrected', () => {
   const a = client('A'); let base = emptyVault(); base.clients.push({ ...a, updatedAt: 1 });
   const deleted = edit(base, d => { d.clients = []; }, 20);
   const olderEdit = edit(base, d => { d.clients[0].preparation = 'x'; }, 10);
   assert.equal(mergeVaults(olderEdit, deleted).clients.length, 0); assert.equal(mergeVaults(deleted, olderEdit).clients.length, 0);
   const newerEdit = edit(base, d => { d.clients[0].preparation = 'y'; }, 30);
-  assert.equal(mergeVaults(deleted, newerEdit).clients.length, 1);
+  assert.equal(mergeVaults(deleted, newerEdit).clients.length, 0);
+  assert.doesNotMatch(JSON.stringify(mergeVaults(deleted, newerEdit).crdt), /preparation|\"y\"/);
 });
 test('deleting a client on one device removes its records that the other device still holds', () => {
   const a = client('A'); let base = emptyVault(); base.clients.push({ ...a, updatedAt: 1 });

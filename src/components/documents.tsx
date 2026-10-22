@@ -1,3 +1,4 @@
+import { runSecureTask } from '../lib/workerTasks';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Download, FilePlus2, FileText, Mail, Paperclip, Reply } from 'lucide-react';
 import { translate, useI18n, type TextKey } from '../lib/i18n';
@@ -13,7 +14,7 @@ import { needsAttention } from '../lib/assessments';
 import type { ImportedQuestionnaire } from '../lib/questionnaireImport';
 import { TelegramComposer } from './telegram';
 
-const errorKey = (error: unknown): TextKey => error instanceof Error && ['documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
+const errorKey = (error: unknown): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
 
 function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { vault: VaultController; client: Client; questionnaire: boolean; onClose: () => void; onSaved: (document: ClientDocument, email: boolean) => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [title, setTitle] = useState('');
@@ -26,9 +27,7 @@ function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { va
     try {
       let bytes: Uint8Array<ArrayBuffer>; let fileName: string; let mimeType: string; const documentId = uid();
       if (questionnaire) {
-        const [{ questionnairePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/questionnairePdf'), import('../lib/pdfFonts')]);
-        const { regular } = await loadPdfFonts('', false);
-        bytes = await questionnairePdf(kind, language, regular, documentId); fileName = `${kind}-${language}-${today()}.pdf`; mimeType = 'application/pdf';
+        bytes = await runSecureTask('questionnaire', { kind, language, documentId }); fileName = `${kind}-${language}-${today()}.pdf`; mimeType = 'application/pdf';
       } else ({ bytes, fileName, mimeType } = await inspectDocument(file!));
       added = await vault.addFile(bytes);
       const document: ClientDocument = { id: documentId, clientId: client.id, title: questionnaire ? translate(language, `${kind}Title`) : title.trim(), createdAt: new Date().toISOString(), file: { blobId: added, fileName, mimeType, size: bytes.byteLength }, returnExpected, ...(returnExpected && returnDueOn && { returnDueOn }), deliveries: [], returns: [], ...(questionnaire && { kind, language }) };
@@ -115,7 +114,7 @@ function ReturnDialog({ vault, documentId, onClose }: { vault: VaultController; 
     setReading(true);
     try {
       const { bytes, mimeType } = await inspectDocument(file); if (mimeType !== 'application/pdf') throw new Error('questionnaireImportInvalid');
-      const { readQuestionnaire } = await import('../lib/questionnaireImport'); const value = await readQuestionnaire(bytes, document.kind, document.id);
+      const value = await runSecureTask('readQuestionnaire', { bytes, kind: document.kind, documentId: document.id });
       if (selection.current !== version) return; setResult(value); setAssessmentDate(value.completedOn ?? '');
     } catch (error) { if (selection.current === version) setImportError(error instanceof Error && ['questionnaireImportInvalid', 'questionnaireImportIncomplete', 'questionnaireImportMismatch'].includes(error.message) ? error.message as TextKey : 'questionnaireImportInvalid'); }
     finally { if (selection.current === version) setReading(false); }

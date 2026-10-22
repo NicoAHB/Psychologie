@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { allBlobs, purgeBlobs, readBlob, readVault, setRevision, writeBlob, writeVault } from './db';
 import {
-  decryptBytes, decryptVault, deriveBits, deriveKey, encryptBytes, encryptVault, importDataKey, passphraseSalt, randomKeyBytes, secretKek,
+  deriveBits, deriveKey, importDataKey, passphraseSalt, randomKeyBytes, secretKek,
   unwrapDataKey, validateEnvelope, wrapDataKey, wrapWithPassphrase,
 } from './crypto';
-import { emptyVault, normalizeVault, uid, type EncryptedBlob, type PasskeyWrap, type VaultData, type VaultEnvelope, type Wraps } from './types';
+import { decryptBytes, decryptVault, encryptBytes, encryptVault, runSecureTask, stopSecureWorker } from './workerTasks';
+import { emptyVault, uid, type EncryptedBlob, type PasskeyWrap, type VaultData, type VaultEnvelope, type Wraps } from './types';
 import { demoVault } from './demo';
 import { downloadBlob } from './cloud';
 import { fetchMerged } from './syncMerge';
@@ -33,6 +34,7 @@ export function useVault() {
   const queue = useRef<Promise<void>>(Promise.resolve());
   const failure = useRef(false);
   const lastStamp = useRef(0);
+  const actor = useRef(crypto.randomUUID());
   const generationRef = useRef(0);
   const bump = () => { generationRef.current += 1; setGeneration(generationRef.current); };
   const memoryBlobs = useRef(new Map<string, EncryptedBlob>());
@@ -69,19 +71,22 @@ export function useVault() {
     const next = structuredClone(current.current);
     change(next);
     lastStamp.current = Math.max(Date.now(), lastStamp.current + 1);
-    stampChanges(current.current, next, lastStamp.current);
+    stampChanges(current.current, next, lastStamp.current, actor.current);
     current.current = next;
     setData(next);
     bump();
     return persist(next);
   }, [persist]);
-  const flush = useCallback(async () => { await queue.current; if (failure.current) throw new Error('storageError'); }, []);
+  const flush = useCallback(async () => {
+    // Visibility/pagehide handlers can enqueue a final note while an earlier save settles.
+    for (;;) { const task = queue.current; await task; if (queue.current === task) break; }
+    if (failure.current) throw new Error('storageError');
+  }, []);
 
   const open = async (dataKey: CryptoKey, envelopeValue: VaultEnvelope) => {
-    const original = await decryptVault(dataKey, envelopeValue, false);
-    const value = normalizeVault(original);
+    const { value, migrated } = await runSecureTask('openVault', { key: dataKey, envelope: envelopeValue });
     key.current = dataKey; current.current = value; setData(value); generationRef.current = 0; setGeneration(0);
-    if (JSON.stringify(original) !== JSON.stringify(value)) { await persist(value); bump(); }
+    if (migrated) { await persist(value); bump(); }
   };
   const create = async (passphrase: string) => {
     const raw = randomKeyBytes(); const vaultId = uid();
@@ -132,6 +137,7 @@ export function useVault() {
   const lock = useCallback(async () => {
     await flush();
     recoveredKey.current?.fill(0); recoveredKey.current = null; setPassphraseReset(false);
+    stopSecureWorker();
     key.current = null; current.current = null; setData(null); generationRef.current = 0; setGeneration(0);
     memoryBlobs.current.clear(); demoRef.current = false; setDemo(false);
     const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null);
@@ -172,9 +178,10 @@ export function useVault() {
   // ---- images ----
   const addImage = async (bytes: Uint8Array<ArrayBuffer>) => {
     if (!key.current) throw new Error('locked');
-    const id = uid();
+    const id = uid(); const activeKey = key.current;
     const vaultId = demoRef.current ? 'demo' : info.current!.vaultId;
     const blob: EncryptedBlob = { id, vaultId, payload: await encryptBytes(key.current, bytes, `praxisraum-blob:v1:${vaultId}:${id}`) };
+    if (key.current !== activeKey) throw new Error('locked');
     if (demoRef.current) memoryBlobs.current.set(id, blob); else await writeBlob(blob);
     return id;
   };
@@ -184,6 +191,7 @@ export function useVault() {
     const vaultId = demoRef.current ? 'demo' : info.current!.vaultId;
     const blob = demoRef.current ? memoryBlobs.current.get(id) : (await readBlob(id)) ?? (await downloadBlob(vaultId, id));
     if (!blob || blob.vaultId !== vaultId) throw new Error('storageError');
+    if (key.current !== activeKey) throw new Error('locked');
     return new Blob([await decryptBytes(activeKey, blob.payload, `praxisraum-blob:v1:${vaultId}:${id}`)], { type: mimeType });
   }, []);
   // Images nobody references any more are erased locally and queued for removal from the cloud. Callers run this only
@@ -254,14 +262,26 @@ export function useVault() {
   };
   /**
    * The cloud holds a newer revision (another device saved): fold its changes into this vault instead of failing.
-   * Records are merged one by one, so edits to different clients/sessions on two devices all survive.
+   * Causal field registers retain independent edits and unresolved concurrent alternatives.
    */
   const mergeRemote = async () => {
     if (!current.current || !key.current || demoRef.current) throw new Error('locked');
     await flush();
+    if (!current.current || !key.current || demoRef.current) throw new Error('locked');
     const before = referencedBlobs(current.current);
-    const result = await fetchMerged(key.current, current.current, info.current!);
-    const merged = result.data;
+    const activeKey = key.current;
+    const active = () => key.current === activeKey && !!current.current;
+    const result = await fetchMerged(activeKey, current.current, info.current!, active);
+    if (!active()) throw new Error('locked');
+    let merged = result.data;
+    // Edits made while decrypting/fetching must also survive. Worker joins run until the
+    // snapshot is current; no await separates the final check from installing it.
+    for (;;) {
+      const generation = generationRef.current;
+      merged = await runSecureTask('merge', { local: current.current!, remote: merged });
+      if (!active()) throw new Error('locked');
+      if (generation === generationRef.current) break;
+    }
     const clientErased = current.current.clients.some(client => !merged.clients.some(remaining => remaining.id === client.id));
     current.current = merged; setData(merged); bump();
     await persist(merged, { wraps: result.envelope.wraps, format: result.envelope.format });

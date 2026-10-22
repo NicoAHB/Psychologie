@@ -1,3 +1,4 @@
+import type { CrdtState } from './crdt';
 export type Language = 'de' | 'uk';
 export type Currency = 'EUR' | 'UAH';
 /** Hrywnja per euro, stored with six decimal places as an integer. Never a patient-data request. */
@@ -8,7 +9,7 @@ export interface Billing {
 }
 export interface BankAccount { holder: string; iban: string; bank: string; bic: string }
 export type Route = 'overview' | 'clients' | 'appointments' | 'finances' | 'settings';
-// `updatedAt` (epoch ms) is stamped centrally on every change; it drives merging of two devices and is absent on legacy records.
+// `updatedAt` is display/audit metadata. Causal CRDT registers drive device merging.
 export interface Stamped { updatedAt?: number }
 export interface Client extends Stamped {
   id: string; name: string; createdAt: string; language: Language; preparation: string;
@@ -99,6 +100,7 @@ export interface Settings {
   exchangeRate?: ExchangeRate;
 }
 export interface VaultData {
+  crdt?: CrdtState;
   schema: 1; clients: Client[]; appointments: Appointment[]; sessions: Session[]; notes: PhotoNote[];
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
   availability: CalendarAbsence[];

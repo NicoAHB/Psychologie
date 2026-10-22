@@ -1,5 +1,6 @@
+import { DictationButton } from './DictationButton';
 import { BillingMoney } from './money';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, money } from '../lib/dates';
@@ -16,6 +17,8 @@ import { InvoiceForm, InvoiceView } from './invoices';
 import { isSessionVoided, uninvoiced } from '../lib/invoice';
 import { clockText } from './DualTime';
 import { ClientExportButton } from './client-export';
+
+const VideoConsultation = lazy(() => import('./VideoConsultation').then(m => ({ default: m.VideoConsultation })));
 
 export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances';
 export interface ProfileActions {
@@ -39,7 +42,8 @@ function PreparationEditor({ vault, client }: { vault: VaultController; client: 
     document.addEventListener('visibilitychange', hidden); window.addEventListener('pagehide', save);
     return () => { document.removeEventListener('visibilitychange', hidden); window.removeEventListener('pagehide', save); save(); };
   }, [save]);
-  return <textarea lang={language} rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => { setValue(e.target.value); pending.current = e.target.value; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); }}/>;
+  const change = (text: string) => { setValue(text); pending.current = text; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); };
+  return <><DictationButton value={value} onChange={change} maxLength={30000}/><textarea lang={language} rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => { setValue(e.target.value); pending.current = e.target.value; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); }}/></>;
 }
 function Tile({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) { return <div className="glance-tile"><span className="glance-label">{icon}{label}</span>{children}</div>; }
 
@@ -115,12 +119,12 @@ function ClientFinances({ vault, client, actions }: { vault: VaultController; cl
 }
 
 export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string }) {
-  const { t } = useI18n();
+  const { t } = useI18n(); const [videoOpen, setVideoOpen] = useState(false);
   const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
-  return <div className="profile-content">
+  return <div className="profile-content">{videoOpen && <Suspense fallback={<p role="status">…</p>}><VideoConsultation vault={vault} client={client} onClose={() => setVideoOpen(false)}/></Suspense>}
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
     <div className="profile-heading"><Avatar client={client} vault={vault} large/><div><h2>{client.name}</h2><p>{client.contact || t('profile')}</p></div><button className="btn btn-secondary" onClick={actions.onEditClient}>{t('editClient')}</button></div>
-    <div className="button-row profile-actions"><button className="btn btn-primary btn-small" onClick={actions.onNewSession}><Plus size={16}/>{t('addSession')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewNote}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewAppointment}><CalendarDays size={16}/>{t('newAppointment')}</button><ClientExportButton vault={vault} client={client}/></div>
+    <div className="button-row profile-actions"><button className="btn btn-primary btn-small" onClick={actions.onNewSession}><Plus size={16}/>{t('addSession')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewNote}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewAppointment}><CalendarDays size={16}/>{t('newAppointment')}</button><ClientExportButton vault={vault} client={client}/><button className="btn btn-secondary btn-small" onClick={() => setVideoOpen(true)}>{t('videoTitle')}</button></div>
     <div className="profile-tabs" role="tablist" aria-label={t('profileSections')}>{tabs.map(x => <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls="profile-panel" className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.icon}{x.label}</button>)}</div>
     <div role="tabpanel" id="profile-panel" aria-labelledby={`tab-${tab}`} className="profile-panel">
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}

@@ -2,6 +2,7 @@ import { translate } from './i18n';
 import { bankFor, convertWhole, currencyOf, wholeCents } from './currency';
 import { dateLabel, isIsoDay, money } from './dates';
 import type { BankAccount, Client, Currency, ExchangeRate, Invoice, Language, PracticeProfile, Session, VaultData } from './types';
+import { syncConflicts } from './crdt';
 
 export const validDay = isIsoDay;
 export const isCancellation = (invoice: Invoice) => invoice.kind === 'cancellation';
@@ -45,6 +46,7 @@ export const uninvoiced = (data: VaultData, clientId: string) => data.sessions.f
 
 export function buildInvoice(data: VaultData, client: Client, sessions: Session[], issuedAt: string, language: Language, id: string, options: { currency?: Currency; rate?: ExchangeRate; dueOn?: string } = {}): Invoice {
   if (!sessions.length) throw new Error('noSessions');
+  if (syncConflicts(data).some(c => c.collection === 'settings' && c.field.startsWith('practice.') || c.collection === 'clients' && c.id === client.id && ['name', 'address', 'currency', '$exists'].includes(c.field) || c.collection === 'sessions' && sessions.some(s => s.id === c.id) && ['$amount', 'paidAt', 'date', 'invoiceId', '$exists'].includes(c.field))) throw new Error('invoiceWorkflowConflict');
   const dueOn = options.dueOn ?? issuedAt;
   if (!validDay(issuedAt) || !validDay(dueOn) || dueOn < issuedAt) throw new Error('invalidInvoiceDate');
   const service = data.settings.practice.serviceName.trim() || translate(language, 'invoiceDefaultService');
@@ -83,6 +85,7 @@ export function paidOn(data: VaultData, invoice: Invoice): string | null {
 export function invoiceOutstanding(data: VaultData, invoice: Invoice): number | null {
   if (isCancellation(invoice) || cancellationOf(data, invoice.id)) return 0;
   if (billingIndex(data).conflicts.has(invoice.id)) return null;
+  if (invoiceSyncConflict(data, invoice)) return null;
   if (!invoice.lines.length) return null;
   let total = 0;
   for (const line of invoice.lines) {
@@ -159,7 +162,11 @@ export function reconcileBillingLinks(data: VaultData) {
 export function billingConflicts(data: VaultData): string[] {
   const index = billingIndex(data); const conflicts = new Set([...index.conflicts].flatMap(id => index.documents.get(id)?.number ?? []));
   for (const invoice of data.invoices) if (!isCancellation(invoice) && !cancellationOf(data, invoice.id) && invoice.lines.some(line => { const session = data.sessions.find(s => s.id === line.sessionId); const euro = (invoice.currency ?? 'EUR') === 'EUR' ? line.amountCents : line.euroCents; return !!session?.paidAt && euro !== undefined && session.feeCents !== euro; })) conflicts.add(invoice.number);
+  for (const invoice of data.invoices) if (invoiceSyncConflict(data, invoice)) conflicts.add(invoice.number);
   return [...conflicts];
+}
+function invoiceSyncConflict(data: VaultData, invoice: Invoice): boolean {
+  return syncConflicts(data).some(c => c.collection === 'invoices' && c.id === invoice.id || c.collection === 'sessions' && invoice.lines.some(l => l.sessionId === c.id) && ['$amount', 'paidAt', 'invoiceId', '$exists'].includes(c.field));
 }
 
 // ---- CSV for the tax advisor ----

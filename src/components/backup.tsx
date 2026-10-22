@@ -8,11 +8,12 @@ import type { SnapshotEntry } from '../lib/history';
 import type { AutoBackup } from '../lib/useAutoBackup';
 import type { VaultController } from '../lib/useVault';
 import { Notice } from './ui';
+import { runSecureTask } from '../lib/workerTasks';
 
 /** Hand the backup to the share sheet (iPad: "Save to Files"); falls back to a normal download. */
 export async function saveBackupCopy(vault: VaultController, preferShare: boolean): Promise<'download' | 'share' | undefined> {
   const backup = await vault.exportBackup(); if (!backup) return;
-  const name = `praxisraum-${today()}.encrypted.json`; const text = JSON.stringify(backup);
+  const name = `praxisraum-${today()}.encrypted.json`; const text = await runSecureTask('stringify', backup);
   const file = new File([text], name, { type: 'application/json' });
   let kind: 'download' | 'share' = 'download';
   if (preferShare && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Praxisraum' }); kind = 'share'; }
@@ -39,7 +40,7 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
         <p className="hint">{t('autoBackupFile')} <strong>{auto.file.name}</strong>{auto.status === 'ok' && auto.lastAt ? ` · ${t('autoBackupOk')} ${time(auto.lastAt)}` : ''}{auto.status === 'working' ? ` · ${t('autoBackupWorking')}` : ''}</p>
         {auto.status === 'needsPermission' && <Notice>{t('autoBackupNeedsPermission')}</Notice>}{auto.status === 'error' && <Notice error>{t('autoBackupError')}</Notice>}
         <div className="button-row"><button className="btn btn-secondary" onClick={() => void auto.now()}><HardDriveDownload size={17}/>{t(auto.status === 'needsPermission' ? 'autoBackupResume' : 'autoBackupNow')}</button><button className="btn btn-ghost" onClick={() => void auto.disable()}>{t('autoBackupOff')}</button></div></>
-        : <button className="btn btn-secondary" disabled={vault.demo} onClick={() => void auto.enable().catch(() => {})}><HardDriveDownload size={17}/>{t('autoBackupSetup')}</button>}</>}
+        : <div className="button-row">{auto.directorySupported && <button className="btn btn-primary" disabled={vault.demo} onClick={() => void auto.enable(true).catch(() => {})}><HardDriveDownload size={17}/>{t('backupDirectoryChoose')}</button>}<button className="btn btn-secondary" disabled={vault.demo} onClick={() => void auto.enable().catch(() => {})}><HardDriveDownload size={17}/>{t('autoBackupSetup')}</button></div>}{auto.directorySupported && <p className="hint">{t('backupDirectoryHint')}</p>}</>}
   </section>;
 }
 export function HistoryCard({ vault }: { vault: VaultController }) {
@@ -52,7 +53,7 @@ export function HistoryCard({ vault }: { vault: VaultController }) {
   const label = (e: SnapshotEntry) => `${new Date(e.at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA')} · ${t(e.reason === 'delete' ? 'historyReasonDelete' : e.reason === 'checkpoint' ? 'historyReasonCheckpoint' : 'historyReasonAuto')}`;
   async function download(at: number) {
     setBusy(true); setError(false);
-    try { const backup = await vault.exportSnapshot(at); downloadText(`praxisraum-${new Date(at).toISOString().replaceAll(':', '-')}.encrypted.json`, JSON.stringify(backup), 'application/json'); await markBackup(backup.envelope.vaultId, 'download'); }
+    try { const backup = await vault.exportSnapshot(at); downloadText(`praxisraum-${new Date(at).toISOString().replaceAll(':', '-')}.encrypted.json`, await runSecureTask('stringify', backup), 'application/json'); await markBackup(backup.envelope.vaultId, 'download'); }
     catch { setError(true); } finally { setBusy(false); }
   }
   return <section className="card settings-card"><span className="settings-icon tone-beige"><History size={24}/></span><h2>{t('history')}</h2><p>{t('historyText')}</p>
