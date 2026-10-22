@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Search } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel } from '../lib/dates';
@@ -14,7 +14,8 @@ const marked = (hit: Hit): ReactNode[] => {
 /** Search across everything in the open vault; nothing leaves the device. */
 export function SearchModal({ vault, onOpen, onClose }: { vault: VaultController; onOpen: (hit: Hit) => void; onClose: () => void }) {
   const { t, language } = useI18n(); const [query, setQuery] = useState(''); const input = useRef<HTMLInputElement>(null);
-  const hits = useMemo(() => searchVault(vault.data!, query), [vault.data, query]);
+  const deferredQuery = useDeferredValue(query);
+  const hits = useMemo(() => searchVault(vault.data!, deferredQuery), [vault.data, deferredQuery]);
   useEffect(() => { input.current?.focus(); }, []);
   return <Modal title={t('searchEverything')} onClose={onClose} wide>
     <label className="search-field big"><Search size={19}/><input ref={input} aria-label={t('searchEverything')} placeholder={t('searchPlaceholder')} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && hits[0]) onOpen(hits[0]); }}/></label>

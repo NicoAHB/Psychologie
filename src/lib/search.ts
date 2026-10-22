@@ -28,20 +28,31 @@ function excerpt(text: string, terms: string[]): { text: string; marks: [number,
   return { text: cut, marks: marks.sort((a, b) => a[0] - b[0]) };
 }
 /** All words of the query must occur (in any order) in one record. Searches everything the vault knows about a client. */
+/** Folding every note on every keystroke is the expensive part, so the folded text is remembered per record; a changed text is never served from the cache. */
+const foldedCache = new WeakMap<object, { source: string; folded: string }>();
+function foldedHaystack(record: object | undefined, source: string) {
+  const cached = record && foldedCache.get(record);
+  if (cached && cached.source === source) return cached.folded;
+  const folded = fold(source).folded;
+  if (record) foldedCache.set(record, { source, folded });
+  return folded;
+}
+
 export function searchVault(data: VaultData, query: string, limit = 40): Hit[] {
   const terms = fold(query.trim()).folded.split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
-  const nameOf = (clientId: string) => data.clients.find(c => c.id === clientId)?.name ?? '';
+  const names = new Map(data.clients.map(c => [c.id, c.name]));
+  const nameOf = (clientId: string) => names.get(clientId) ?? '';
   const hits: Hit[] = [];
-  const consider = (kind: HitKind, id: string, clientId: string, title: string, fields: string[], date?: string) => {
-    const haystack = fold(fields.join('\n')).folded;
+  const consider = (kind: HitKind, id: string, clientId: string, title: string, fields: string[], date?: string, record?: object) => {
+    const haystack = foldedHaystack(record, fields.join('\n'));
     if (!terms.every(term => haystack.includes(term))) return;
     const body = fields.find(field => terms.some(term => fold(field).folded.includes(term))) ?? fields[0] ?? '';
     hits.push({ kind, id, clientId, title, ...excerpt(body, terms), date });
   };
-  for (const c of data.clients) consider('client', c.id, c.id, c.name, [c.name, c.contact, c.address ?? '', c.preparation]);
-  for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.homework ?? '', s.tags.map(t => `#${t}`).join(' '), s.date], s.date);
-  for (const n of data.notes) consider('note', n.id, n.clientId, nameOf(n.clientId), [n.caption, n.tags.map(t => `#${t}`).join(' ')], n.createdAt.slice(0, 10));
+  for (const c of data.clients) consider('client', c.id, c.id, c.name, [c.name, c.contact, c.address ?? '', c.preparation], undefined, c);
+  for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.homework ?? '', s.tags.map(t => `#${t}`).join(' '), s.date], s.date, s);
+  for (const n of data.notes) consider('note', n.id, n.clientId, nameOf(n.clientId), [n.caption, n.tags.map(t => `#${t}`).join(' ')], n.createdAt.slice(0, 10), n);
   for (const i of data.invoices) consider('invoice', i.id, i.clientId, nameOf(i.clientId), [i.number, i.recipient.name], i.issuedAt);
   return hits.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)).slice(0, limit);
 }

@@ -37,3 +37,13 @@ import { withTemplate } from '../src/lib/templates';
 test('templates are appended below existing notes, separated by a blank line', () => {
   assert.equal(withTemplate('', 'S: \nO: '), 'S: \nO: '); assert.equal(withTemplate('Notiz\n', 'S: '), 'Notiz\n\nS: '); assert.equal(withTemplate('   ', 'S: '), 'S: ');
 });
+test('remembered folded text never hides an edit, and a large vault stays fast', () => {
+  const data = sample(); assert.equal(searchVault(data, 'schlafprobleme').length, 1);
+  data.sessions[0].notes = 'Jetzt geht es um Prüfungsangst'; // edited in place: the cache must notice
+  assert.equal(searchVault(data, 'schlafprobleme').length, 0); assert.equal(searchVault(data, 'prufungsangst').length, 1);
+  const big = sample(); const clientId = big.clients[0].id;
+  for (let i = 0; i < 6000; i++) big.sessions.push({ id: uid(), clientId, date: `2025-${String(1 + i % 12).padStart(2, '0')}-01`, time: '10:00', feeCents: 8500, paidAt: null, notes: `Sitzung ${i}: Gespräch über Arbeit, Familie und Erholung`, tags: ['Alltag'] });
+  searchVault(big, 'erholung'); const started = performance.now();
+  for (let i = 0; i < 20; i++) assert.equal(searchVault(big, 'sitzung 5999 erholung').length, 1);
+  assert.ok(performance.now() - started < 1500, 'repeated searches reuse the folded text');
+});
