@@ -1,4 +1,3 @@
-import { DictationButton } from './DictationButton';
 import { BillingMoney } from './money';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
@@ -43,7 +42,7 @@ function PreparationEditor({ vault, client }: { vault: VaultController; client: 
     return () => { document.removeEventListener('visibilitychange', hidden); window.removeEventListener('pagehide', save); save(); };
   }, [save]);
   const change = (text: string) => { setValue(text); pending.current = text; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); };
-  return <><DictationButton value={value} onChange={change} maxLength={30000}/><textarea lang={language} rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => { setValue(e.target.value); pending.current = e.target.value; window.clearTimeout(timer.current); timer.current = window.setTimeout(save, 700); }}/></>;
+  return <><textarea lang={language} rows={5} aria-label={t('preparation')} placeholder={t('preparationPlaceholder')} maxLength={30000} value={value} onBlur={save} onChange={e => change(e.target.value)}/></>;
 }
 function Tile({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) { return <div className="glance-tile"><span className="glance-label">{icon}{label}</span>{children}</div>; }
 

@@ -9,7 +9,6 @@ import { closeVideoRoom, configuredStun, createVideoRoom, guestVideoCloud, video
 import type { Client } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Modal, Notice } from './ui';
-import { DictationButton } from './DictationButton';
 
 function StreamVideo({ stream, muted = false, label }: { stream?: MediaStream; muted?: boolean; label: string }) {
   const ref = useRef<HTMLVideoElement>(null); const [play, setPlay] = useState(false);
@@ -42,7 +41,6 @@ function ConsultationNotes({ vault, client }: { vault: VaultController; client: 
   const change = (text: string) => { setValue(text); pending.current = text; clearTimeout(timer.current); timer.current = window.setTimeout(() => saveRef.current(), 700); };
   return <section className="video-notes"><h3>{t('videoPrivateNotes')}</h3><p className="hint">{t('videoNotesHint')}</p>
     <label className="field"><span>{t('videoNoteTarget')}</span><select value={target} onChange={e => { saveRef.current(); const id = e.target.value; setTarget(id); setValue(id === 'preparation' ? client.preparation : sessions.find(s => s.id === id)?.notes ?? ''); }}><option value="preparation">{t('preparation')}</option>{sessions.map(s => <option key={s.id} value={s.id}>{s.date} · {s.time} · {t('session')}</option>)}</select></label>
-    <DictationButton value={value} onChange={change} maxLength={target === 'preparation' ? 30000 : 20000}/>
     <label className="field"><span>{t('sessionNotes')}</span><textarea lang={language} rows={14} value={value} maxLength={target === 'preparation' ? 30000 : 20000} onChange={e => change(e.target.value)} onBlur={() => saveRef.current()}/></label><p className="hint" role="status">{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</p></section>;
 }
 

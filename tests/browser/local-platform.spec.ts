@@ -18,38 +18,8 @@ test('real workers encrypt notes and generate a PDF without fetching fonts on th
   expect(workers.some(url => /secure\.worker-/.test(url))).toBe(true); await expect(dialog.getByRole('alert')).toHaveCount(0);
 });
 
-test('dictation forces local recognition and replaces interim text without duplicating or overwriting manual edits', async ({ page }) => {
-  await page.addInitScript(() => {
-    const metrics = { constructed: 0, queried: 0 }; (window as unknown as { __speechMetrics: typeof metrics }).__speechMetrics = metrics;
-    class Recognition {
-      processLocally = false; lang = ''; continuous = false; interimResults = false;
-      onresult: ((e: unknown) => void) | null = null; onend: (() => void) | null = null; onerror = null;
-      constructor() { metrics.constructed++; }
-      static available = async () => { metrics.queried++; return 'available'; };
-      start() { if (!this.processLocally) throw new Error('Remote recognition forbidden'); (window as unknown as { __speech: Recognition }).__speech = this; }
-      stop() { this.onend?.(); } abort() { this.onend?.(); }
-    }
-    (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = Recognition;
-  });
-  const { data, client } = workflowData(); await seedWorkflow(page, data); await nav(page, 'Klienten'); await page.locator('.directory-list').getByRole('button', { name: new RegExp(client.name) }).click();
-  await page.getByRole('tab', { name: 'Besprochen' }).click(); await page.getByRole('button', { name: 'Sitzung bearbeiten' }).first().click();
-  const dialog = page.getByRole('dialog'); const notes = dialog.getByLabel('Sitzungsnotiz (optional)'); await notes.fill('Vorhandene Notiz.');
-  expect(await page.evaluate(() => (window as unknown as { __speechMetrics: object }).__speechMetrics)).toEqual({ constructed: 0, queried: 0 });
-  await dialog.getByRole('button', { name: 'Diktieren', exact: true }).first().click();
-  async function emit(words: string[]) { await page.evaluate(words => {
-    const r = (window as unknown as { __speech: { processLocally: boolean; onresult: (e: unknown) => void } }).__speech;
-    if (!r.processLocally) throw new Error('Local recognition required'); r.onresult({ resultIndex: 0, results: words.map((transcript, i) => ({ 0: { transcript }, isFinal: i < words.length - 1 })) });
-  }, words); }
-  await emit(['Erster Entwurf']); await expect(notes).toHaveValue('Vorhandene Notiz. Erster Entwurf');
-  await emit(['Erster Satz.', 'Zweiter Satz.']); await expect(notes).toHaveValue('Vorhandene Notiz. Erster Satz. Zweiter Satz.');
-  await notes.fill('Manuelle Ergänzung darf bleiben.'); await emit(['Darf nicht überschreiben']); await expect(notes).toHaveValue('Manuelle Ergänzung darf bleiben.');
-  await expect(dialog.getByText('Diktieren beendet, damit Ihre manuellen Änderungen erhalten bleiben.')).toBeVisible();
-});
-
-test('remote-only speech stays disabled and the guest page never opens the therapist vault', async ({ page }) => {
-  await page.addInitScript(() => { (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = class RemoteOnly { start() { throw new Error('must not be called'); } }; });
-  const { data, client } = workflowData(); await seedWorkflow(page, data); await nav(page, 'Klienten'); await page.locator('.directory-list').getByRole('button', { name: new RegExp(client.name) }).click();
-  await expect(page.getByRole('button', { name: 'Diktieren', exact: true })).toBeDisabled();
+test('the guest page never opens the therapist vault', async ({ page }) => {
+  await seedWorkflow(page, workflowData().data);
   await page.goto('/#video=invalid'); await expect(page.getByRole('heading', { name: 'Videosprechstunde' })).toBeVisible();
   await expect(page.getByText('Dieser Einladungslink ist ungültig.')).toBeVisible(); await expect(page.locator('.app-shell')).toHaveCount(0); await expect(page.getByLabel('Tresor-Passphrase', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Українська', exact: true }).click(); await expect(page.getByText('Недійсне посилання-запрошення.')).toBeVisible();
