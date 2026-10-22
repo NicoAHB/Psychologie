@@ -52,7 +52,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: /Videosprechstunde/ }).first().click();
-    await expect(page.getByRole('dialog').getByRole('heading', { name: /Videosprechstunde/ })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: /Videosprechstunde/ })).toBeVisible(); // a dialog announces its title to screen readers
     await scan(page, found, 'video consultation');
     expect(found).toEqual({});
   });
@@ -85,4 +85,16 @@ test('an unexpected rendering error shows a bilingual recovery page instead of a
   await expect(alert).toBeVisible();
   await expect(alert).toContainText('Щось пішло не так.');
   await expect(alert.getByRole('button', { name: /Neu laden/ })).toBeVisible();
+});
+
+test('tablet in portrait keeps appointment names readable and the page free of sideways scrolling', async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
+  await nav(page, 'Termine');
+  const person = page.locator('.appointments-card .appointment-person').first();
+  await expect(person).toBeVisible();
+  expect((await person.boundingBox())!.width).toBeGreaterThan(200);
+  await expect(person.locator('strong')).not.toHaveText(/…|\.\.\./);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
