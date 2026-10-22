@@ -83,20 +83,24 @@ test('self-hosted DE/UA speech downloads once and recognizes real audio offline 
   // No real microphone permission or managed browser policy is changed by this test.
   const deWav = (await readFile(new URL('../fixtures/speech/de.wav', import.meta.url))).toString('base64');
   await page.evaluate(wav => {
-    const w = window as unknown as { __fakeSpeech?: { ended: boolean; stream: MediaStream } };
+    const w = window as unknown as { __fakeSpeech?: { ended: boolean; stream: MediaStream; start: () => void; context: AudioContext } };
     navigator.mediaDevices.getUserMedia = async options => {
       if (options?.video !== false || !options.audio) throw new Error('Audio only');
       const context = new AudioContext({ sampleRate: 16000 }); await context.resume();
       const destination = context.createMediaStreamDestination(), source = context.createBufferSource();
       source.buffer = await context.decodeAudioData(Uint8Array.from(atob(wav), c => c.charCodeAt(0)).buffer);
-      source.connect(destination); w.__fakeSpeech = { stream: destination.stream, ended: false };
+      source.connect(destination); w.__fakeSpeech = { stream: destination.stream, ended: false, start: () => source.start(), context };
       source.onended = () => { if (w.__fakeSpeech) w.__fakeSpeech.ended = true; void context.close(); };
-      setTimeout(() => source.start(), 400); return destination.stream;
+      return destination.stream;
     };
   }, deWav);
   const preparation = page.locator('.preparation-card textarea');
   await preparation.fill('Vorhandene Notiz.');
   await page.getByRole('button', { name: 'Offline diktieren', exact: true }).first().click();
+  // Start only after the worklet is connected; a wall-clock delay could clip the
+  // first words on slower CI machines while the real recorder was still preparing.
+  await expect(page.getByRole('button', { name: 'Aufnahme beenden und Text einfügen', exact: true })).toBeVisible({ timeout: 20000 });
+  await page.evaluate(() => (window as unknown as { __fakeSpeech: { start: () => void } }).__fakeSpeech.start());
   await expect.poll(() => page.evaluate(() => (window as unknown as { __fakeSpeech?: { ended: boolean } }).__fakeSpeech?.ended), { timeout: 20000 }).toBe(true);
   await page.getByRole('button', { name: 'Aufnahme beenden und Text einfügen', exact: true }).click();
   await expect(preparation).toHaveValue(/Vorhandene Notiz\. .*Morgen/i, { timeout: 60000 });
@@ -106,6 +110,7 @@ test('self-hosted DE/UA speech downloads once and recognizes real audio offline 
   await expect(page.getByRole('button', { name: 'Aufnahme beenden und Text einfügen', exact: true })).toBeVisible({ timeout: 20000 });
   await page.locator('.dictation-offline').first().getByRole('button', { name: 'Abbrechen', exact: true }).click();
   expect(await page.evaluate(() => (window as unknown as { __fakeSpeech: { stream: MediaStream } }).__fakeSpeech.stream.getTracks().every(track => track.readyState === 'ended'))).toBe(true);
+  await page.evaluate(() => (window as unknown as { __fakeSpeech: { context: AudioContext } }).__fakeSpeech.context.close());
   await expect(preparation).toHaveValue(previous);
   await page.getByRole('button', { name: 'Українська', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Диктувати офлайн', exact: true }).first()).toBeVisible();
