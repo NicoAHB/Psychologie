@@ -10,7 +10,7 @@ Die kleineren TTF-Dateien liegen versioniert unter `src/assets/`. Zum erneuten E
 
 ## Playwright in GitHub Actions
 
-`checks.yml` speichert `~/.cache/ms-playwright` mit Betriebssystem, Architektur und Lockfile-Hash. Bei einem Treffer werden nur die Betriebssystembibliotheken installiert. Ein fehlender Cache führt zur vollständigen Browserinstallation. Browser- und Playwright-Versionen können dadurch nicht versehentlich auseinanderlaufen.
+`checks.yml` speichert `~/.cache/ms-playwright` mit Betriebssystem, Architektur und Lockfile-Hash direkt nach der Installation, unabhängig vom späteren Testergebnis. Bei einem Treffer werden nur die Betriebssystembibliotheken installiert. Ein fehlender Cache führt zur vollständigen Browserinstallation. Browser- und Playwright-Versionen können dadurch nicht versehentlich auseinanderlaufen. Bei Fehlern stehen ein Auszug im Job-Bericht und die Browser-Traces als Artefakt bereit.
 
 ## In-App-Sicherung, auch auf iPad/Safari
 

@@ -18,7 +18,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -29,6 +29,30 @@ jobs:
       - name: Install system libraries for cached Chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
-      - run: npm run test:e2e
+      - name: Save installed Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+      - name: Run browser tests
+        run: |
+          set +e
+          npm run test:e2e 2>&1 | tee /tmp/praxisraum-browser-tests.log
+          test_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$test_status" -ne 0 ]; then
+            printf '### Browser test failure\n\n```text\n' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 180 /tmp/praxisraum-browser-tests.log >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$test_status"
         env:
           PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: bundled
+      - name: Save browser failure details
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failure-details
+          path: test-results/
+          retention-days: 7
