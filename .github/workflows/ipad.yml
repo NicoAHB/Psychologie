@@ -7,6 +7,9 @@ permissions:
 jobs:
   webkit:
     runs-on: ubuntu-24.04
+    # Match package-lock.json. The official image already contains WebKit and
+    # its native libraries; avoid repeating a large apt/browser installation.
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -16,15 +19,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/cache@v4
-        id: webkit-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: webkit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('node_modules/playwright-core/browsers.json') }}
-      - if: steps.webkit-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps webkit
-      - if: steps.webkit-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps webkit
       - run: npm run test:ipad -- --reporter=line,github
       - if: failure()
         uses: actions/upload-artifact@v4
