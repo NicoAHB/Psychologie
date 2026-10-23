@@ -90,7 +90,8 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   // A lock must flush the pending debounce immediately.
   await page.evaluate(() => (document.querySelector('.header-actions button[title="Sperren"]') as HTMLButtonElement).click()); await expect(page.locator('.welcome-page')).toBeVisible();
   await page.context().setOffline(false); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click(); await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Auch offline fortgesetzt');
-  await session.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(session).not.toBeVisible();
+  // Finalizing also redacts superseded encrypted drafts from recovery history.
+  await session.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(session).not.toBeVisible({ timeout: 15000 });
   await expect.poll(async () => (await read()).sessionDrafts.length).toBe(0); const saved = await read(); expect(saved.audioMemos).toHaveLength(1); expect(saved.sessions).toHaveLength(data.sessions.length + 1); expect(saved.sessions.at(-1)?.notes).toBe('Auch offline fortgesetzt');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
