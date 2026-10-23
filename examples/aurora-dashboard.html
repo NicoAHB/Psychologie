@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Statisches, responsives Praxis-Dashboard mit ruhigem Aurora-Hintergrund und gut lesbaren Glasflächen.">
+  <title>Praxisraum · Aurora-Designbeispiel</title>
+  <link rel="stylesheet" href="aurora-dashboard.css">
+</head>
+<body>
+  <a class="skip-link" href="#inhalt">Zum Inhalt</a>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-icon" aria-hidden="true"></span>Praxisraum.</div>
+      <p class="eyebrow">Meine Praxis</p>
+      <nav aria-label="Bereiche dieses Designbeispiels">
+        <a href="#inhalt" aria-current="page">Übersicht</a>
+        <a href="#termine">Termine</a>
+        <a href="#vorbereitung">Vorbereitung</a>
+      </nav>
+    </aside>
+    <main id="inhalt" tabindex="-1">
+      <header class="topbar">
+        <div><p class="eyebrow">Gut durch den Praxistag</p><h1>Raum für das Wesentliche.</h1><p>Alle wichtigen Informationen an einem Ort. Ruhig gestaltet, klar gegliedert und mit Platz für Ihre Notizen.</p></div>
+        <a class="button" href="#vorbereitung">Sitzung vorbereiten</a>
+      </header>
+      <section class="stats" aria-label="Tagesübersicht mit Beispieldaten">
+        <div class="card"><span class="stat-label">Termine heute</span><strong class="stat-value">4</strong><p class="stat-detail">Der nächste Termin beginnt um 10:00 Uhr.</p></div>
+        <div class="card"><span class="stat-label">Klienten in Begleitung</span><strong class="stat-value">18</strong><p class="stat-detail">Mit Zeit für persönliche Entwicklung.</p></div>
+        <div class="card"><span class="stat-label">Einnahmen im letzten Monat</span><strong class="stat-value">2.550 €</strong><p class="stat-detail">Bezahlte Sitzungen im September.</p></div>
+      </section>
+      <div class="content-grid">
+        <section class="card" id="termine" aria-labelledby="termine-titel">
+          <div class="section-heading"><div><h2 id="termine-titel">Ihre nächsten Termine</h2><p>Ein klarer Überblick mit bewusst wenig Ablenkung.</p></div></div>
+          <div class="table-scroll" role="region" aria-label="Termintabelle" tabindex="0">
+            <table>
+              <caption>Fiktive Termine am 23. Oktober 2026</caption>
+              <thead><tr><th scope="col">Uhrzeit</th><th scope="col">Klient</th><th scope="col">Status</th></tr></thead>
+              <tbody>
+                <tr><td><time datetime="2026-10-23T10:00">10:00</time></td><td>Anna Beispiel<small>Online-Sitzung · 50 Minuten</small></td><td><span class="status">Bestätigt</span></td></tr>
+                <tr><td><time datetime="2026-10-23T12:00">12:00</time></td><td>Olena Muster<small>Online-Sitzung · 50 Minuten</small></td><td><span class="status">Bestätigt</span></td></tr>
+                <tr><td><time datetime="2026-10-23T15:00">15:00</time></td><td>Max Muster<small>Erstgespräch · 30 Minuten</small></td><td><span class="status">Geplant</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card" id="vorbereitung" aria-labelledby="vorbereitung-titel">
+          <div class="section-heading"><div><h2 id="vorbereitung-titel">Vorbereitung für die nächste Sitzung</h2><p>Gedanken festhalten. Den roten Faden bewahren.</p></div></div>
+          <div class="note"><h3>Worauf möchten Sie aufbauen?</h3><p>Welche Veränderung war seit der letzten Sitzung hilfreich? Welche Ressourcen möchten Sie gemeinsam weiter stärken?</p></div>
+          <p>Die fast deckenden Flächen halten Text und Tabellen ruhig. Der weiche Farbverlauf bleibt im Hintergrund sichtbar.</p>
+          <p class="muted">Dieses Beispiel enthält ausschließlich erfundene Daten und speichert keine Eingaben.</p>
+        </section>
+      </div>
+      <footer class="footer">Statisches Designbeispiel · keine externen Schriften, Skripte oder Dienste</footer>
+    </main>
+  </div>
+</body>
+</html>
