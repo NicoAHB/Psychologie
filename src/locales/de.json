@@ -1207,5 +1207,6 @@
   "referralSelectClient": "Klient für die Empfehlungskarte",
   "referralPayoutEmpty": "Für dieses abgeschlossene Quartal ist kein positiver offener Betrag buchbar.",
   "referralLanguageDe": "Deutsch",
-  "referralLanguageUk": "Ukrainisch"
+  "referralLanguageUk": "Ukrainisch",
+  "referralStatusLabel": "Status der Empfehlung"
 }

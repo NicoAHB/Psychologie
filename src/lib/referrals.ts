@@ -33,8 +33,9 @@ export function registerReferral(data: VaultData, referredId: string, input: str
 /** Remember the FIRST payment even if it is later unmarked, reversed, or an old snapshot is restored.
  * Earlier corrected payment dates may move the start earlier, never extend the reward period. */
 export function reconcileReferralStarts(data: VaultData, before?: VaultData) {
+  if (!data.referrals.length) return;
   const first = new Map<string, string>();
-  for (const s of data.sessions) if (s.paidAt && isIsoDay(s.paidAt) && !isSessionVoided(data, s) && s.feeCents > 0) {
+  for (const s of data.sessions) if (s.paidAt && isIsoDay(s.paidAt) && !isSessionVoided(data, s) && (s.billing?.amountCents ?? s.feeCents) > 0) {
     const previous = first.get(s.clientId); if (!previous || s.paidAt < previous) first.set(s.clientId, s.paidAt);
   }
   const old = new Map(before?.referrals.map(r => [r.id, r.firstPaidOn]) ?? []);

@@ -1207,5 +1207,6 @@
   "referralSelectClient": "Клієнт для картки рекомендації",
   "referralPayoutEmpty": "За цей завершений квартал немає додатної суми до виплати.",
   "referralLanguageDe": "Німецька",
-  "referralLanguageUk": "Українська"
+  "referralLanguageUk": "Українська",
+  "referralStatusLabel": "Стан рекомендації"
 }

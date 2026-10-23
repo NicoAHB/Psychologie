@@ -44,6 +44,9 @@ test('only paid non-void sessions in payment window count; EUR and UAH never mix
   const rows=referralRows(data,'2027-02-02');assert.equal(rows.find(r=>r.currency==='EUR')!.revenueCents,17000);assert.equal(rows.find(r=>r.currency==='UAH')!.rewardCents,40000);
   data.invoices.push({id:'cancel',kind:'cancellation',cancels:{id:'original',number:'A',issuedAt:'2026-02-01'},number:'B',clientId:referred.id,issuedAt:'2026-02-02',lines:[],totalCents:0,recipient:{name:'',address:''},sender:data.settings.practice,language:'de'});
   data.sessions[0].invoiceId='original';assert.equal(referralRows(data,'2026-02-28').find(r=>r.currency==='EUR')?.revenueCents ?? 0,0);
+  // A small positive UAH payment may round to zero in the existing whole-EUR comparison.
+  const tiny=setup();tiny.data.sessions.push({...session(tiny.referred.id,'2026-03-01',100,'UAH'),feeCents:0});reconcileReferralStarts(tiny.data);assert.equal(tiny.referral.firstPaidOn,'2026-03-01');assert.equal(referralRows(tiny.data,'2026-03-01')[0].rewardCents,10);
+
 });
 test('central term changes affect new registrations, never existing referrals; integer rounding is cumulative',()=>{
   const {data,referred,referral}=setup();data.settings.referralProgram={rateBps:1500,months:6};assert.equal(referral.rateBps,1000);

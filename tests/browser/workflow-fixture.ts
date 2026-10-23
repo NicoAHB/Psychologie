@@ -32,4 +32,14 @@ export async function seedWorkflow(page: Page, data: VaultData) {
     return decryptVault(key, stored);
   };
 }
-export async function unlock(page: Page) { await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase'); await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click(); await expect(page.locator('.app-shell')).toBeVisible(); }
+/** Key derivation, module startup and the first durable migration can exceed the
+ * default five seconds on shared CI CPUs. Keep a bounded wait and surface real errors. */
+export async function unlock(page: Page) {
+  await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
+  await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
+  try { await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15000 }); }
+  catch (error) {
+    const alerts = await page.getByRole('alert').allTextContents().catch(() => []);
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\nUnlock alerts (synthetic fixture): ${JSON.stringify(alerts)}`);
+  }
+}

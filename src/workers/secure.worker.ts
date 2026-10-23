@@ -14,7 +14,7 @@ async function execute<K extends keyof WorkerTasks>(task: K, input: WorkerTasks[
     case 'decryptVault': { const p = input as WorkerTasks['decryptVault']['input']; const data = await crypto.decryptVault(p.key, p.envelope, p.wholeAmounts); const { stateOf } = await import('../lib/crdt'); data.crdt = stateOf(data); return data as WorkerTasks[K]['output']; }
     case 'openVault': {
       const p = input as WorkerTasks['openVault']['input']; const original = await crypto.decryptVault(p.key, p.envelope, false);
-      const value = normalizeVault(original); const { reconcileReferralStarts } = await import('../lib/referrals'); reconcileReferralStarts(value); const { stateOf } = await import('../lib/crdt'); value.crdt = stateOf(value);
+      const value = normalizeVault(original); if (value.referrals.length) { const { reconcileReferralStarts } = await import('../lib/referrals'); reconcileReferralStarts(value); } const { stateOf } = await import('../lib/crdt'); value.crdt = stateOf(value);
       return { value, migrated: JSON.stringify(original) !== JSON.stringify(value) } as WorkerTasks[K]['output'];
     }
     case 'encryptBytes': { const p = input as WorkerTasks['encryptBytes']['input']; return await crypto.encryptBytes(p.key, p.bytes, p.context) as WorkerTasks[K]['output']; }
