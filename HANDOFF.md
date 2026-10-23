@@ -15,6 +15,26 @@ Dateien, sichere Farbgrenzen, Fallbacks, technische Hinweise für Claude und Tes
 bleibt separat; der neue Einstellungsbereich steuert die echte Praxisoberfläche.
 Texte und Formulare bleiben deckend; Druck/PDF behalten ihre bisherigen Farben.
 
+Prüfstand der Programmfassung `30d125b1d24eb2799b1698c2d2f85c4bc7a1ece8`:
+219 Unit-Tests bestanden; die 14 bestehenden Browserprüfungen für Barrierefreiheit
+und Layout sowie 7 zusätzliche Darstellungsprüfungen sind grün. Die zusätzliche
+Chromium-Medienemulation wird auf dem Mobilprojekt bewusst übersprungen. 6 Prüfungen
+für den Pages-Unterpfad bestanden, einschließlich Offline-Neuladen, ukrainischer
+PDFs und synthetischer Sprach-Memos. Desktop-Darstellung in Hell/Dunkel sowie die
+schmalen Ansichten bei 820/390 px wurden zusätzlich visuell geprüft.
+Der [vollständige Chromium-CI-Lauf nach den Speicher-Testanpassungen](https://github.com/NicoAHB/Psychologie/actions/runs/40000640494)
+ist erfolgreich. Die separaten iPad-/iPhone-WebKit-Prüfungen sind unter
+[diesem erfolgreichen Safari-Lauf](https://github.com/NicoAHB/Psychologie/actions/runs/40002257639)
+nachvollziehbar: jeweils 10 bestanden und 3 vorgesehen übersprungen, einschließlich
+aller neuen Darstellungsprüfungen. Dieser Lauf verwendete noch die native
+Pixeldichte der Geräteprofile. 13 gezielte lokale Chromium-Wiederholungen für die
+Darstellung und die betroffenen Speicherabläufe bestanden zusätzlich (1 geplanter
+Skip). Alle späteren Änderungen nach `30d125b` betreffen ausschließlich Tests,
+CI-Konfiguration und Dokumentation; die erzeugten Pages-App-Dateien sind
+bytegleich. Die CI-Option für Software-Pixelverhältnis 1 ist in
+`docs/darstellung.md` erklärt. WebKit unter Linux ersetzt keinen echten
+iPadOS-Gerätetest.
+
 ## Wo liegt der Stand?
 
 - Repository in dieser Cloud-Aufgabe: `/workspace/Psychologie`
