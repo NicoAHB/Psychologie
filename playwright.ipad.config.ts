@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 const port = process.env.PLAYWRIGHT_PORT || '4196';
+// The virtual Xvfb display has no retina GPU. Keep CSS viewport/touch/UA,
+// but avoid rendering nine physical pixels per CSS pixel in software on CI.
+// Local runs retain the device's native pixel ratio.
+const softwareDisplay = process.env.WEBKIT_DISABLE_COMPOSITING_MODE === '1' ? { deviceScaleFactor: 1 } : {};
 export default defineConfig({
   // Run tests sequentially within each software-rendered Safari project.
   // CI isolates the devices on separate runners to avoid competing compositors.
@@ -10,8 +14,8 @@ export default defineConfig({
   // and normal click stability checks enabled on the virtual software display.
   use: { baseURL: `http://127.0.0.1:${port}`, screenshot: 'only-on-failure', trace: 'off', reducedMotion: 'reduce' },
   projects: [
-    { name: 'ipad-webkit', use: { ...devices['iPad Pro 11'], browserName: 'webkit', viewport: { width: 820, height: 1180 } } },
-    { name: 'iphone-webkit', use: { ...devices['iPhone 13'], browserName: 'webkit' } },
+    { name: 'ipad-webkit', use: { ...devices['iPad Pro 11'], ...softwareDisplay, browserName: 'webkit', viewport: { width: 820, height: 1180 } } },
+    { name: 'iphone-webkit', use: { ...devices['iPhone 13'], ...softwareDisplay, browserName: 'webkit' } },
   ],
   webServer: { command: `npm run preview -- --port ${port}`, port: Number(port), reuseExistingServer: true },
 });

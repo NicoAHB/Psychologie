@@ -90,3 +90,9 @@ und normale Klickprüfungen bleiben aktiv. Das längere Entwurfs-Szenario hat ei
 Gesamtbudget von 120 Sekunden für mehrere einzelne Speicher-/Neuladeaktionen,
 bei unveränderten Grenzen je Aktion und ergänzenden statischen Phasenmarkierungen
 in der Fehlerdiagnose. Keine Aktion wird durch einen erzwungenen Klick ersetzt.
+
+Bei `WEBKIT_DISABLE_COMPOSITING_MODE=1` nutzt der virtuelle CI-Bildschirm zusätzlich
+Pixelverhältnis 1. CSS-Viewport, Touch und User-Agent bleiben gleich; der Renderer
+muss für das iPhone keine neun physischen Pixel je CSS-Pixel berechnen. Alle
+Funktions- und Kontrastbedingungen bleiben aktiv. Lokale WebKit-Läufe ohne diese
+Software-Rendering-Variable behalten die native Pixeldichte des Geräteprofils.
