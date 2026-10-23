@@ -185,7 +185,7 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
     .getByRole("dialog")
     .getByRole("button", { name: "Löschen", exact: true })
     .click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15000 });
   const final = await read();
   expect(final.messageTemplates).toHaveLength(0);
   expect(final.marketingCampaigns[0].isActive).toBe(false);

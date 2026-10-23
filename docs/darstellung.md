@@ -73,3 +73,12 @@ Hauptansichten und Dialogen ab. Konkrete Prüfergebnisse stehen in `HANDOFF.md`.
 
 Automatische Prüfungen sind kein vollständiger manueller WCAG-Nachweis. Ein echter
 iPadOS-Gerätetest bleibt sinnvoll; Playwright-WebKit auf Linux ist dessen Ergänzung.
+
+Der Safari-Workflow führt iPad und iPhone auf getrennten Runners aus, mit jeweils
+einem Test-Worker. Alle bisherigen Fälle bleiben enthalten. Bei drei vorhandenen
+Speicherprüfungen wurde die Wartezeit für den abgeschlossenen verschlüsselten
+Schreibvorgang von fünf auf maximal 15 Sekunden angeglichen (einschließlich der
+nachfolgenden Memo-Vorschlagslöschung). Die Fehlerdiagnose zeigte laufende Frames,
+keine verbleibenden Worker-/IDB-Aufträge und kurz darauf bereits abgeschlossene
+Umbenennung/Sperre. Bedingungen und Datenprüfungen bleiben unverändert; Wartezeiten
+der App und Kryptografie wurden nicht geändert.

@@ -87,8 +87,9 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Entwurf bleibt nach Safari-Neustart'); await expect(session.locator('.memo-open')).toContainText('Noch nicht abgeschlossene Sitzung');
   await session.locator('.memo-open').click(); const memo = page.getByRole('dialog', { name: 'Noch nicht abgeschlossene Sitzung', exact: true }); await expect(memo.locator('audio')).toHaveAttribute('src', /^blob:/); await expect(memo).toContainText('Manuelle Kurzfassung im Entwurf'); await memo.getByRole('button', { name: 'Schließen', exact: true }).click();
   await page.context().setOffline(true); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Auch offline fortgesetzt');
-  // A lock must flush the pending debounce immediately.
-  await page.evaluate(() => (document.querySelector('.header-actions button[title="Sperren"]') as HTMLButtonElement).click()); await expect(page.locator('.welcome-page')).toBeVisible();
+  // A lock must flush the pending debounce immediately. Allow the durable
+  // crypto/IDB round-trip on software-rendered Safari, as for finalizing below.
+  await page.evaluate(() => (document.querySelector('.header-actions button[title="Sperren"]') as HTMLButtonElement).click()); await expect(page.locator('.welcome-page')).toBeVisible({ timeout: 15000 });
   await page.context().setOffline(false); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click(); await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Auch offline fortgesetzt');
   // Finalizing also redacts superseded encrypted drafts from recovery history.
   await session.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(session).not.toBeVisible({ timeout: 15000 });
@@ -101,8 +102,8 @@ test('memo vocabulary favorites, renaming and removal persist without changing e
   const card = page.locator('.memo-labels-card'); await card.getByRole('button', { name: 'Als Favorit markieren: Mein Vorschlag', exact: true }).click();
   await expect.poll(async () => (await read()).settings.memoLabelFavorites).toEqual(['own:mein vorschlag']);
   await card.getByRole('button', { name: 'Vorschlag umbenennen: Mein Vorschlag', exact: true }).click(); const rename = page.getByRole('dialog', { name: 'Vorschlag umbenennen', exact: true });
-  await rename.getByLabel('Neue Bezeichnung', { exact: true }).fill('Neuer Vorschlag'); await rename.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(rename).not.toBeVisible(); await expect(card).toContainText('Neuer Vorschlag');
-  await card.getByRole('button', { name: 'Vorschlag entfernen: Neuer Vorschlag', exact: true }).click({ timeout: 10000 }); await expect(card).not.toContainText('Neuer Vorschlag'); await expect.poll(async () => (await read()).settings.memoLabels).toEqual([]);
+  await rename.getByLabel('Neue Bezeichnung', { exact: true }).fill('Neuer Vorschlag'); await rename.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(rename).not.toBeVisible({ timeout: 15000 }); await expect(card).toContainText('Neuer Vorschlag');
+  await card.getByRole('button', { name: 'Vorschlag entfernen: Neuer Vorschlag', exact: true }).click({ timeout: 10000 }); await expect(card).not.toContainText('Neuer Vorschlag', { timeout: 15000 }); await expect.poll(async () => (await read()).settings.memoLabels).toEqual([]);
   expect((await read()).audioMemos).toEqual(data.audioMemos);
 });
 
