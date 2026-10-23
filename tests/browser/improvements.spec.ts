@@ -10,7 +10,7 @@ test('iPad fallback checkpoints are encrypted, downloadable and survive reload; 
   data.documents.push({ id: 'task', clientId: client.id, title: 'Aufgabe', createdAt: '2026-10-01', file: { blobId: 'original-file', fileName: 'aufgabe.txt', mimeType: 'text/plain', size: 15 }, returnExpected: false, deliveries: [], returns: [] });
   const read = await seedWorkflow(page, data);
   await nav(page, 'Klienten'); await page.locator('.directory-list').getByRole('button', { name: /Олена Приклад/ }).click();
-  const preparation = page.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung', exact: true });
+  const preparation = page.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin', exact: true });
   await preparation.fill('PRIVATE RECOVERY CHECKPOINT'); await preparation.blur();
   await expect.poll(async () => (await read()).clients.find(item => item.id === client.id)?.preparation).toBe('PRIVATE RECOVERY CHECKPOINT');
   await nav(page, 'Einstellungen'); await expect(page.getByText(/Safari auf dem iPad kann keine Sicherungsdatei/)).toBeVisible();

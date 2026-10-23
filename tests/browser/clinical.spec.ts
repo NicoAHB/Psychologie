@@ -1,16 +1,12 @@
-import { test, expect, type Page } from './fixtures';
-async function nav(page: Page, text: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+import { nav } from './workflow-fixture';
+import { test, expect } from './fixtures';
+
 test('PHQ-9 with safety flag and trend chart, GAD-7, and session note templates', async ({ page }) => {
   const problems: string[] = []; page.on('pageerror', e => problems.push(e.message)); page.on('dialog', d => void d.accept());
   await page.goto('/');
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase'); await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   const dialog = page.getByRole('dialog');
 
   await nav(page, 'Einstellungen');
@@ -46,11 +42,11 @@ test('PHQ-9 with safety flag and trend chart, GAD-7, and session note templates'
   await expect(page.locator('.assessment-group')).toHaveCount(2);
   await page.getByRole('button', { name: /^Ergebnis löschen: / }).last().click(); await expect(page.locator('.assessment-group')).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
+  await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
   await dialog.getByLabel('Vorlage einfügen').selectOption({ label: 'Meine Vorlage' });
-  await expect(dialog.getByLabel('Sitzungsnotiz (optional)')).toHaveValue('Eigener Baustein: ');
+  await expect(dialog.getByLabel('Terminnotiz (optional)')).toHaveValue('Eigener Baustein: ');
   await dialog.getByLabel('Vorlage einfügen').selectOption({ label: 'SOAP' });
-  await expect(dialog.getByLabel('Sitzungsnotiz (optional)')).toHaveValue(/^Eigener Baustein:\n\nS \(Subjektiv\): \nO \(Objektiv\)/);
+  await expect(dialog.getByLabel('Terminnotiz (optional)')).toHaveValue(/^Eigener Baustein:\n\nS \(Subjektiv\): \nO \(Objektiv\)/);
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   expect(problems).toEqual([]);
 });

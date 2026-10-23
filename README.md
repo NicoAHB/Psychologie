@@ -1,6 +1,8 @@
 # Praxisraum
 
-Neu: **Pastell-Hintergründe und einstellbares Milchglas direkt in der App** unter **Einstellungen → Darstellung**. Vier Farbverläufe, eigene Pastellfarben, getrennte Transparenzregler für Inhaltskarten und Menüs sowie Glas-Weichzeichnung. Die Auswahl wird sofort angewendet und auf diesem Gerät gespeichert. [Bedienung und technische Übergabe](docs/darstellung.md).
+Neu: **Heute, Klienten, Termine, Zahlungen und Mehr** als fünf Hauptmenüpunkte. Der Ablauf ist **Termin anlegen → Termin abschließen → Zahlung offen/bezahlt**. Einstellungen und Marketing-Werkzeuge liegen unter **Mehr**. [Bedienung, geänderte Dateien und technische Übergabe](docs/termin-und-zahlungsablauf.md).
+
+Neu: **Pastell-Hintergründe und einstellbares Milchglas direkt in der App** unter **Mehr → Einstellungen → Darstellung**. Vier Farbverläufe, eigene Pastellfarben, getrennte Transparenzregler für Inhaltskarten und Menüs sowie Glas-Weichzeichnung. Die Auswahl wird sofort angewendet und auf diesem Gerät gespeichert. [Bedienung und technische Übergabe](docs/darstellung.md).
 
 Neu: **Newsletter**, **Vorlagen-Verwaltung** und optionale **Marketing-Kampagnen** (Geburtstag, Willkommen, fester Termin), mit separater Kanal-Freigabe, DE/UA-Texten, verschlüsseltem Archiv und Abmeldung. [Bedienung, SQL und Einrichtung](docs/marketing.md). Automatik läuft derzeit bei geöffnetem, entsperrtem Tresor; ein echter Versanddienst muss eingerichtet werden. Eigenständiges [Aurora-/Glas-Beispiel in HTML und CSS](examples/README.md).
 

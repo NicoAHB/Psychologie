@@ -37,7 +37,7 @@ test('memo title choices learn custom names across clients and reloads; overview
   await recorder.getByRole('button', { name: 'Aufnahme starten', exact: true }).click(); await recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
   await choices.selectOption({ label: 'Mein eigener Fokus' }); await expect(recorder.getByLabel('Bezeichnung (optional)', { exact: true })).toHaveValue('Mein eigener Fokus');
   await recorder.getByRole('button', { name: 'Українська', exact: true }).click();
-  const ukrainian = page.getByRole('dialog'); await expect(ukrainian.getByLabel('Варіанти назви', { exact: true }).locator('option')).toContainText(['Вибрати варіант …', 'Думки після сесії']);
+  const ukrainian = page.getByRole('dialog'); await expect(ukrainian.getByLabel('Варіанти назви', { exact: true }).locator('option')).toContainText(['Вибрати варіант …', 'Думки після зустрічі']);
   await expect(ukrainian.getByLabel('Назва (необов’язково)', { exact: true })).toHaveValue('Mein eigener Fokus');
   await ukrainian.getByRole('button', { name: 'Deutsch', exact: true }).click(); await recorder.getByRole('button', { name: 'Memo übernehmen', exact: true }).click();
   await expect.poll(async () => (await read()).settings.memoLabels).toEqual(['Mein eigener Fokus']);

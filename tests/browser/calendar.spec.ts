@@ -1,11 +1,7 @@
-import { test, expect, type Page } from './fixtures';
+import { nav } from './workflow-fixture';
+import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
-async function nav(page: Page, text: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+
 test('a client in Ukraine: both local times are shown everywhere, series, week view, copy text and calendar files', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const problems: string[] = []; page.on('pageerror', e => problems.push(e.message));
@@ -14,7 +10,7 @@ test('a client in Ukraine: both local times are shown everywhere, series, week v
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   const dialog = page.getByRole('dialog');
 
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
@@ -73,7 +69,7 @@ test('the client zone can be set right where the appointment is made, and is rem
   await page.goto('/');
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase'); await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   const dialog = page.getByRole('dialog');
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
   await dialog.getByLabel('Name *', { exact: true }).fill('Ukrainisch Sprechend'); await dialog.getByLabel('Erinnerungen auf Ukrainisch senden').check();

@@ -1,11 +1,7 @@
+import { nav } from './workflow-fixture';
 import { test, expect, type Page } from './fixtures';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAZElEQVR4nO3PQQ3AIADAQMC/CxJMYG4ieFyW9BS0c98z/mzpgFcNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaB+DmAKEfrnO0QAAAABJRU5ErkJggg==', 'base64');
-async function nav(page: Page, text: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+
 // On narrow screens an open profile replaces the client list.
 async function openProfile(page: Page) {
   const entry = page.locator('.directory-list').getByRole('button', { name: /Löschtest Person/ });
@@ -25,7 +21,7 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   const dialog = page.getByRole('dialog');
 
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
@@ -41,17 +37,17 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await expect(dialog).not.toBeVisible(); await expect.poll(() => storedImages(page)).toBe(1);
 
   // The preparation text is written after a typing pause and survives locking right away.
-  const preparation = page.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung' });
+  const preparation = page.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin' });
   await preparation.fill('Kurz vor dem Sperren getippt');
 
-  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Erster Entwurf');
+  await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Erster Entwurf');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await expect(page.getByText('Erster Entwurf')).toBeVisible(); // visible in the overview's "recently discussed"
   await page.getByRole('tab', { name: 'Besprochen' }).click();
-  await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
-  await expect(dialog.getByLabel('Sitzungsnotiz (optional)')).toHaveValue('Erster Entwurf');
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Korrigierte Notiz');
+  await page.getByRole('button', { name: 'Termin bearbeiten' }).click();
+  await expect(dialog.getByLabel('Terminnotiz (optional)')).toHaveValue('Erster Entwurf');
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Korrigierte Notiz');
   await dialog.getByLabel('Themen-Tags').fill('#Korrektur');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await expect(page.getByText('Korrigierte Notiz')).toBeVisible(); await expect(page.getByText('Erster Entwurf')).toHaveCount(0);
@@ -69,8 +65,8 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await nav(page, 'Einstellungen'); await page.getByRole('button', { name: 'Verlauf löschen', exact: true }).click(); await expect.poll(() => storedImages(page)).toBe(1);
   await nav(page, 'Klienten'); await openProfile(page); await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
 
-  await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
-  await dialog.getByRole('button', { name: 'Sitzung löschen' }).click();
+  await page.getByRole('button', { name: 'Termin bearbeiten' }).click();
+  await dialog.getByRole('button', { name: 'Termin löschen' }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText('Korrigierte Notiz')).toHaveCount(0);
 

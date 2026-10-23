@@ -1,17 +1,13 @@
-import { test, expect, type Page } from './fixtures';
-async function nav(page: Page, text: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+import { nav } from './workflow-fixture';
+import { test, expect } from './fixtures';
+
 test('full local workflow: encrypted persistence, photo avatar, bilingual form, payment month and offline PWA', async ({ page, context, browser }) => {
   const failures: string[] = []; page.on('pageerror', e => failures.push(e.message));
   await page.goto('/');
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Name *', { exact: true }).fill('Vertrauliche Testperson');
@@ -22,16 +18,16 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await dialog.getByLabel('Erinnerungen auf Ukrainisch senden').check();
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Vorbereitung für die nächste Sitzung' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Vorbereitung für den nächsten Termin' })).toBeVisible();
   await expect(page.locator('.profile-heading .avatar img')).toBeVisible();
-  await page.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung' }).fill('Privater Gedanke für das nächste Gespräch');
-  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin' }).fill('Privater Gedanke für das nächste Gespräch');
+  await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
   await dialog.getByLabel('Datum', { exact: true }).fill('2025-12-20');
-  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('96');
+  await dialog.getByLabel('Betrag pro Termin (€)').fill('96');
   await dialog.getByLabel('Bezahlt', { exact: true }).check();
   const year = new Date().getFullYear();
   await dialog.getByLabel('Zahlungseingang am', { exact: true }).fill(`${year}-01-15`);
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Vertrauliche Sitzungsnotiz');
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Vertrauliche Sitzungsnotiz');
   await dialog.getByLabel('Themen-Tags').fill('#Fortschritt, #Ресурси');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog).not.toBeVisible();
@@ -47,11 +43,11 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await expect(page.getByText('Vertrauliche Sitzungsnotiz')).toHaveCount(0);
   await page.getByRole('button', { name: 'Notiz ansehen', exact: true }).click();
   await expect(dialog.locator('img')).toBeVisible(); await dialog.getByRole('button', { name: 'Schließen' }).click();
-  await nav(page, 'Finanzen');
-  await expect(page.getByRole('heading', { name: 'Ein gutes Gefühl für Ihre Zahlen.' })).toBeVisible();
+  await nav(page, 'Zahlungen');
+  await expect(page.getByRole('heading', { name: 'Zahlungen' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Jan.*96/ })).toBeVisible();
   await page.getByRole('button', { name: 'Українська' }).click();
-  await expect(page.getByRole('heading', { name: 'Ясність у Ваших фінансах.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Оплати' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'uk');
   await page.getByRole('button', { name: 'Deutsch' }).click();
   const raw = await page.evaluate(async () => {
@@ -69,7 +65,7 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
   await nav(page, 'Klienten');
   await page.locator('.directory-list').getByRole('button', { name: /Vertrauliche Testperson/ }).click();
-  await expect(page.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung' })).toHaveValue('Privater Gedanke für das nächste Gespräch');
+  await expect(page.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin' })).toHaveValue('Privater Gedanke für das nächste Gespräch');
   await nav(page, 'Einstellungen');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Verschlüsselte Sicherung herunterladen' }).click();
@@ -81,14 +77,14 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   expect(JSON.parse(backup.toString()).blobs).toHaveLength(2);
   // A completely separate browser profile represents the second device.
   const secondDevice = await browser.newContext(); const secondPage = await secondDevice.newPage();
-  await secondPage.goto('http://127.0.0.1:4173');
+  await secondPage.goto(new URL('/', page.url()).href);
   await secondPage.locator('input[type=file]').setInputFiles({ name: 'backup.encrypted.json', mimeType: 'application/json', buffer: backup });
   await expect(secondPage.getByRole('heading', { name: 'Willkommen zurück.' })).toBeVisible();
   await secondPage.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await secondPage.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
   await nav(secondPage, 'Klienten');
   await secondPage.locator('.directory-list').getByRole('button', { name: /Vertrauliche Testperson/ }).click();
-  await expect(secondPage.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung' })).toHaveValue('Privater Gedanke für das nächste Gespräch');
+  await expect(secondPage.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin' })).toHaveValue('Privater Gedanke für das nächste Gespräch');
   await expect(secondPage.locator('.profile-heading .avatar img')).toBeVisible();
   await expect(secondPage.getByText('Vertrauliche Sitzungsnotiz')).toBeVisible();
   await secondDevice.close();
@@ -102,8 +98,8 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
 });
 test('demo is ephemeral and all routes remain usable on touch and desktop', async ({ page }) => {
   await page.goto('/'); await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
-  for (const route of ['Klienten', 'Termine', 'Finanzen', 'Einstellungen', 'Übersicht']) {
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
+  for (const route of ['Klienten', 'Termine', 'Zahlungen', 'Einstellungen', 'Heute']) {
     await nav(page, route); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   await page.screenshot({ path: `test-results/overview-${test.info().project.name}.png`, fullPage: true });
@@ -113,7 +109,7 @@ test('demo is ephemeral and all routes remain usable on touch and desktop', asyn
 test('idle vault locks and clears demo data after ten minutes', async ({ page }) => {
   await page.clock.install();
   await page.goto('/'); await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   await page.clock.fastForward(10 * 60 * 1000 + 16000);
   await expect(page.getByRole('heading', { name: 'Meinen Praxisraum einrichten', exact: true })).toBeVisible();
   await expect(page.locator('.app-shell')).toHaveCount(0);

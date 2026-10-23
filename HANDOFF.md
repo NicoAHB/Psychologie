@@ -1,12 +1,16 @@
 # Weiterarbeit am Tablet
 
+## Neu: einfacher Termin- und Zahlungsablauf
+
+Fünf Hauptziele: **Heute, Klienten, Termine, Zahlungen, Mehr**. Alle weiteren Werkzeuge stehen unter **Mehr**, einschließlich Einstellungen und Empfehlungen. **Termin nachtragen** ist bei Terminen verfügbar; **Termin abschließen** legt eine offene Zahlung an. Zahlungen beginnt mit **Offen** und den Schaltflächen **Als bezahlt markieren**. Bestehende Daten und Infrastruktur bleiben unverändert. Bedienung, technische Übergabe und vollständige Dateiliste: [docs/termin-und-zahlungsablauf.md](docs/termin-und-zahlungsablauf.md).
+
 ## Neu: Empfehlungen
 
-**Marketing → Empfehlungen** und **Klientenprofil → Empfehlungskarte** sind integriert. Klienten bekommen nur eine teilbare PNG-Karte, keinen Login. Bei Neuanlage Code und Einwilligung freiwillig erfassen. Laufzeit ab erster Zahlung, getrennte EUR-/UAH-Prämien und Quartalsabrechnung. Die Code-Ausgabe braucht eine einmalige Supabase-Migration; Finanzdaten bleiben verschlüsselt. Vollständige Anleitung und technische Übergabe: [docs/empfehlungen.md](docs/empfehlungen.md).
+**Mehr → Empfehlungen** und **Klientenprofil → Empfehlungskarte** sind integriert. Klienten bekommen nur eine teilbare PNG-Karte, keinen Login. Bei Neuanlage Code und Einwilligung freiwillig erfassen. Laufzeit ab erster Zahlung, getrennte EUR-/UAH-Prämien und Quartalsabrechnung. Die Code-Ausgabe braucht eine einmalige Supabase-Migration; Finanzdaten bleiben verschlüsselt. Vollständige Anleitung und technische Übergabe: [docs/empfehlungen.md](docs/empfehlungen.md).
 
 ## Neue Darstellung: Pastell und Milchglas
 
-Die tatsächliche App enthält jetzt **Einstellungen → Darstellung** mit vier
+Die tatsächliche App enthält jetzt **Mehr → Einstellungen → Darstellung** mit vier
 Pastellverläufen, eigenen Farben, einer Option ohne Verlauf sowie separaten Reglern
 für Karten- und Menütransparenz (0–30 %), Glas-Weichzeichnung und Hintergrundstärke.
 Die Änderungen erscheinen sofort, auch in Hell/Dunkel, und werden gerätelokal

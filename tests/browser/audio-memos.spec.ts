@@ -23,9 +23,9 @@ test('encrypted session memos: create/edit, playback, summaries, search, backup,
   const problems: string[] = [], externalAudio: string[] = []; page.on('pageerror', error => problems.push(error.message));
   page.on('request', r => { if (r.resourceType() === 'media' && !r.url().startsWith('blob:') || ['POST', 'PUT'].includes(r.method()) && (r.headers()['content-type'] ?? '').startsWith('audio/')) externalAudio.push(r.url()); });
   const { data, client } = audioData(), read = await seedWorkflow(page, data);
-  await profile(page, client.name); await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
-  const session = page.getByRole('dialog', { name: 'Sitzung erfassen', exact: true });
-  await session.getByLabel('Sitzungsnotiz (optional)').fill('Sitzung mit Sprach-Memos'); await openNewMemo(page);
+  await profile(page, client.name); await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
+  const session = page.getByRole('dialog', { name: 'Termin nachtragen', exact: true });
+  await session.getByLabel('Terminnotiz (optional)').fill('Sitzung mit Sprach-Memos'); await openNewMemo(page);
   expect((await memoState(page)).calls).toBe(0); await recordMemo(page, 'Ressourcen-Memo', 'Ручна коротка нотатка: Hoffnung und Ressourcen.');
   await expect(session.locator('.memo-open')).toHaveCount(1); expect(await storedMemoBlobs(page)).toHaveLength(1); // unfinished audio is already encrypted for crash recovery
   expect((await read()).audioMemos).toHaveLength(0); expect((await read()).sessionDrafts[0].payload.memos).toHaveLength(1);
@@ -49,8 +49,8 @@ test('encrypted session memos: create/edit, playback, summaries, search, backup,
   // New recordings can be attached directly to a session in the discussed timeline.
   await openNewMemo(page); await recordMemo(page, 'Zweites Memo', 'Handschriftlich ergänzte Stichworte');
   await expect.poll(async () => (await read()).audioMemos.length).toBe(2);
-  await page.getByRole('button', { name: 'Sitzung bearbeiten', exact: true }).first().click();
-  const edit = page.getByRole('dialog', { name: 'Sitzung bearbeiten', exact: true }); await expect(edit.locator('.memo-open')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Termin bearbeiten', exact: true }).first().click();
+  const edit = page.getByRole('dialog', { name: 'Termin bearbeiten', exact: true }); await expect(edit.locator('.memo-open')).toHaveCount(2);
   await edit.locator('.memo-open').filter({ hasText: 'Ressourcen-Memo' }).click();
   await viewer.getByRole('button', { name: 'Bezeichnung / Kurzfassung bearbeiten', exact: true }).click();
   await viewer.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Ressourcen neu'); await viewer.getByLabel('Kurzfassung', { exact: true }).fill('EinmaligesSuchwort Спокій');
@@ -86,7 +86,7 @@ test('Safari MP4: repeat/discard, session deletion and undo never restore erased
   await recorder(page).getByRole('button', { name: 'Wiederholen', exact: true }).click(); await recorder(page).getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
   await recorder(page).getByRole('button', { name: 'Verwerfen', exact: true }).click(); await expect(recorder(page)).not.toBeVisible();
   expect((await memoState(page)).stopped).toBe(2); expect(await storedMemoBlobs(page)).toHaveLength(0);
-  await page.getByRole('button', { name: 'Sitzung bearbeiten', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Termin bearbeiten', exact: true }).first().click();
   await openNewMemo(page); await recordMemo(page, 'Safari-Memo');
   await page.getByRole('dialog').getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0); expect((await read()).audioMemos[0].mimeType).toBe('audio/mp4');
@@ -99,7 +99,7 @@ test('Safari MP4: repeat/discard, session deletion and undo never restore erased
     await player.getByRole('button', { name: 'Abspielen', exact: true }).click(); await expect(player.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
   } else await expect(player.getByRole('alert')).toContainText('nicht geladen oder abgespielt');
   await player.getByRole('button', { name: 'Schließen', exact: true }).click();
-  await page.getByRole('button', { name: 'Sitzung bearbeiten', exact: true }).first().click(); await page.getByRole('dialog').getByRole('button', { name: 'Sitzung löschen', exact: true }).click();
+  await page.getByRole('button', { name: 'Termin bearbeiten', exact: true }).first().click(); await page.getByRole('dialog').getByRole('button', { name: 'Termin löschen', exact: true }).click();
   await expect.poll(async () => (await storedMemoBlobs(page)).length).toBe(0);
   await nav(page, 'Einstellungen'); await page.locator('.passkey-list li', { hasText: 'Vor einer Löschung' }).first().getByRole('button', { name: 'Wiederherstellen', exact: true }).click();
   await expect(page.getByText('Stand wiederhergestellt.', { exact: true })).toBeVisible(); expect((await read()).sessions).toHaveLength(2); expect((await read()).audioMemos).toEqual([]);

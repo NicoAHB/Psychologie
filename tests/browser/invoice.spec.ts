@@ -1,12 +1,8 @@
-import { test, expect, type Page } from './fixtures';
+import { nav } from './workflow-fixture';
+import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { addDays } from '../../src/lib/dates';
-async function nav(page: Page, text: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+
 test('practice profile, invoice with print view, tax-advisor CSV and search across the whole vault', async ({ page }) => {
   const problems: string[] = []; page.on('pageerror', e => problems.push(e.message));
   page.on('console', m => { if (/Content Security Policy|violates/i.test(m.text())) problems.push(m.text()); });
@@ -14,7 +10,7 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   const dialog = page.getByRole('dialog');
 
   await nav(page, 'Einstellungen');
@@ -27,11 +23,11 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
   await dialog.getByLabel('Name *', { exact: true }).fill('Max Mustermann'); await dialog.getByLabel('Anschrift (für Rechnungen)').fill('Lindenallee 3\n80331 München');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
-  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Schlafprobleme und Grübeln besprochen');
+  await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Schlafprobleme und Grübeln besprochen');
   await dialog.getByLabel('Bezahlt', { exact: true }).check(); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
 
-  await nav(page, 'Finanzen'); await page.getByRole('button', { name: 'Rechnung erstellen' }).click();
+  await nav(page, 'Zahlungen'); await page.getByRole('button', { name: 'Rechnung erstellen' }).click();
   const invoiceDate = dialog.getByLabel('Rechnungsdatum', { exact: true }); const paymentTerm = dialog.getByLabel('Zahlungsziel', { exact: true });
   await expect(paymentTerm).toHaveValue(await invoiceDate.inputValue());
   await invoiceDate.fill(addDays(await invoiceDate.inputValue(), 1)); await expect(paymentTerm).toHaveValue(await invoiceDate.inputValue());
@@ -52,7 +48,7 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await page.getByRole('button', { name: 'Einnahmen als CSV (Steuerberatung)' }).click();
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: /Einnahmen als CSV.*\d{4}/ }).click();
   const csv = await readFile((await (await download).path())!, 'utf8');
-  expect(csv).toMatch(/Zahlungsdatum;Sitzungsdatum;Klient;Rechnung;Euro-Vergleich \(EUR\)/); expect(csv).toContain('Klient 1'); expect(csv).toContain(';85;85;EUR;'); expect(csv).not.toContain('Mustermann');
+  expect(csv).toMatch(/Zahlungsdatum;Termindatum;Klient;Rechnung;Euro-Vergleich \(EUR\)/); expect(csv).toContain('Klient 1'); expect(csv).toContain(';85;85;EUR;'); expect(csv).not.toContain('Mustermann');
 
   await page.keyboard.press('Control+k');
   await dialog.getByLabel('Alles durchsuchen').fill('grubeln schlaf');

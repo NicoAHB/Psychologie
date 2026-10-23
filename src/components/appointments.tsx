@@ -62,7 +62,7 @@ function useNarrow() {
   return narrow;
 }
 
-export function AppointmentsPage({ vault, onNew, onClient, onComplete, onEdit }: { vault: VaultController; onNew: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
+export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplete, onEdit }: { vault: VaultController; onNew: () => void; onBackfill: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
   const { t } = useI18n(); const data = vault.data!;
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming'); const [mode, setMode] = useState<'list' | 'week'>('list');
   const [absenceForm, setAbsenceForm] = useState<CalendarAbsence | 'new'>(); const [weekFocusDate, setWeekFocusDate] = useState<string>();
@@ -95,14 +95,15 @@ export function AppointmentsPage({ vault, onNew, onClient, onComplete, onEdit }:
   }
   return <><PageHeading title={t('appointments')} subtitle={t('appointmentsSubtitle')} action={<div className="button-row calendar-actions"><button className="btn btn-secondary" onClick={() => setAbsenceForm('new')}><CalendarOff size={17}/>{t('availabilityNew')}</button><button className="btn btn-secondary" onClick={() => setExporting(true)}><CalendarPlus size={17}/>{t('exportCalendar')}</button><button className="btn btn-primary" onClick={onNew}><Plus size={17}/>{t('newAppointment')}</button></div>}/>
     {message && <Notice>{message}</Notice>}
-    <div className="toolbar-row">{mode === 'list' ? <div className="segmented-tabs" role="group">{(['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} onClick={() => setFilter(f)}>{t(f)}</button>)}</div> : <span/>}
+    <div className="appointment-backfill"><button className="btn btn-secondary" onClick={onBackfill}><Plus size={17}/>{t('addSession')}</button><p className="hint">{t('backfillHint')}</p></div>
+    <div className="toolbar-row">{mode === 'list' ? <div className="segmented-tabs" role="group" aria-label={t('appointmentFilters')}>{(['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} aria-pressed={filter === f} onClick={() => setFilter(f)}>{t(f)}</button>)}</div> : <span/>}
       <div className="segmented-tabs small-tabs" role="group"><button className={mode === 'list' ? 'active' : ''} aria-pressed={mode === 'list'} onClick={() => setMode('list')}><List size={15}/> {t('listView')}</button><button className={mode === 'week' ? 'active' : ''} aria-pressed={mode === 'week'} onClick={() => setMode('week')}><CalendarDays size={15}/> {t('weekView')}</button></div></div>
     {mode === 'week' ? <WeekView vault={vault} onEdit={onEdit} focusDate={weekFocusDate} onEditAbsence={setAbsenceForm}/> : <section className="card appointments-card">{appointments.length ? appointments.map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={<div className="appointment-row-actions">{a.status === 'scheduled' ? <>
       <button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button>
       <button className="icon-btn" title={t('editAppointment')} aria-label={t('editAppointment')} onClick={() => onEdit(a)}><Pencil size={17}/></button>
       <button className="icon-btn" title={t('copyConfirmation')} aria-label={t('copyConfirmation')} onClick={() => void copy(a)}><Copy size={17}/></button>
       <button className="icon-btn" title={t('addToCalendar')} aria-label={t('addToCalendar')} onClick={() => ics(a)}><CalendarPlus size={17}/></button>
-      <button className="icon-btn danger" title={t('cancelAppointment')} aria-label={t('cancelAppointment')} onClick={() => cancel(a)}><X size={17}/></button></> : <span className="tag-chip">{t(a.status)}</span>}</div>}/>) : <Empty icon={<CalendarDays size={28}/>} title={t('noAppointments')} text={t('noAppointmentsText')} action={<button className="btn btn-primary" onClick={onNew}>{t('newAppointment')}</button>}/>}</section>}
+      <button className="icon-btn danger" title={t('cancelAppointment')} aria-label={t('cancelAppointment')} onClick={() => cancel(a)}><X size={17}/></button></> : <span className="tag-chip">{t(a.status)}</span>}</div>}/>) : <Empty icon={<CalendarDays size={28}/>} title={t('noAppointments')} text={t('noAppointmentsText')} action={<button className="btn btn-secondary" onClick={onNew}>{t('newAppointment')}</button>}/>}</section>}
     {mode === 'list' && <AvailabilityList vault={vault} filter={filter} onEdit={setAbsenceForm}/>}
     {absenceForm && <AvailabilityForm vault={vault} absence={absenceForm === 'new' ? undefined : absenceForm} onClose={() => setAbsenceForm(undefined)} onSaved={absence => { setAbsenceForm(undefined); setWeekFocusDate(absence.fromDate); setMode('week'); }}/>}
     {exporting && <Modal title={t('exportCalendar')} onClose={() => setExporting(false)}><Notice error>{t('exportCalendarHint')}</Notice><div className="form-actions"><button className="btn btn-secondary" onClick={() => exportCalendar(false)}>{t('withoutNames')}</button><button className="btn btn-primary" onClick={() => exportCalendar(true)}>{t('withNames')}</button></div></Modal>}

@@ -11,7 +11,7 @@ test('built-in memo labels translate to DE/UA while custom vocabulary stays verb
   const de = memoLabelChoices(labels, 'de'), uk = memoLabelChoices(labels, 'uk');
   assert.equal(de.filter(choice => choice.builtIn).length, 8);
   assert.deepEqual(de.map(choice => choice.id), uk.map(choice => choice.id));
-  assert.equal(de[0].label, 'Gedanken nach der Sitzung'); assert.equal(uk[0].label, 'Думки після сесії');
+  assert.equal(de[0].label, 'Gedanken nach dem Termin'); assert.equal(uk[0].label, 'Думки після зустрічі');
   assert.deepEqual(de.filter(choice => !choice.builtIn).map(choice => choice.label), ['Eigener Fokus', 'Власна назва']);
   assert.deepEqual(uk.filter(choice => !choice.builtIn), de.filter(choice => !choice.builtIn));
   assert.equal(cleanMemoLabel('  Mein\n  Thema '), 'Mein Thema'); assert.equal(memoLabelKey('A\u0308ngste'), memoLabelKey('ÄNGSTE'));

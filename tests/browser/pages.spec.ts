@@ -13,7 +13,7 @@ test('GitHub Pages project path: installable manifest, usable app and offline re
   expect(manifest.scope).toBe(base);
   expect(manifest.icons.every((icon: { src: string }) => icon.src.startsWith(base))).toBe(true);
   await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(new URL(scope).pathname).toBe(base);
@@ -31,7 +31,7 @@ test('a Ukrainian invoice PDF can be generated offline under the Pages project p
   await page.reload(); await page.getByRole('button', { name: 'Mit Beispieldaten entdecken', exact: true }).click();
   await context.setOffline(true);
   const menu = page.getByRole('button', { name: 'Navigation öffnen' }); if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: 'Finanzen', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Zahlungen', exact: true }).click();
   await page.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click(); const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Sprache der Rechnung').selectOption('uk'); await dialog.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
   await expect(dialog.locator('.invoice-sheet')).toContainText('Рахунок');

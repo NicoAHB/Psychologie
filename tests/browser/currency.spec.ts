@@ -1,12 +1,9 @@
+import { nav } from './workflow-fixture';
 import { test, expect, type Page } from './fixtures';
 import { deriveKey, encryptVault, randomSalt, decryptVault } from '../../src/lib/crypto';
 import { emptyVault, uid } from '../../src/lib/types';
 
-async function nav(page: Page, label: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' }); if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: label, exact: true }).click();
-}
+
 async function create(page: Page) {
   await page.goto('/'); await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByLabel('Passphrase wiederholen').fill('a very strong test passphrase');
@@ -34,27 +31,27 @@ test('whole EUR input, official NBU rate, two accounts and UAH-only invoice incl
   await page.getByRole('button', { name: 'Praxisdaten speichern' }).click();
   await expect(page.getByText('Praxisdaten gespeichert.', { exact: true })).toBeVisible();
   await ukrainianClient(page);
-  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
+  await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByLabel('Betrag eingeben in', { exact: true })).toHaveValue('EUR');
-  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('85,50');
+  await dialog.getByLabel('Betrag pro Termin (€)').fill('85,50');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('ganzen Betrag');
-  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('85');
+  await dialog.getByLabel('Betrag pro Termin (€)').fill('85');
   await expect(dialog.locator('.currency-preview')).toContainText(/4[.\s\u00a0\u202f]?091/);
   await expect(dialog.locator('.currency-preview')).toContainText('85');
   await dialog.getByLabel('Betrag eingeben in', { exact: true }).selectOption('UAH');
-  await expect(dialog.getByLabel('Betrag pro Sitzung (UAH)')).toHaveValue('4091');
+  await expect(dialog.getByLabel('Betrag pro Termin (UAH)')).toHaveValue('4091');
   await dialog.getByLabel('Betrag eingeben in', { exact: true }).selectOption('EUR');
-  await expect(dialog.getByLabel('Betrag pro Sitzung (€)')).toHaveValue('85');
+  await expect(dialog.getByLabel('Betrag pro Termin (€)')).toHaveValue('85');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await page.getByRole('tab', { name: 'Besprochen' }).click();
-  await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
+  await page.getByRole('button', { name: 'Termin bearbeiten' }).click();
   await expect(dialog.getByLabel('Betrag eingeben in', { exact: true })).toHaveValue('UAH');
-  await expect(dialog.getByLabel('Betrag pro Sitzung (UAH)')).toHaveValue('4091');
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Vereinbarten Betrag beibehalten');
+  await expect(dialog.getByLabel('Betrag pro Termin (UAH)')).toHaveValue('4091');
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Vereinbarten Betrag beibehalten');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
-  await nav(page, 'Finanzen');
+  await nav(page, 'Zahlungen');
   await expect(page.locator('.billing-money').first()).toContainText(/4[.\s\u00a0\u202f]?091/);
   await expect(page.locator('.billing-money').first()).toContainText('85');
   await page.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
@@ -78,12 +75,12 @@ test('whole EUR input, official NBU rate, two accounts and UAH-only invoice incl
 test('NBU outage is localized; manual rate and inputs survive the DE/UA switch', async ({ page }) => {
   await page.route('https://bank.gov.ua/**', route => route.fulfill({ status: 503, body: '' }));
   await create(page); await ukrainianClient(page);
-  await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).click();
+  await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText(/Tageskurs ist gerade nicht erreichbar/)).toBeVisible();
-  await dialog.getByLabel('Betrag pro Sitzung (€)').fill('85');
+  await dialog.getByLabel('Betrag pro Termin (€)').fill('85');
   await dialog.getByRole('button', { name: 'Українська', exact: true }).click();
-  await expect(dialog.getByLabel('Вартість сесії (€)')).toHaveValue('85');
+  await expect(dialog.getByLabel('Вартість зустрічі (€)')).toHaveValue('85');
   await expect(dialog.getByText(/Щоденний курс зараз недоступний/)).toBeVisible();
   await dialog.getByLabel('Курс EUR → UAH', { exact: true }).fill('48,5');
   await expect(dialog.locator('.currency-preview')).toContainText(/4[.\s\u00a0\u202f]?123/);
@@ -109,9 +106,9 @@ test('opening a legacy vault migrates old invoices and fees to whole amounts and
   const entry = page.locator('.directory-list').getByRole('button', { name: /Altbestand/ });
   if (await entry.isVisible()) await entry.click();
   await page.getByRole('tab', { name: 'Besprochen' }).click();
-  await page.getByRole('button', { name: 'Sitzung bearbeiten' }).click();
+  await page.getByRole('button', { name: 'Termin bearbeiten' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Notiz nach der Migration');
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Notiz nach der Migration');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   const stored = await page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>(resolve => { const r = indexedDB.open('praxisraum', 1); r.onsuccess = () => resolve(r.result); });

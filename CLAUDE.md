@@ -2,6 +2,8 @@
 
 Bitte zuerst `README.md`, `HANDOFF.md` und `docs/lokale-werkzeuge-und-video.md` lesen.
 
+Aktuelle UI-Vereinfachung: [docs/termin-und-zahlungsablauf.md](docs/termin-und-zahlungsablauf.md). Fünf Hauptziele, Nebenwerkzeuge unter **Mehr**; interne Route `finances` und gespeicherte Datentypen bleiben unverändert. Die Oberfläche spricht von Terminen statt Sitzungen. Bestehende Freitexte/Rechnungssnapshots niemals umschreiben.
+
 Die Änderungen vom 23. Oktober 2026 sind ausführlich dokumentiert in
 **`docs/claude-uebergabe-2026-10-23.md`**. Dort stehen Datenmodell, Entwurfssicherung,
 Begleitungsstatus mit Wiederaufnahme, Aufgaben, Sicherungsprüfung, Memo-Favoriten,

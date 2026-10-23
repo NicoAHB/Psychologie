@@ -23,7 +23,7 @@ test('an invoice keeps a snapshot of the recipient and the practice, and the def
   const { data, a } = sample(); data.settings.practice.serviceName = '';
   const invoice = buildInvoice(data, a, [data.sessions[0]], '2026-05-01', 'uk', uid());
   data.settings.practice.name = 'Umbenannt'; a.address = 'Neue Adresse';
-  assert.equal(invoice.sender.name, 'Praxis Muster'); assert.equal(invoice.recipient.address, 'Hauptstr. 1\n10115 Berlin'); assert.equal(invoice.lines[0].description, 'Консультаційна сесія');
+  assert.equal(invoice.sender.name, 'Praxis Muster'); assert.equal(invoice.recipient.address, 'Hauptstr. 1\n10115 Berlin'); assert.equal(invoice.lines[0].description, 'Консультаційна зустріч');
   assert.throws(() => buildInvoice(data, a, [], '2026-05-01', 'de', uid()), /noSessions/);
 });
 test('only sessions without an invoice are offered, oldest first; paid status needs every session paid', () => {
@@ -33,7 +33,7 @@ test('only sessions without an invoice are offered, oldest first; paid status ne
 });
 test('CSV export lists income by payment date, pseudonymises clients by default and defuses formulas', () => {
   const { data } = sample(); const csv = incomeCsv(data, 2026, false, 'de');
-  assert.ok(csv.startsWith('﻿Zahlungsdatum;Sitzungsdatum;Klient;Rechnung;Euro-Vergleich (EUR);Originalbetrag;Originalwährung;Wechselkurs EUR → UAH;Kursdatum;Kursquelle\r\n'));
+  assert.ok(csv.startsWith('﻿Zahlungsdatum;Termindatum;Klient;Rechnung;Euro-Vergleich (EUR);Originalbetrag;Originalwährung;Wechselkurs EUR → UAH;Kursdatum;Kursquelle\r\n'));
   assert.deepEqual(csv.trim().split('\r\n').slice(1), ['2026-02-01;2026-01-10;Klient 1;;85;85;EUR;;;', '2026-03-05;2026-03-02;Klient 2;;71;71;EUR;;;']);
   const named = incomeCsv(data, 2026, true, 'de');
   assert.ok(named.includes(`"'=HYPERLINK(""x"")"`) || named.includes("'=HYPERLINK"), 'formula prefix is neutralised'); assert.ok(named.includes('"Boris; ""B"""'));

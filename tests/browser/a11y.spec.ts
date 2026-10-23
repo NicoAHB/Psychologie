@@ -1,12 +1,9 @@
+import { nav } from './workflow-fixture';
 import AxeBuilder from '@axe-core/playwright';
 import { fakeMemoCapture } from './memo-fixture';
 import { test, expect, type Page } from './fixtures';
 
-const nav = async (page: Page, name: string) => {
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
-};
+
 
 /** Collects every violation of a view; one run then lists everything that needs fixing. */
 async function scan(page: Page, found: Record<string, string[]>, view: string) {
@@ -24,19 +21,23 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto('/');
     await scan(page, found, 'welcome');
     await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-    await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
     await scan(page, found, 'overview');
     await nav(page, 'Klienten');
     await page.locator('.directory-list button').first().click();
-    for (const tab of ['Überblick', 'Besprochen', 'Fragebögen', /Dokumente/, 'Finanzen']) {
+    for (const tab of ['Überblick', 'Besprochen', 'Fragebögen', /Dokumente/, 'Zahlungen']) {
       await page.getByRole('tab', { name: tab }).click();
       await scan(page, found, `client ${tab}`);
     }
-    for (const route of ['Termine', 'Finanzen', 'Einstellungen']) {
+    for (const route of ['Termine', 'Zahlungen', 'Mehr', 'Einstellungen']) {
       await nav(page, route);
       await scan(page, found, route);
+      if (route === 'Zahlungen') { await page.locator('.finance-history > summary').click(); await scan(page, found, 'payment history and CSV tools'); }
     }
     await nav(page, 'Termine');
+    await page.getByRole('button', { name: 'Termin abschließen', exact: true }).first().click();
+    await scan(page, found, 'appointment completion form');
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Woche', exact: true }).click();
     await scan(page, found, 'week view');
     await page.getByRole('button', { name: 'Termin anlegen', exact: true }).first().click();
@@ -44,7 +45,7 @@ for (const theme of ['light', 'dark'] as const) {
     await scan(page, found, 'appointment form');
     await page.keyboard.press('Escape');
     await nav(page, 'Klienten');
-    await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await scan(page, found, 'session form');
     await page.getByRole('dialog').getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).click();
@@ -94,8 +95,8 @@ test('keyboard users can skip the navigation and every page has its own title', 
   await page.goto('/');
   await expect(page).toHaveTitle('Praxisraum');
   await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
-  await expect(page).toHaveTitle('Übersicht · Praxisraum');
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
+  await expect(page).toHaveTitle('Heute · Praxisraum');
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press('Tab');
   const skip = page.getByRole('link', { name: 'Zum Inhalt springen' });
@@ -110,7 +111,7 @@ test('keyboard users can skip the navigation and every page has its own title', 
 test('an unexpected rendering error shows a bilingual recovery page instead of a blank screen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   await page.evaluate(() => { Object.defineProperty(Intl.NumberFormat.prototype, 'format', { get() { throw new Error('simulated failure'); } }); });
   await page.getByRole('button', { name: 'Українська' }).first().click();
   const alert = page.getByRole('alert').filter({ hasText: 'Etwas ist schiefgelaufen.' });

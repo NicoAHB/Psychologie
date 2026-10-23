@@ -13,3 +13,12 @@ test('outstanding navigation includes every year; year view still respects its f
   assert.deepEqual(financeRows(sessions, 2026, 'year', 'unpaid').map(s => s.id), ['current-open']);
   assert.equal(sessions[0].id, 'older-paid-now');
 });
+
+test('five primary destinations keep the finances route and every secondary tool reachable through More', async () => {
+  const { mainNavigation, moreNavigation, isMoreRoute } = await import('../src/lib/navigation');
+  assert.deepEqual(mainNavigation.map(item => item.id), ['overview', 'clients', 'appointments', 'finances', 'more']);
+  assert.deepEqual(moreNavigation.map(item => item.id), ['settings', 'newsletter', 'marketingCampaigns', 'messageTemplates', 'referrals']);
+  for (const item of moreNavigation) assert.equal(isMoreRoute(item.id), true);
+  assert.equal(isMoreRoute('more'), true);
+  assert.equal(isMoreRoute('finances'), false);
+});

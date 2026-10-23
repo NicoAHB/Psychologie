@@ -1,12 +1,10 @@
+import { nav } from './workflow-fixture';
 import { test, expect, type Page } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { deriveKey, encryptVault, randomSalt } from '../../src/lib/crypto';
 import { emptyVault, uid } from '../../src/lib/types';
 
-async function nav(page: Page, text: string) {
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' }); if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+
 async function seed(page: Page) {
   const data = emptyVault(); const now = new Date(); const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const client = { id: uid(), name: 'Олена Приклад', language: 'uk' as const, currency: 'UAH' as const, createdAt: '2026-01-01', contact: '', preparation: 'Наступна сесія', telegramChatId: '123456789', email: 'olena@example.com', reminderConsent: false };
@@ -31,23 +29,23 @@ test('dashboard links match totals across years; discussed notes have no money a
   await expect(page.getByRole('button', { name: /Zahlungseingänge dieses Monats anzeigen/ })).toContainText('85');
   await page.getByRole('button', { name: /Zahlungseingänge dieses Monats anzeigen/ }).click();
   await expect(page.locator('.finance-records tbody tr')).toHaveCount(1); await expect(page.locator('.finance-records')).toContainText('85');
-  await nav(page, 'Übersicht'); await page.getByRole('button', { name: /Alle offenen Zahlungen anzeigen/ }).click();
+  await nav(page, 'Heute'); await page.getByRole('button', { name: /Alle offenen Zahlungen anzeigen/ }).click();
   await expect(page.locator('.finance-records tbody tr')).toHaveCount(2); await expect(page.locator('.finance-records')).toContainText('2024');
-  await nav(page, 'Übersicht'); await page.getByRole('button', { name: /Anstehende Termine öffnen/ }).click(); await expect(page.locator('.segmented-tabs button.active').first()).toHaveText('Anstehend');
-  await nav(page, 'Übersicht'); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click();
+  await nav(page, 'Heute'); await page.getByRole('button', { name: /Anstehende Termine öffnen/ }).click(); await expect(page.locator('.segmented-tabs button.active').first()).toHaveText('Anstehend');
+  await nav(page, 'Heute'); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click();
   await expect(page.locator('.directory-list')).toBeVisible(); await page.locator('.directory-list .client-summary').first().click();
   await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
   await expect(page.locator('.timeline')).not.toContainText(/€|грн|₴|Bezahlt|Unbezahlt/); await expect(page.locator('.timeline')).toContainText('11:30');
   await page.getByRole('button', { name: 'Notiz ergänzen', exact: true }).click(); const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Sitzungsnotiz (optional)').fill('Текст українською'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+  await dialog.getByLabel('Terminnotiz (optional)').fill('Текст українською'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await expect(page.locator('.timeline')).toContainText('Текст українською');
-  await page.getByRole('tab', { name: 'Finanzen', exact: true }).click(); await expect(page.locator('.client-finances tbody tr')).toHaveCount(3);
+  await page.getByRole('tab', { name: 'Zahlungen', exact: true }).click(); await expect(page.locator('.client-finances tbody tr')).toHaveCount(3);
   await expect(page.locator('.client-finances')).toContainText('90'); await expect(page.locator('.client-finances .payment-badge')).toHaveCount(3);
-  await nav(page, 'Übersicht'); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click(); await expect(page.locator('.profile-content')).toHaveCount(0);
+  await nav(page, 'Heute'); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click(); await expect(page.locator('.profile-content')).toHaveCount(0);
 });
 test('invoice PDF is archived and both composers use client language independently of the UI', async ({ page }) => {
   await seed(page); const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
-  await nav(page, 'Finanzen'); await page.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
+  await nav(page, 'Zahlungen'); await page.getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Rechnung erstellen', exact: true }).click();
   const invoice = page.locator('dialog[open]').first(); await expect(invoice.locator('.invoice-sheet')).toContainText('Рахунок'); await expect(invoice.locator('.invoice-sheet')).not.toContainText(/EUR|€/);
   const download = page.waitForEvent('download'); await invoice.getByRole('button', { name: 'PDF herunterladen', exact: true }).click();

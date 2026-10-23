@@ -64,7 +64,7 @@ for (const theme of ['light', 'dark']) test(`maximum transparency keeps settings
   await nav(page, 'Einstellungen');
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
   const found: Record<string, string[]> = {};
-  for (const route of ['Einstellungen', 'Übersicht', 'Klienten', 'Finanzen', 'Newsletter']) {
+  for (const route of ['Einstellungen', 'Heute', 'Klienten', 'Zahlungen', 'Mehr', 'Newsletter']) {
     if (route !== 'Einstellungen') await nav(page, route);
     if (route === 'Klienten') await page.locator('.directory-list button').first().click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

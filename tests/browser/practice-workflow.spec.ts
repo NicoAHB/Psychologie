@@ -60,7 +60,7 @@ test('pause, completion and reactivation keep the full client record; filters an
   await dialog.getByLabel('Begleitungsstatus', { exact: true }).selectOption('paused'); await dialog.getByLabel('Wiedervorlage am', { exact: true }).fill('2020-01-01'); await dialog.getByLabel('Anlass der Wiedervorlage', { exact: true }).fill('Nach Pause Kontakt aufnehmen'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.locator('.client-status-card')).toContainText('Pausiert'); await expect.poll(async () => (await read()).clients[0].status).toBe('paused');
   const paused = await read(); expect(paused.sessions).toHaveLength(data.sessions.length); expect(paused.invoices).toHaveLength(1);
-  await nav(page, 'Übersicht'); await expect(page.locator('.work-board')).toContainText('Nach Pause Kontakt aufnehmen');
+  await nav(page, 'Heute'); await expect(page.locator('.work-board')).toContainText('Nach Pause Kontakt aufnehmen');
   await page.getByRole('button', { name: 'Wiedervorlage erledigt', exact: true }).click(); await expect(page.locator('.work-board')).not.toContainText('Nach Pause Kontakt aufnehmen');
   await nav(page, 'Klienten'); if (!await page.getByLabel('Klienten anzeigen', { exact: true }).isVisible()) await page.getByRole('button', { name: 'Alle Klienten', exact: true }).click(); await page.getByLabel('Klienten anzeigen', { exact: true }).selectOption('active'); await expect(page.locator('.directory-list button')).toHaveCount(0);
   await page.getByLabel('Klienten anzeigen', { exact: true }).selectOption('paused'); await page.locator('.directory-list button').first().click();
@@ -76,8 +76,8 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   test.setTimeout(120000); if (!/mobile|iphone/.test(info.project.name)) await page.setViewportSize({ width: 820, height: 1180 }); await fakeMemoCapture(page, 'mp4');
   const { data } = workflowData(); data.clients[0].currency = 'EUR'; const read = await seedWorkflow(page, data);
   test.info().annotations.push({ type: 'phase', description: 'draft:record' });
-  await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click(); await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
-  const session = page.getByRole('dialog', { name: 'Sitzung erfassen', exact: true }); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Entwurf bleibt nach Safari-Neustart');
+  await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click(); await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).first().click();
+  const session = page.getByRole('dialog', { name: 'Termin nachtragen', exact: true }); await session.getByLabel('Terminnotiz (optional)', { exact: true }).fill('Entwurf bleibt nach Safari-Neustart');
   await session.getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).click(); const recorder = page.getByRole('dialog', { name: 'Sprach-Memo aufnehmen', exact: true });
   await recorder.getByRole('button', { name: 'Aufnahme starten', exact: true }).click(); await expect(recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true })).toBeVisible({ timeout: 10000 }); await recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
   await recorder.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Noch nicht abgeschlossene Sitzung'); await recorder.getByLabel('Kurzfassung', { exact: true }).fill('Manuelle Kurzfassung im Entwurf');
@@ -88,15 +88,15 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   // Do not press "Memo übernehmen": stopping and the metadata pause already checkpointed the audio.
   test.info().annotations.push({ type: 'phase', description: 'draft:reload' });
   await page.reload(); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click();
-  await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Entwurf bleibt nach Safari-Neustart'); await expect(session.locator('.memo-open')).toContainText('Noch nicht abgeschlossene Sitzung');
+  await expect(session.getByLabel('Terminnotiz (optional)', { exact: true })).toHaveValue('Entwurf bleibt nach Safari-Neustart'); await expect(session.locator('.memo-open')).toContainText('Noch nicht abgeschlossene Sitzung');
   await session.locator('.memo-open').click(); const memo = page.getByRole('dialog', { name: 'Noch nicht abgeschlossene Sitzung', exact: true }); await expect(memo.locator('audio')).toHaveAttribute('src', /^blob:/); await expect(memo).toContainText('Manuelle Kurzfassung im Entwurf'); await memo.getByRole('button', { name: 'Schließen', exact: true }).click();
   test.info().annotations.push({ type: 'phase', description: 'draft:offline-lock' });
-  await page.context().setOffline(true); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Auch offline fortgesetzt');
+  await page.context().setOffline(true); await session.getByLabel('Terminnotiz (optional)', { exact: true }).fill('Auch offline fortgesetzt');
   // A lock must flush the pending debounce immediately. Allow the durable
   // crypto/IDB round-trip on software-rendered Safari, as for finalizing below.
   await page.evaluate(() => (document.querySelector('.header-actions button[title="Sperren"]') as HTMLButtonElement).click()); await expect(page.locator('.welcome-page')).toBeVisible({ timeout: 15000 });
   test.info().annotations.push({ type: 'phase', description: 'draft:reopen' });
-  await page.context().setOffline(false); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click(); await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Auch offline fortgesetzt');
+  await page.context().setOffline(false); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click(); await expect(session.getByLabel('Terminnotiz (optional)', { exact: true })).toHaveValue('Auch offline fortgesetzt');
   // Finalizing also redacts superseded encrypted drafts from recovery history.
   test.info().annotations.push({ type: 'phase', description: 'draft:finalize' });
   await session.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(session).not.toBeVisible({ timeout: 15000 });

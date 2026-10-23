@@ -185,7 +185,7 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
   </form></Modal>;
 }
 const zoneLabel = (zone: string, language: 'de' | 'uk') => `${zonePlace(zone, language)} (${utcOffset(zone, Date.now())})`;
-type SessionFormProps = { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; restored?: SessionDraft; onClose: () => void };
+type SessionFormProps = { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; restored?: SessionDraft; onClose: () => void; onSaved?: (session: Session) => void };
 export function SessionForm(props: SessionFormProps) {
   const { t } = useI18n();
   const candidate = props.restored ?? [...props.vault.data!.sessionDrafts ?? []].filter(d => props.session ? d.originalSessionId === props.session.id : props.appointment ? d.appointmentId === props.appointment.id : !d.originalSessionId && !d.appointmentId && (!props.clientId || d.clientId === props.clientId)).sort((a, b) => b.savedAt.localeCompare(a.savedAt))[0];
@@ -193,7 +193,7 @@ export function SessionForm(props: SessionFormProps) {
   if (choice === 'ask' && candidate) return <Modal title={t('draftsTitle')} onClose={props.onClose}><p>{t('draftFound')}</p><p>{props.vault.data!.clients.find(c => c.id === candidate.clientId)?.name} · {candidate.payload.date}</p><div className="form-actions"><button type="button" className="btn btn-secondary" onClick={() => setChoice('new')}>{t('draftStartNew')}</button><button type="button" className="btn btn-primary" onClick={() => setChoice('resume')}>{t('draftResume')}</button></div></Modal>;
   return <SessionEditor {...props} restored={choice === 'resume' ? candidate : undefined}/>;
 }
-function SessionEditor({ vault, clientId, appointment, session, restored, onClose }: SessionFormProps) {
+function SessionEditor({ vault, clientId, appointment, session, restored, onClose, onSaved }: SessionFormProps) {
   const { t, language } = useI18n(); const data = vault.data!;
   const initial = restored?.payload;
   const [draftId] = useState(() => restored?.id ?? uid());
@@ -211,7 +211,8 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
   const [inputCurrency, setInputCurrency] = useState<Currency>(initial?.inputCurrency ?? (initialNative ? 'UAH' : 'EUR'));
   const [rate, setRate] = useState<ExchangeRate | undefined>(initial?.rate ?? originalBilling?.rate ?? data.settings.exchangeRate);
   const [pricingChanged, setPricingChanged] = useState(initial?.pricingChanged ?? false);
-  const [paid, setPaid] = useState(initial?.paid ?? !!session?.paidAt); const [paymentDate, setPaymentDate] = useState(initial?.paymentDate ?? session?.paidAt ?? today());
+  const completing = !!appointment && !session;
+  const [paid, setPaid] = useState(completing ? false : initial?.paid ?? !!session?.paidAt); const [paymentDate, setPaymentDate] = useState(initial?.paymentDate ?? session?.paidAt ?? today());
   const templates = useTemplates(data); const [notes, setNotes] = useState(initial?.notes ?? session?.notes ?? ''); const [tags, setTags] = useState(initial?.tags ?? session?.tags.map(tag => `#${tag}`).join(', ') ?? '');
   const [homework, setHomework] = useState(initial?.homework ?? session?.homework ?? ''); const [homeworkDone, setHomeworkDone] = useState(initial?.homeworkDone ?? !!session?.homeworkDone);
   const client = data.clients.find(c => c.id === selected);
@@ -283,7 +284,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
         if (reviewPrevious && previous) { const earlier = d.sessions.find(s => s.id === previous.id); if (earlier) earlier.homeworkDone = true; }
         const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
       });
-      await vault.purgeUnused([...before, ...added]); onClose();
+      await vault.purgeUnused([...before, ...added]); onSaved?.(result); onClose();
     } catch (err) { draft.resume(); await vault.purgeUnused(added).catch(() => {}); setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
@@ -291,7 +292,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
     setBusy(true);
     try { draft.stop(); await vault.remove(d => { deleteSession(d, session.id); deleteSessionDraft(d, draftId); }); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
-  return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => void closeDraft()} wide><form onSubmit={submit} noValidate>
+  return <Modal title={t(completing ? 'completeAppointment' : session ? 'editSession' : 'addSession')} onClose={() => void closeDraft()} wide><form onSubmit={submit} noValidate>
     <Notice>{t('draftHint')}</Notice>{draft.status !== 'idle' && <p className="hint" role="status" aria-live="polite">{t(draft.status === 'saving' ? 'draftSaving' : draft.status === 'error' ? 'storageError' : 'draftSaved')}</p>}
     <Field label={t('client')}><select value={selected} disabled={!!appointment || lockedPricing} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
@@ -318,9 +319,9 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
       {session && homework.trim() && <label className="check-label"><input type="checkbox" checked={homeworkDone} onChange={e => setHomeworkDone(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label>}
       <Field label={t('nextTopicsField')} hint={t('nextTopicsHint')}><textarea rows={3} value={nextTopics} maxLength={30000} onChange={e => { setNextTopics(e.target.value); setNextTouched(true); }}/></Field></div>
     <div className="form-section">{lockedPricing ? <Notice>{t('invoiceSessionPricingLocked')}</Notice> : <FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>}
-      <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
-      {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</div>
-    {error && <Notice error>{t(error)}</Notice>}<p className="hint">{t('draftCloseHint')}</p><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void discardDraft()}>{t('draftDiscard')}</button><Actions busy={busy} onClose={() => void closeDraft()} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>
+      {completing ? <Notice>{t('completionPaymentHint')}</Notice> : <><label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
+      {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</>}</div>
+    {error && <Notice error>{t(error)}</Notice>}<p className="hint">{t('draftCloseHint')}</p><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void discardDraft()}>{t('draftDiscard')}</button><Actions busy={busy} label={completing ? t('completeAppointment') : undefined} onClose={() => void closeDraft()} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>
   </form></Modal>;
 }
 export function NoteForm({ vault, clientId, onClose }: { vault: VaultController; clientId: string; onClose: () => void }) {

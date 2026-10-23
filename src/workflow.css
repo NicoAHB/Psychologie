@@ -2,3 +2,58 @@
 .calendar-actions{flex-wrap:wrap}.availability-list{margin-top:22px}.availability-list h2{display:flex;align-items:center;gap:9px}.absence-list-item{display:flex;gap:13px;align-items:center;padding:16px;border-radius:10px;margin-top:12px;border-left:4px solid #bb8838;min-width:0}.absence-list-item>div{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0;overflow-wrap:anywhere}.absence-list-item strong{font-size:13px}.absence-list-item span{font-size:11px}.absence-list-item>svg{flex-shrink:0}.absence-vacation{background:#f7eedc;color:#825e27}.absence-unavailable{background:#efebf7;color:#6e5892}.absence-list-item.absence-unavailable{border-left-color:#9274b6}.absence-banner{display:flex;align-items:center;gap:5px;max-width:100%;min-height:36px;text-align:left;border:1px solid currentColor;border-radius:6px;padding:6px;margin-top:6px;font-size:10px;line-height:1.4;overflow:hidden}.absence-banner>svg{flex-shrink:0}.absence-banner>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.week-head.has-absence{min-height:95px;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;padding-top:12px}.week-head>span{display:block}.week-absence{position:absolute;left:0;right:0;pointer-events:none;overflow:hidden;border-block:1px solid #bd914d80;background-image:repeating-linear-gradient(135deg,transparent,transparent 9px,#b9872820 9px,#b9872820 11px);opacity:.8}.week-absence.absence-unavailable{border-color:#9274b680;background-image:repeating-linear-gradient(135deg,transparent,transparent 9px,#9274b620 9px,#9274b620 11px)}.week-absence>span{display:block;font-size:10px;padding:8px;overflow-wrap:anywhere}.week-day .week-block{z-index:1}.week-block.conflicts-absence{outline:2px solid #b36d57;outline-offset:-2px}.week-agenda .absence-banner{width:100%;min-height:44px;margin-bottom:9px;font-size:12px}.week-agenda .absence-banner>span{white-space:normal}.appointment-person .appointment-away-warning{color:#935c46;white-space:normal;font-weight:550;margin-top:5px}.week-jump{display:flex;align-items:center;gap:9px;margin-left:auto;flex-wrap:wrap;font-size:11px;color:var(--muted)}.week-jump input{min-height:44px;background:var(--surface);color:inherit;border:1px solid var(--border);border-radius:8px;padding:8px;max-width:170px}.week-nav{flex-wrap:wrap}.absence-conflict-list{list-style:disc;padding-left:20px;margin:10px 0 0;font-size:11px}.week-head .absence-banner{min-height:44px}
 @media screen{:root[data-theme="dark"] .follow-up-count{background:#263e5d;color:#c7dfff}:root[data-theme="dark"] .workflow-chip{background:#263e5d;color:#c7dfff!important}:root[data-theme="dark"] .workflow-chip.is-overdue{background:#49382e;color:#f0c494!important}:root[data-theme="dark"] .invoice-reminder{background:#192d48;border:1px solid #384b67}:root[data-theme="dark"] .payment-badge.is-voided{background:#29364d;color:#c4cfe2;border-color:#60728e}:root[data-theme="dark"] .absence-vacation{background:#473c28;color:#f1d49d}:root[data-theme="dark"] .absence-unavailable{background:#37314c;color:#dac6fb}:root[data-theme="dark"] .week-block.conflicts-absence{outline-color:#edb2a5}:root[data-theme="dark"] .appointment-person .appointment-away-warning{color:#f0c494}:root[data-theme="dark"] .week-head.has-absence{background:#26354d}:root[data-theme="dark"] .week-absence.absence-vacation{background-image:repeating-linear-gradient(135deg,transparent,transparent 9px,#f1d49d22 9px,#f1d49d22 11px)}:root[data-theme="dark"] .week-absence.absence-unavailable{background-image:repeating-linear-gradient(135deg,transparent,transparent 9px,#dac6fb22 9px,#dac6fb22 11px)}}
 @media(max-width:1200px){.follow-up-grid{grid-template-columns:1fr}.follow-up-column+.follow-up-column{border-left:0;border-top:1px solid var(--border);padding:20px 0 0}.week-jump{width:100%;margin-left:0}}@media(max-width:480px){.follow-up-column li{grid-template-columns:1fr}.follow-up-column li>.btn{justify-self:start}.invoice-reminder .btn{width:100%;justify-content:center}.calendar-actions .btn{flex:1 1 45%;justify-content:center}.absence-list-item{padding:12px}.week-jump input{font-size:16px}.invoice-workflow-actions .btn{flex:1 1 100%;justify-content:center}}
+
+/* Clear appointment/payment areas; existing theme and glass tokens provide contrast. */
+.today-blocks { display: grid; gap: 24px; margin-bottom: 24px; }
+.today-blocks > section { min-width: 0; }
+.today-blocks .section-heading { gap: 16px; flex-wrap: wrap; align-items: center; }
+.today-blocks h2 { display: flex; align-items: center; gap: 10px; }
+.today-links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.today-subheading { margin: 22px 0 12px; font-size: 15px; }
+.today-money-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.today-money-grid .stat-card { min-width: 0; }
+.today-payments .work-invoices { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; }
+.today-payments h3, .finance-open h3 { font-size: 15px; }
+.today-appointments .appointment-row { flex-wrap: wrap; }
+.today-appointments .appointment-person { flex: 1 1 180px; }
+.today-appointments .appointment-row > .btn { margin-inline-start: auto; }
+.follow-up-board .follow-up-grid { grid-template-columns: minmax(0, 1fr); }
+.more-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.more-item { display: flex; align-items: center; gap: 16px; text-align: start; width: 100%; min-height: 104px; color: inherit; cursor: pointer; }
+.more-item > svg { flex-shrink: 0; color: var(--sage); }
+.more-item > span { display: grid; gap: 6px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.more-item strong { font-size: 16px; }
+.more-item small { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.more-item:hover { border-color: var(--sage); }
+.back-to-more { margin-bottom: 16px; }
+.appointment-backfill { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 22px; }
+.appointment-backfill .hint { margin: 0; flex: 1 1 240px; }
+.finance-open { margin-bottom: 30px; }
+.finance-open > .section-heading { gap: 16px; flex-wrap: wrap; }
+.open-payments-total { font-size: 28px; font-variant-numeric: tabular-nums; }
+.open-payment-list { list-style: none; margin: 0 0 24px; padding: 0; }
+.open-payment-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; padding: 18px 0; border-top: 1px solid var(--border); }
+.open-payment-person { flex: 1 1 200px; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; overflow-wrap: anywhere; }
+.open-payment-person > span { font-size: 13px; color: var(--muted); }
+.open-payment-list .billing-money { min-width: 90px; }
+.open-payment-list .btn { min-height: 44px; }
+.finance-open .follow-up-invoices { padding-top: 18px; border-top: 1px solid var(--border); }
+.payments-income-title { font-size: 20px; margin-bottom: 16px; }
+.invoice-section-actions { display: flex; justify-content: flex-end; margin: 24px 0 16px; }
+@media (max-width: 700px) {
+  .more-navigation { grid-template-columns: minmax(0, 1fr); }
+  .today-blocks .section-heading > .btn { width: 100%; justify-content: center; }
+  .today-money-grid { gap: 10px; }
+  .today-money-grid .stat-card { padding: 16px; }
+  .today-money-grid .stat-card strong { font-size: 25px; overflow-wrap: anywhere; }
+  .open-payment-list li > .btn { flex: 1 1 100%; justify-content: center; }
+  .today-appointments .appointment-row > .btn { flex: 1 1 100%; justify-content: center; }
+}
+
+.finance-history { margin-top: 24px; }
+.finance-history > summary { min-height: 52px; padding: 14px 0; cursor: pointer; font-weight: 600; color: var(--sage); }
+.finance-history > summary:focus-visible { outline: 3px solid var(--sage); outline-offset: 3px; border-radius: 6px; }
+.finance-history > .card { margin-top: 12px; }
+@media (min-width: 1201px) {
+  .today-blocks { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+}

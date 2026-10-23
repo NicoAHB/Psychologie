@@ -7,16 +7,22 @@ export function workflowData() {
   const data = emptyVault(); const client = { id: uid(), name: 'Олена Приклад', address: 'Київ', contact: '', preparation: '', language: 'uk' as const, currency: 'UAH' as const, email: 'olena@example.com', telegramChatId: '123456789', reminderConsent: false, createdAt: addDays(today(), -90) };
   data.clients.push(client); data.settings.exchangeRate = { micros: 48125600, date: today(), source: 'manual' }; Object.assign(data.settings.practice, { name: 'Praxis Beispiel', address: 'Musterweg 1\n10115 Berlin', iban: 'DE-TEST', ibanUa: 'UA-TEST', bankUa: 'Банк України' });
   for (const offset of [-45,-44]) data.sessions.push({ id: uid(), clientId: client.id, date: addDays(today(), offset), time: '14:00', feeCents: 8500, paidAt: null, notes: 'Sitzungsnotiz bleibt erhalten', tags: [] });
-  const issuedAt = addDays(today(), -40); const invoice: Invoice = { id: uid(), number: `${issuedAt.slice(0,4)}-001`, clientId: client.id, issuedAt, dueOn: addDays(issuedAt, 14), language: 'uk', currency: 'UAH', recipient: { name: client.name, address: client.address }, sender: structuredClone(data.settings.practice), paymentAccount: { holder: '', iban: 'UA-TEST', bank: 'Банк України', bic: '' }, lines: data.sessions.map(s => ({ sessionId: s.id, date: s.date, description: 'Консультаційна сесія', amountCents: 409100, euroCents: 8500, rate: data.settings.exchangeRate })), totalCents: 818200, totalEuroCents: 17000 };
+  const issuedAt = addDays(today(), -40); const invoice: Invoice = { id: uid(), number: `${issuedAt.slice(0,4)}-001`, clientId: client.id, issuedAt, dueOn: addDays(issuedAt, 14), language: 'uk', currency: 'UAH', recipient: { name: client.name, address: client.address }, sender: structuredClone(data.settings.practice), paymentAccount: { holder: '', iban: 'UA-TEST', bank: 'Банк України', bic: '' }, lines: data.sessions.map(s => ({ sessionId: s.id, date: s.date, description: 'Консультаційна зустріч', amountCents: 409100, euroCents: 8500, rate: data.settings.exchangeRate })), totalCents: 818200, totalEuroCents: 17000 };
   data.invoices.push(invoice); for (const s of data.sessions) { s.invoiceId = invoice.id; s.billing = { currency: 'UAH', amountCents: 409100, rate: data.settings.exchangeRate }; } return { data, client, invoice };
 }
 export async function nav(page: Page, label: string) {
   // Demo entry/unlock completes asynchronously. isVisible() alone can return
   // false before the mobile menu is mounted and leave navigation off-screen.
   await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15000 });
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
+  const ukrainian = await page.locator('html').getAttribute('lang') === 'uk';
+  const menu = page.getByRole('button', { name: ukrainian ? 'Відкрити навігацію' : 'Navigation öffnen', exact: true });
   if (await menu.isVisible() && !(await page.locator('.sidebar').getAttribute('class'))?.includes('sidebar-open')) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: label, exact: true }).click();
+  const primary = page.locator('.sidebar nav').getByRole('button', { name: label, exact: true });
+  if (await primary.count()) await primary.click();
+  else {
+    await page.locator('.sidebar nav').getByRole('button', { name: ukrainian ? 'Ще' : 'Mehr', exact: true }).click();
+    await page.locator('.more-navigation').getByRole('button', { name: label, exact: true }).click();
+  }
 }
 export async function seedWorkflow(page: Page, data: VaultData) {
   const salt = randomSalt(); const key = await deriveKey('a very strong test passphrase', salt); const vaultId = uid(); const envelope = await encryptVault(key, data, vaultId, salt);

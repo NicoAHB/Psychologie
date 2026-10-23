@@ -1,15 +1,11 @@
+import { nav } from './workflow-fixture';
 import { test, expect, type Page } from './fixtures';
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAZElEQVR4nO3PQQ3AIADAQMC/CxJMYG4ieFyW9BS0c98z/mzpgFcNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaB+DmAKEfrnO0QAAAABJRU5ErkJggg==';
-async function nav(page: Page, text: string) {
-  await expect(page.locator('.app-shell')).toBeVisible();
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
-  if (await menu.isVisible()) await menu.click();
-  await page.getByRole('navigation').getByRole('button', { name: text, exact: true }).click();
-}
+
 async function create(page: Page, passphrase: string) {
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill(passphrase); await page.getByLabel('Passphrase wiederholen').fill(passphrase);
   await page.getByRole('button', { name: 'Meinen Praxisraum einrichten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
 }
 async function unlock(page: Page, passphrase: string) {
   await page.getByLabel('Tresor-Passphrase', { exact: true }).fill(passphrase); await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
@@ -39,7 +35,7 @@ test('a vault from the first release opens, upgrades, and can be recovered after
   await page.goto('/'); await seedLegacyVault(page, 'legacy passphrase 1234'); await page.reload();
   await expect(page.getByRole('heading', { name: 'Willkommen zurück.' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Wiederherstellungsschlüssel verwenden/ })).toHaveCount(0);
-  await unlock(page, 'legacy passphrase 1234'); await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await unlock(page, 'legacy passphrase 1234'); await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
 
   await nav(page, 'Einstellungen'); const dialog = page.getByRole('dialog');
   await page.getByRole('button', { name: 'Wiederherstellungsschlüssel erstellen' }).click();
@@ -53,7 +49,7 @@ test('a vault from the first release opens, upgrades, and can be recovered after
   await lock(page);
 
   // The old passphrase still works after the upgrade; then pretend it is forgotten.
-  await unlock(page, 'legacy passphrase 1234'); await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible(); await lock(page);
+  await unlock(page, 'legacy passphrase 1234'); await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible(); await lock(page);
   await page.getByRole('button', { name: /Wiederherstellungsschlüssel verwenden/ }).click();
   await page.getByLabel('Wiederherstellungsschlüssel', { exact: true }).fill(recoveryKey.replace(/^(....)/, c => (c[0] === 'A' ? 'B' : 'A') + c.slice(1)));
   await page.getByRole('button', { name: 'Mit Schlüssel entsperren' }).click(); await expect(page.getByRole('alert')).toContainText('Schlüssel ist nicht korrekt');
@@ -63,11 +59,11 @@ test('a vault from the first release opens, upgrades, and can be recovered after
   await dialog.getByLabel('Neue Passphrase (mind. 12 Zeichen)').fill('brand new passphrase 5678'); await dialog.getByLabel('Passphrase wiederholen').fill('brand new passphrase 5678');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await nav(page, 'Klienten'); await page.locator('.directory-list').getByRole('button', { name: /Altbestand Person/ }).click();
-  await expect(page.getByRole('textbox', { name: 'Vorbereitung für die nächste Sitzung' })).toHaveValue('Notiz aus Version eins');
+  await expect(page.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin' })).toHaveValue('Notiz aus Version eins');
   await expect(page.locator('.profile-heading .avatar img')).toBeVisible(); // the old image still decrypts
   await lock(page);
   await unlock(page, 'legacy passphrase 1234'); await expect(page.getByRole('alert')).toContainText('nicht geöffnet');
-  await unlock(page, 'brand new passphrase 5678'); await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await unlock(page, 'brand new passphrase 5678'); await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   expect(problems).toEqual([]);
 });
 
@@ -83,7 +79,7 @@ test('passkey unlock with a virtual authenticator (WebAuthn PRF), including remo
   await expect(page.getByText('Testgerät')).toBeVisible();
   await lock(page);
   await page.getByRole('button', { name: 'Mit Passkey entsperren' }).click();
-  await expect(page.getByRole('heading', { name: 'Ihr Tag. Mit gutem Überblick.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
   await nav(page, 'Einstellungen'); await page.getByRole('button', { name: 'Passkey entfernen: Testgerät' }).click();
   await expect(page.getByText('Testgerät')).toHaveCount(0); await lock(page);
   await expect(page.getByRole('button', { name: 'Mit Passkey entsperren' })).toHaveCount(0);
