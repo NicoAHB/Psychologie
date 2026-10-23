@@ -7,6 +7,14 @@ import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
 // from a restricted developer environment. This fixture contains fictitious data only.
 test.afterEach(async ({ page }, info) => {
   if (!info.project.name.includes('webkit') || !info.errors.length || page.isClosed()) return;
+  const frames = () => page.evaluate(() => new Promise<number>(resolve => {
+    let count = 0, frame = 0;
+    const tick = () => { count++; frame = requestAnimationFrame(tick); };
+    frame = requestAnimationFrame(tick);
+    setTimeout(() => { cancelAnimationFrame(frame); resolve(count); }, 500);
+  }));
+  const before = await frames(); await page.mouse.move(1, 1); const afterPointer = await frames();
+  await page.screenshot({ timeout: 3000 }); const afterCapture = await frames();
   const state = await Promise.race([page.evaluate(() => ({
     visible: document.visibilityState, focused: document.hasFocus(), viewport: { width: innerWidth, height: innerHeight, scale: visualViewport?.scale },
     active: document.activeElement?.tagName,
@@ -18,7 +26,7 @@ test.afterEach(async ({ page }, info) => {
     buttons: [...document.querySelectorAll<HTMLButtonElement>('.memo-labels-card button, .settings-card button')].filter(b => /Sicherung|Vorschlag/.test(b.ariaLabel ?? b.textContent ?? '')).slice(0, 10).map(b => ({ name: b.ariaLabel ?? b.textContent, disabled: b.disabled, rect: b.getBoundingClientRect().toJSON() })),
     text: document.body.innerText.slice(-900),
   })), new Promise(resolve => setTimeout(() => resolve('Page did not respond within five seconds'), 5000))]);
-  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify(state)}`);
+  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify({ frames: { before, afterPointer, afterCapture }, state })}`);
 });
 
 test('pause, completion and reactivation keep the full client record; filters and due follow-ups work', async ({ page }) => {
