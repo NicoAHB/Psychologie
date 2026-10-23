@@ -8,11 +8,15 @@ import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
 test.afterEach(async ({ page }, info) => {
   if (!info.project.name.includes('webkit') || !info.errors.length || page.isClosed()) return;
   const state = await Promise.race([page.evaluate(() => ({
-    text: document.body.innerText.slice(-6500), visible: document.visibilityState,
+    visible: document.visibilityState, focused: document.hasFocus(), viewport: { width: innerWidth, height: innerHeight, scale: visualViewport?.scale },
     active: document.activeElement?.tagName,
     recorder: String(globalThis.MediaRecorder).slice(0, 100),
     capture: (window as unknown as { __memo?: unknown }).__memo,
-    dialogs: [...document.querySelectorAll('dialog')].map(d => ({ open: d.open, text: d.innerText.slice(0, 1200), rect: d.getBoundingClientRect().toJSON() })),
+    dialogs: [...document.querySelectorAll('dialog')].map(d => ({ open: d.open, text: d.innerText.slice(-700), rect: d.getBoundingClientRect().toJSON() })),
+    alerts: [...document.querySelectorAll('[role=alert]')].map(n => n.textContent?.slice(0, 300)),
+    saving: document.querySelector('.sync-bar')?.textContent,
+    buttons: [...document.querySelectorAll<HTMLButtonElement>('.memo-labels-card button, .settings-card button')].filter(b => /Sicherung|Vorschlag/.test(b.ariaLabel ?? b.textContent ?? '')).slice(0, 10).map(b => ({ name: b.ariaLabel ?? b.textContent, disabled: b.disabled, rect: b.getBoundingClientRect().toJSON() })),
+    text: document.body.innerText.slice(-900),
   })), new Promise(resolve => setTimeout(() => resolve('Page did not respond within five seconds'), 5000))]);
   throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify(state)}`);
 });
@@ -62,12 +66,12 @@ test('vocabulary management and backup verification dialogs are accessible in bo
   const card = page.locator('.memo-labels-card'); await card.getByRole('button', { name: 'Als Favorit markieren: Mein Vorschlag', exact: true }).click();
   await expect.poll(async () => (await read()).settings.memoLabelFavorites).toEqual(['own:mein vorschlag']);
   await card.getByRole('button', { name: 'Vorschlag umbenennen: Mein Vorschlag', exact: true }).click(); const rename = page.getByRole('dialog', { name: 'Vorschlag umbenennen', exact: true });
-  await page.addStyleTag({ content: '*, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }' });
+  await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
   for (const theme of ['dark', 'light']) { await page.evaluate(t => document.documentElement.dataset.theme = t, theme); expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]); }
-  await rename.getByLabel('Neue Bezeichnung', { exact: true }).fill('Neuer Vorschlag'); await rename.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(card).toContainText('Neuer Vorschlag');
-  await card.getByRole('button', { name: 'Vorschlag entfernen: Neuer Vorschlag', exact: true }).click(); await expect(card).not.toContainText('Neuer Vorschlag');
-  const downloading = page.waitForEvent('download'); await page.getByRole('button', { name: 'Verschlüsselte Sicherung herunterladen', exact: true }).click(); const backupPath = (await (await downloading).path())!;
+  await rename.getByLabel('Neue Bezeichnung', { exact: true }).fill('Neuer Vorschlag'); await rename.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(rename).not.toBeVisible(); await expect(card).toContainText('Neuer Vorschlag');
+  await card.getByRole('button', { name: 'Vorschlag entfernen: Neuer Vorschlag', exact: true }).click({ timeout: 10000 }); await expect(card).not.toContainText('Neuer Vorschlag'); await expect.poll(async () => (await read()).settings.memoLabels).toEqual([]);
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'Verschlüsselte Sicherung herunterladen', exact: true }).click({ timeout: 10000 })]); const backupPath = (await download.path())!;
   const before = await read();
-  await page.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click(); const verify = page.getByRole('dialog', { name: 'Sicherung prüfen', exact: true }); await expect(verify).toBeVisible();
-  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]); await verify.getByLabel('Verschlüsselte Sicherungsdatei', { exact: true }).setInputFiles(backupPath); await verify.getByLabel('Passphrase dieser Sicherung', { exact: true }).fill('a very strong test passphrase'); await verify.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click(); await expect(verify).toContainText('Prüfung erfolgreich'); expect(await read()).toEqual(before); await verify.getByRole('button', { name: 'Schließen', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click({ timeout: 10000 }); const verify = page.getByRole('dialog', { name: 'Sicherung prüfen', exact: true }); await expect(verify).toBeVisible();
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]); await verify.getByLabel('Verschlüsselte Sicherungsdatei', { exact: true }).setInputFiles(backupPath); await verify.getByLabel('Passphrase dieser Sicherung', { exact: true }).fill('a very strong test passphrase'); await verify.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click(); await expect(verify).toContainText('Prüfung erfolgreich'); expect(await read()).toEqual(before); await verify.getByRole('button', { name: 'Schließen', exact: true }).last().click({ timeout: 10000 });
 });
