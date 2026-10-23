@@ -4,6 +4,8 @@ import { uid } from '../../src/lib/types';
 import { nav, seedWorkflow, workflowData } from './workflow-fixture';
 
 test('corrections create a linked reversal and replacement; the original and clinical notes remain unchanged', async ({ page }) => {
+  // This case tests same-day reversals, independent of the runner/practice midnight boundary.
+  await page.clock.install({ time: new Date(`${today()}T12:00:00Z`) });
   const { data, invoice } = workflowData(); const original = structuredClone(invoice); const read = await seedWorkflow(page, data);
   await page.locator('.follow-up-invoices').getByRole('button', { name: `Rechnung öffnen ${invoice.number}` }).click(); let dialog = page.locator('dialog[open]').last();
   await dialog.getByRole('button', { name: 'Rechnung korrigieren', exact: true }).click();
