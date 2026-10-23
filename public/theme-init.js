@@ -18,7 +18,7 @@
     };
     const saved = JSON.parse(localStorage.getItem('praxisraum-appearance') || 'null');
     if (!saved || typeof saved !== 'object' || Array.isArray(saved) || (saved.version !== undefined && saved.version !== 1)) return;
-    const palette = Object.hasOwn(palettes, saved.palette) || saved.palette === 'custom' || saved.palette === 'none' ? saved.palette : 'sageBlue';
+    const palette = typeof saved.palette === 'string' && (Object.hasOwn(palettes, saved.palette) || saved.palette === 'custom' || saved.palette === 'none') ? saved.palette : 'sageBlue';
     const pastel = (value, fallback) => {
       if (typeof value !== 'string' || !/^#[0-9a-f]{6}$/i.test(value)) return fallback;
       const rgb = [1, 3, 5].map(i => parseInt(value.slice(i, i + 2), 16));

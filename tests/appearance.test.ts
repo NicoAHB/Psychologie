@@ -26,7 +26,7 @@ test('custom colours remain pastel and numeric controls cannot make text unreada
 });
 test('stored palettes and glass controls are restored before first paint exactly as in React', () => {
   const script = readFileSync(new URL('../public/theme-init.js', import.meta.url), 'utf8');
-  for (const palette of [...Object.keys(PASTEL_PALETTES), 'none', 'custom', '__proto__']) {
+  for (const palette of [...Object.keys(PASTEL_PALETTES), 'none', 'custom', '__proto__', ['sandRose'], {}, null, 17]) {
     const saved = { version: 1, palette, color1: '#000000', color2: '#123456', intensity: 1000, cardTransparency: 21.8, menuTransparency: -99, glassBlur: 7, backgroundBlur: 24 };
     const dataset: Record<string, string> = {}, variables: Record<string, string> = {};
     runInNewContext(script, {
