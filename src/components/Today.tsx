@@ -37,7 +37,8 @@ export function Today({ vault, onNewAppointment, onNewClient, onClient, onClient
   const todayAppointments = appointments.filter(a => inPractice(a) === day);
   const next = appointments.filter(a => a.status === 'scheduled' && inPractice(a) > day);
   const open = data.sessions.filter(s => !s.paidAt && !isSessionVoided(data, s)).reduce((sum, s) => sum + s.feeCents, 0);
-  const income = monthlyIncome(data.sessions, Number(day.slice(0, 4)))[Number(day.slice(5, 7)) - 1];
+  // Keep the existing payment-month calculation identical to the payments page.
+  const now = new Date(); const income = monthlyIncome(data.sessions, now.getFullYear())[now.getMonth()];
   const row = (a: Appointment) => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={a.status === 'scheduled'
     ? <button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button>
     : <span className="tag-chip">{t(a.status)}</span>}/>;

@@ -78,16 +78,22 @@ test('appointment completion creates an open payment, payment is separate, and b
   expect(after.sessions.at(-1)?.paidAt).toBeNull(); expect(after.sessions.at(-1)?.appointmentId).toBeUndefined();
 });
 
-test('Today groups midnight appointments by the practice day rather than the device day', async ({ page }) => {
-  await page.clock.install({ time: new Date('2026-10-23T23:30:00Z') });
+test('Today uses the practice day for appointments while income links retain the payment page month', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-31T23:30:00Z') });
   const { data, client } = workflowData(); data.settings.timeZone = 'Europe/Berlin';
-  const appointment = { id: uid(), clientId: client.id, date: '2026-10-23', time: '23:45', duration: 50, feeCents: 8500, timeZone: 'UTC', reminderId: uid(), status: 'scheduled' as const };
-  data.appointments.push(appointment, { ...appointment, id: uid(), date: '2026-10-24', time: '23:30', reminderId: uid() });
+  const appointment = { id: uid(), clientId: client.id, date: '2026-10-31', time: '23:45', duration: 50, feeCents: 8500, timeZone: 'UTC', reminderId: uid(), status: 'scheduled' as const };
+  data.appointments.push(appointment, { ...appointment, id: uid(), date: '2026-11-01', time: '23:30', reminderId: uid() });
+  data.sessions.push(...[['2026-10-31', 8500], ['2026-11-01', 9000]].map(([paidAt, feeCents]) => ({ id: uid(), clientId: client.id, date: String(paidAt), time: '10:00', paidAt: String(paidAt), feeCents: Number(feeCents), notes: 'Bezahlter Termin', tags: [] })));
   await seedWorkflow(page, data);
   const appointments = page.locator('.today-appointments');
-  await expect(appointments.locator('.today-subheading').first()).toContainText('24. Oktober');
+  await expect(appointments.locator('.today-subheading').first()).toContainText('1. November');
   await expect(appointments.locator('.appointment-list').first().locator('.appointment-row')).toHaveCount(1);
-  await expect(appointments.locator('.appointment-list').first().locator('.time-pair strong').first()).toHaveText('01:45');
+  await expect(appointments.locator('.appointment-list').first().locator('.time-pair strong').first()).toHaveText('00:45');
   await expect(appointments.getByRole('button', { name: de.completeAppointment, exact: true })).toHaveCount(1);
-  await expect(appointments.locator('.appointment-list').nth(1).locator('.time-pair strong').first()).toHaveText('01:30');
+  await expect(appointments.locator('.appointment-list').nth(1).locator('.time-pair strong').first()).toHaveText('00:30');
+  const income = page.locator('.today-payments').getByRole('button', { name: new RegExp(de.goToMonthIncome) });
+  await expect(income).toContainText('85'); await income.click();
+  await expect(page.locator('.finance-records tbody tr')).toHaveCount(1);
+  await expect(page.locator('.finance-records tbody')).toContainText('85');
+  await expect(page.locator('.finance-records tbody')).not.toContainText('90');
 });
