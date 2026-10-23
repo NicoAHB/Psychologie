@@ -2,6 +2,7 @@ import type { AssessmentKind, Ciphertext, Invoice, Language, VaultData, VaultEnv
 import type { ImportedQuestionnaire } from './questionnaireImport';
 
 export interface WorkerTasks {
+  taxPdf: { input: { report: import('./taxReport').TaxReport; language: Language }; output: Uint8Array<ArrayBuffer> };
   sealSharedDocument: { input: Parameters<typeof import('./documentShareCrypto').sealSharedDocument>[0]; output: import('./documentShareCrypto').SharePacket };
   openSharedDocument: { input: Parameters<typeof import('./documentShareCrypto').openSharedDocument>[0]; output: Awaited<ReturnType<typeof import('./documentShareCrypto').openSharedDocument>> };
   verifyBackup: { input: { text: string; passphrase: string }; output: import('./verifyBackup').BackupCheck };

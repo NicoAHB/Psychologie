@@ -36,3 +36,30 @@ Automatik läuft ausschließlich geöffnet, entsperrt und online. Zeitfenster: V
 Nach Prüfung der Ausfall- und Versandfunktionen ergänzt: verschlüsselte Sammlung `waitlist` mit Name, Wunschzeiten, kurzer Notiz und optionaler Aktenzuordnung. Einträge lassen sich bearbeiten und löschen; die Liste lädt zunächst 30 Einträge. Künftige abgesagte oder verschobene Zeiten werden auf freie Kapazität und Abwesenheiten geprüft. Auf Heute erscheint ein direkter Link zur Warteliste. Keine automatische Kontaktaufnahme und keine automatische Aussage, welcher Wunschtext zu welcher Zeit passt. Bei nicht verknüpften Interessenten Einträge nach Erledigung selbst entfernen.
 
 Die neue Sammlung wird von Normalisierung, CRDT, Synchronisations-Merge, vollständigen Sicherungen/Import und der Wiederherstellung aus Versionsständen übernommen. Der Klientenexport und das endgültige Löschen einer Akte berücksichtigen verknüpfte Einträge. Alte Sicherungen erhalten eine leere Warteliste. Freigewordene Zeiten bleiben als rein zeitbezogene Einträge an ihrem Termin gespeichert und enthalten keine Namen oder Gesprächsinhalte.
+
+## Phase C – Jahresübersicht und Sicherungs-Assistent
+
+### Für die Steuer
+
+Unter Zahlungen, unterhalb des Einnahmendiagramms, die aufklappbare Jahresübersicht öffnen. Die bereits vorhandene Jahresauswahl gilt auch hier. Zwei getrennte Tabellen für EUR/UAH zeigen zwölf Monate, Einnahmen nach Zahlungsdatum, aktuell offene Forderungen nach Terminmonat und die darin enthaltenen Ausfallhonorare. Keine Umrechnung oder Addition verschiedener Währungen. Offene Beträge sind der **aktuelle Stand** der Posten aus dem gewählten Termin-Jahr, kein rekonstruierter Jahresendsaldo. Finanzkonflikte blockieren die Auswertung bis zur Prüfung.
+
+CSV und PDF enthalten nur Monatssummen und Erläuterungen, keine Klientennamen, IDs oder Notizen. PDF-Erstellung nutzt den bestehenden lokalen Sicherheits-Worker und die vorhandenen eingebetteten lateinisch-kyrillischen Schriften. Die heruntergeladenen Berichte sind lesbar und daher außerhalb der App entsprechend aufzubewahren. Ausfallhonorare werden als Teilmengen ausgewiesen, nicht zweimal addiert.
+
+Es wurde **kein neues Steuer-/Erstattungsjournal** eingeführt: Bereits erfasste Geldeingänge zählen auch nach Rechnungsstorno weiterhin als erhalten, bis die zugrunde liegende Zahlung korrigiert wird. Storno allein bucht keine Rückzahlung. Ausgaben, Erstattungsbuchungen, steuerliche Währungsumrechnung und rechtliche Bewertung mit den eigenen Unterlagen gesondert prüfen. Diese Grenze und der Hinweis „Keine Steuerberatung“ stehen in Ansicht, CSV und PDF. Das bisherige Rechnungs-/Zahlungsmodell bleibt erhalten.
+
+### Sicherungs-Assistent auf dem iPad
+
+1. Mehr → Einstellungen → Sicherungs-Assistent.
+2. Fehlenden Wiederherstellungsschlüssel über den vorhandenen Sicherheitsdialog einrichten. Aktuelle Passphrase und aktuellen Wiederherstellungsschlüssel sicher und getrennt von der Kopie aufbewahren. **Beide Bestätigungen sind im Assistenten Pflicht**; er sammelt weder Passphrase noch Schlüssel im Klartext. Die Bestätigung wird nur als Zeitstempel im verschlüsselten Tresor vermerkt.
+3. „Sicherung teilen“ → iPadOS „In Dateien sichern“ → sicheren Ordner wählen → „Sichern“. Bei fehlender Teilen-Funktion den verschlüsselten Download nutzen. Der Browser meldet nur den Abschluss der Übergabe; die App kann den tatsächlichen Ablageort nicht überprüfen.
+4. „Sicherung testen“ wählen, die eben gespeicherte Datei aus Dateien auswählen und deren Passphrase eingeben. Der bestehende lokale Prüfer entschlüsselt Tresor und Anhänge ohne Änderungen an der aktiven Akte. Im Assistenten muss die Datei zum aktuellen Tresor gehören.
+5. Erst nach Kopie und erfolgreicher Prüfung lässt sich der Assistent abschließen. Nach erneutem Export ist eine erneute Prüfung erforderlich.
+
+Die bisherigen direkten Downloads, Teilen, Ordnersicherung, In-App-Verlauf und Cloud-Abgleich bleiben zusätzlich erreichbar. Automatische Sicherheitskopien werden nicht durch eine noch unbestätigte Anleitung blockiert. Der Assistent ist eine geführte Einrichtung mit Pflichtbestätigung, keine erzwungene Sperre der bereits vorhandenen Sicherungsfunktionen. Auch eine geprüfte Datei schützt nur, solange Datei und Zugangsdaten tatsächlich erhalten und zugänglich bleiben.
+
+### Betrieb / Bereitstellung
+
+- Keine neue SQL-Migration nötig: Fachinformationen bleiben im verschlüsselten Tresor. Bestehende Tabellen, Schlüsselverwaltung, Storage und Ende-zu-Ende-Abgleich bleiben unverändert.
+- Nur bei gewünschtem Termin-E-Mail-Versand die geänderte **vorhandene** Function bereitstellen: `supabase functions deploy send-client-email`. Bestehende serverseitige Anbieter-Konfiguration und öffentliche Build-Option `VITE_EMAIL_ENABLED` wie in der Dokumentation zum Dokumentenversand verwenden. Keine Geheimnisse im Frontend. Das wurde nicht gegen ein echtes Projekt ausgeführt.
+- App wie bisher mit `npm ci`, `npm test`, `npm run build` und dem vorhandenen GitHub-Pages-Workflow bauen. Auf bestehenden Geräten eine angebotene Aktualisierung über „Jetzt aktualisieren“ übernehmen; Browserdaten niemals als Update-Schritt löschen.
+- Keine zusätzlichen Pakete, keine Transkription, Spracherkennung oder KI, keine neuen Audio-/Versanddienste, keine öffentliche Buchung oder Klienten-Anmeldung.

@@ -1,3 +1,4 @@
+import { BackupAssistant } from './BackupAssistant';
 import { HelpButton } from './HelpButton';
 import { useEffect, useState } from 'react';
 import { Download, HardDriveDownload, History, Share2, ShieldCheck } from 'lucide-react';
@@ -24,6 +25,7 @@ export async function saveBackupCopy(vault: VaultController, preferShare: boolea
 }
 export function BackupCard({ vault, auto }: { vault: VaultController; auto: AutoBackup }) {
   const { t, language } = useI18n(); const [message, setMessage] = useState<TextKey>(); const [busy, setBusy] = useState(false);
+  const [guiding,setGuiding] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const canShare = typeof navigator.canShare === 'function' && typeof File === 'function';
   const run = async (share: boolean) => {
@@ -32,6 +34,7 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
   };
   const time = (at: number) => new Date(at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA');
   return <section id="settings-backup" tabIndex={-1} className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><HelpButton topic="securityTitle" text="helpBackup"/><p>{t('securityText')}</p>
+    <button type="button" className="btn btn-primary backup-guide-start" disabled={vault.demo} onClick={()=>setGuiding(true)}>{t('backupAssistant')}</button>{guiding&&<BackupAssistant vault={vault} onClose={()=>setGuiding(false)}/>}
     <div className="button-row"><button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(false)}><Download size={17}/>{t(busy ? 'working' : 'exportBackup')}</button>
       {canShare && <button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(true)}><Share2 size={17}/>{t('shareBackup')}</button>}</div>
     <p className="hint">{t('backupHelp')}</p><p className="hint">{t('backupExternalHint')}</p><button className="btn btn-secondary" disabled={vault.demo} onClick={() => setVerifying(true)}>{t('backupVerify')}</button>{verifying && <BackupVerifyDialog onClose={() => setVerifying(false)}/>}{message && <Notice>{t(message)}</Notice>}
@@ -42,7 +45,7 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
         <p className="hint">{t('autoBackupFile')} <strong>{auto.file.name}</strong>{auto.status === 'ok' && auto.lastAt ? ` · ${t('autoBackupOk')} ${time(auto.lastAt)}` : ''}{auto.status === 'working' ? ` · ${t('autoBackupWorking')}` : ''}</p>
         {auto.status === 'needsPermission' && <Notice>{t('autoBackupNeedsPermission')}</Notice>}{auto.status === 'error' && <Notice error>{t('autoBackupError')}</Notice>}
         <div className="button-row"><button className="btn btn-secondary" onClick={() => void auto.now()}><HardDriveDownload size={17}/>{t(auto.status === 'needsPermission' ? 'autoBackupResume' : 'autoBackupNow')}</button><button className="btn btn-ghost" onClick={() => void auto.disable()}>{t('autoBackupOff')}</button></div></>
-        : <div className="button-row">{auto.directorySupported && <button className="btn btn-primary" disabled={vault.demo} onClick={() => void auto.enable(true).catch(() => {})}><HardDriveDownload size={17}/>{t('backupDirectoryChoose')}</button>}<button className="btn btn-secondary" disabled={vault.demo} onClick={() => void auto.enable().catch(() => {})}><HardDriveDownload size={17}/>{t('autoBackupSetup')}</button></div>}{auto.directorySupported && <p className="hint">{t('backupDirectoryHint')}</p>}</>}
+        : <div className="button-row">{auto.directorySupported && <button className="btn btn-secondary" disabled={vault.demo} onClick={() => void auto.enable(true).catch(() => {})}><HardDriveDownload size={17}/>{t('backupDirectoryChoose')}</button>}<button className="btn btn-secondary" disabled={vault.demo} onClick={() => void auto.enable().catch(() => {})}><HardDriveDownload size={17}/>{t('autoBackupSetup')}</button></div>}{auto.directorySupported && <p className="hint">{t('backupDirectoryHint')}</p>}</>}
   </section>;
 }
 export function HistoryCard({ vault }: { vault: VaultController }) {
@@ -66,8 +69,8 @@ export function HistoryCard({ vault }: { vault: VaultController }) {
     {entries.length > 0 && <button className="btn btn-ghost" onClick={() => { void vault.clearHistory().then(refresh); }}>{t('historyClear')}</button>}</section>;
 }
 
-function BackupVerifyDialog({ onClose }: { onClose: () => void }) {
+export function BackupVerifyDialog({ onClose, onVerified, expectedVaultId }: { onClose: () => void; onVerified?: () => void; expectedVaultId?: string }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(), [passphrase, setPassphrase] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(false), [result, setResult] = useState<import('../lib/verifyBackup').BackupCheck>();
-  async function check() { if (!file) return; setBusy(true); setError(false); setResult(undefined); try { setResult(await runSecureTask('verifyBackup', { text: await file.text(), passphrase })); setPassphrase(''); } catch { setError(true); } finally { setBusy(false); } }
+  async function check() { if (!file) return; setBusy(true); setError(false); setResult(undefined); try { const text=await file.text(); const result=await runSecureTask('verifyBackup', { text, passphrase }); if(expectedVaultId && JSON.parse(text).envelope.vaultId!==expectedVaultId)throw new Error('invalidBackup'); setResult(result); setPassphrase(''); onVerified?.(); } catch { setError(true); } finally { setBusy(false); } }
   return <Modal title={t('backupVerify')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={e => { e.preventDefault(); void check(); }}><p>{t('backupVerifyHint')}</p><Field label={t('backupVerifyFile')}><input type="file" accept=".json,application/json" disabled={busy} onChange={e => { setFile(e.target.files?.[0]); setResult(undefined); setError(false); }}/></Field><Field label={t('backupVerifyPassphrase')}><input type="password" autoComplete="off" value={passphrase} disabled={busy} onChange={e => setPassphrase(e.target.value)}/></Field>{busy && <p role="status">{t('backupVerifying')}</p>}{error && <Notice error>{t('backupVerifyError')}</Notice>}{result && <Notice>{Object.entries(result).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), t('backupVerified'))}</Notice>}<div className="form-actions"><button className="btn btn-secondary" type="button" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-primary" disabled={busy || !file || !passphrase}>{t('backupVerify')}</button></div></form></Modal>;
 }

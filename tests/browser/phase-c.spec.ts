@@ -1,0 +1,26 @@
+import { readFile } from 'node:fs/promises';
+import AxeBuilder from '@axe-core/playwright';
+import { PDFDocument } from 'pdf-lib';
+import { test, expect } from './fixtures';
+import { nav, seedWorkflow, workflowData } from './workflow-fixture';
+import { today } from '../../src/lib/dates';
+import { uid } from '../../src/lib/types';
+const de=JSON.parse(await readFile(new URL('../../src/locales/de.json',import.meta.url),'utf8')) as Record<string,string>;
+const uk=JSON.parse(await readFile(new URL('../../src/locales/uk.json',import.meta.url),'utf8')) as Record<string,string>;
+test('annual tax summary exports separate currencies and uses the local PDF worker',async({page})=>{
+ const {data,client}=workflowData();data.sessions.push({id:uid(),clientId:client.id,date:today(),time:'10:00',paidAt:today(),feeCents:8500,billing:{currency:'UAH',amountCents:409100},notes:'SECRET-NOTE',tags:[],kind:'cancellationFee'});await seedWorkflow(page,data);await nav(page,de.finances);await page.locator('.tax-overview > summary').click();await expect(page.locator('.tax-currency')).toHaveCount(2);await expect(page.locator('.tax-overview')).toContainText(de.taxDisclaimer);
+ expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+ const [csv]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:de.taxExportCsv,exact:true}).click()]);const csvText=await readFile((await csv.path())!,'utf8');expect(csvText).toContain('4091,00');expect(csvText).not.toContain('SECRET-NOTE');
+ await page.getByRole('button',{name:'Українська',exact:true}).first().click();const [pdf]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:uk.taxExportPdf,exact:true}).click()]);const loaded=await PDFDocument.load(await readFile((await pdf.path())!));expect(loaded.getPageCount()).toBe(2);expect(loaded.getTitle()).toContain('річний огляд');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+test('iPad backup guidance requires both confirmations and successfully tests a saved encrypted copy',async({page})=>{
+ test.setTimeout(90000);await page.addInitScript(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async(data:ShareData)=>{(window as unknown as {backupFile?:File}).backupFile=data.files?.[0];}});});
+ const {data}=workflowData();const read=await seedWorkflow(page,data);await nav(page,de.settings);await page.getByRole('button',{name:de.backupAssistant,exact:true}).click();let assistant=page.getByRole('dialog',{name:de.backupAssistant,exact:true});await expect(assistant.getByRole('button',{name:de.backupGuideNext,exact:true})).toBeDisabled();
+ await assistant.getByRole('checkbox',{name:de.backupGuidePassphraseWritten,exact:true}).check();await expect(assistant.getByRole('checkbox',{name:de.backupGuideRecoveryWritten,exact:true})).toBeDisabled();
+ await assistant.getByRole('button',{name:de.recoveryCreate,exact:true}).click();let keyDialog=page.getByRole('dialog');await keyDialog.getByLabel(de.confirmWithPassphrase,{exact:true}).fill('a very strong test passphrase');await keyDialog.getByRole('button',{name:de.save,exact:true}).click();await expect(page.getByTestId('recovery-key')).toBeVisible({timeout:15000});await page.getByRole('checkbox',{name:de.recoverySaved,exact:true}).check();await page.getByRole('dialog').getByRole('button',{name:de.close,exact:true}).last().click();
+ assistant=page.getByRole('dialog',{name:de.backupAssistant,exact:true});await assistant.getByRole('checkbox',{name:de.backupGuideRecoveryWritten,exact:true}).check();await assistant.getByRole('button',{name:de.backupGuideNext,exact:true}).click();await expect(assistant).toContainText(de.backupGuideIpadFiles);
+ expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+ await assistant.getByRole('button',{name:de.shareBackup,exact:true}).click();await expect(assistant).toContainText(de.backupGuideTestHint);await expect(assistant.getByRole('button',{name:de.backupGuideFinish,exact:true})).toBeDisabled();
+ const text=await page.evaluate(async()=>{const file=(window as unknown as {backupFile:File}).backupFile;return file.text();});expect(text).not.toContain('Sitzungsnotiz');await assistant.getByRole('button',{name:de.backupVerify,exact:true}).click();const verify=page.getByRole('dialog',{name:de.backupVerify,exact:true});await verify.getByLabel(de.backupVerifyFile,{exact:true}).setInputFiles({name:'praxisraum.encrypted.json',mimeType:'application/json',buffer:Buffer.from(text)});await verify.getByLabel(de.backupVerifyPassphrase,{exact:true}).fill('a very strong test passphrase');await verify.getByRole('button',{name:de.backupVerify,exact:true}).click();await expect(verify).toContainText(de.backupVerified.split('{clients}')[0],{timeout:15000});await verify.getByRole('button',{name:de.close,exact:true}).last().click();await assistant.getByRole('button',{name:de.backupGuideFinish,exact:true}).click();await expect(assistant).toContainText(de.backupGuideDone);expect((await read()).settings.backupSafetyConfirmedAt).toBeTruthy();
+});

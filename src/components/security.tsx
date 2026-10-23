@@ -20,7 +20,7 @@ function RecoverySheet({ keyText }: { keyText: string }) {
   const { t } = useI18n();
   return <article className="invoice-sheet"><h1>{t('recoveryShowTitle')}</h1><p>{t('recoveryShowText')}</p><p className="recovery-key">{keyText}</p></article>;
 }
-function Dialog({ vault, mode, onClose }: { vault: VaultController; mode: Mode; onClose: () => void }) {
+export function SecurityDialog({ vault, mode, onClose }: { vault: VaultController; mode: Mode; onClose: () => void }) {
   const { t } = useI18n(); const [current, setCurrent] = useState(''); const [next, setNext] = useState(''); const [again, setAgain] = useState(''); const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>(); const [key, setKey] = useState<string>(); const [saved, setSaved] = useState(false); const [copied, setCopied] = useState(false);
   async function submit(e: FormEvent) {
@@ -62,7 +62,7 @@ export function SecurityCard({ vault }: { vault: VaultController }) {
     <p className="hint">{t(supported ? 'passkeyHint' : 'passkeyUnsupported')}</p>
     <h3 className="mini-heading">{t('changePassphrase')}</h3><button className="btn btn-secondary" onClick={() => setMode('passphrase')}>{t('changePassphrase')}</button>
     {notice && <Notice>{t(notice)}</Notice>}
-    {mode && <Dialog vault={vault} mode={mode} onClose={() => { setMode(undefined); setNotice('accessDone'); }}/>}</section>;
+    {mode && <SecurityDialog vault={vault} mode={mode} onClose={() => { setMode(undefined); setNotice('accessDone'); }}/>}</section>;
 }
 /** Shown right after unlocking with the recovery key: the forgotten passphrase has to be replaced. */
 export function PassphraseReset({ vault }: { vault: VaultController }) {

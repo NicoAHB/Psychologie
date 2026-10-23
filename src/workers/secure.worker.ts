@@ -19,6 +19,7 @@ async function execute<K extends keyof WorkerTasks>(task: K, input: WorkerTasks[
     }
     case 'encryptBytes': { const p = input as WorkerTasks['encryptBytes']['input']; return await crypto.encryptBytes(p.key, p.bytes, p.context) as WorkerTasks[K]['output']; }
     case 'decryptBytes': { const p = input as WorkerTasks['decryptBytes']['input']; return await crypto.decryptBytes(p.key, p.payload, p.context) as WorkerTasks[K]['output']; }
+    case 'taxPdf': { const p = input as WorkerTasks['taxPdf']['input']; const [{taxPdf},{loadPdfFonts}]=await Promise.all([import('../lib/taxPdf'),import('../lib/pdfFonts')]); const {regular,bold}=await loadPdfFonts(''); return await taxPdf(p.report,p.language,regular,bold) as WorkerTasks[K]['output']; }
     case 'invoice': {
       const p = input as WorkerTasks['invoice']['input'];
       const [{ invoicePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/invoicePdf'), import('../lib/pdfFonts')]);

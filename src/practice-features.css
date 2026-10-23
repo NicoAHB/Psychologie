@@ -33,3 +33,15 @@ html[data-font-size='extraLarge'] .appointment-row-actions { flex-basis: 100%; }
 .waiting-list li > div:first-child { min-width: 0; overflow-wrap: anywhere; }
 .waiting-list .button-row { flex-shrink: 0; align-self: flex-start; }
 @media (max-width: 480px) { .waiting-list li { flex-wrap: wrap; } }
+.tax-overview { margin: 24px 0; }
+.tax-overview > summary { cursor: pointer; font-weight: 650; min-height: 44px; display: list-item; padding: 10px 0; }
+.tax-overview > div > p { margin: 10px 0; }
+.tax-currency { margin-top: 24px; }
+.tax-currency h3 { margin-bottom: 12px; }
+.tax-currency td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tax-currency th { overflow-wrap: anywhere; }
+.tax-currency tfoot { font-weight: 650; }
+.backup-guide-start { margin: 12px 0 18px; }
+.backup-instructions { padding-inline-start: 22px; }
+.backup-instructions li { margin: 12px 0; line-height: 1.7; }
+.tax-overview summary:focus-visible, .tax-overview [tabindex='0']:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }

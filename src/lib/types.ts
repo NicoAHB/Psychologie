@@ -178,6 +178,7 @@ export interface Settings {
   skipReminderSetup?: boolean;
   defaultCancellationFeeCents?: number;
   autoEmailReminders?: boolean;
+  backupSafetyConfirmedAt?: string;
 }
 /** All relationships and financial information stay inside the encrypted vault. */
 export interface ReferralCode extends Stamped {

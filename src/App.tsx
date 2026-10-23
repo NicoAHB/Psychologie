@@ -3,6 +3,7 @@ import { completeAndPay, type SettingsSection } from './lib/practiceFlow';
 import type { PaymentMethod } from './lib/types';
 import { HelpButton } from './components/HelpButton';
 import { useAppointmentEmails } from './lib/useAppointmentEmails';
+import { TaxOverview } from './components/TaxOverview';
 import { Today } from './components/Today';
 import { Newsletter } from './components/Newsletter';
 import { TemplateManager } from './components/TemplateManager';
@@ -233,6 +234,7 @@ function FinancesPage({ vault, onPayment, onClient, initialView = 'year' }: { va
     </div>
     <IncomeChart sessions={data.sessions} year={year} onYear={value => { setYear(value); setView('year'); setLimit(ROWS_PER_PAGE); }}/><p className="hint finance-currency-hint">{t('financeCurrencyHint')}</p>
     {view !== 'year' && <Notice>{view === 'monthIncome' ? `${t('monthIncomeFocus')} ${monthLabel}. ${t('monthIncomeFocusHint')}` : t('unpaidFocus')}<button className="text-link" onClick={reset}>{t('showAllFinance')}</button></Notice>}
+    <TaxOverview vault={vault} year={year}/>
     <details className="finance-history" open={initialView !== 'year'}><summary>{t('paymentHistoryTools')}</summary><section className="card finance-records"><div className="section-heading flex-wrap"><div><h2>{t('receipts')} · {view === 'monthIncome' ? monthLabel : view === 'unpaid' ? t('allYears') : year}</h2><p>{t(view === 'monthIncome' ? 'monthIncomeFocusHint' : 'billedHelp')}</p></div><div className="button-row"><div className="segmented-tabs small-tabs">{(['all', 'paid', 'unpaid'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} aria-pressed={filter === f} onClick={() => chooseFilter(f)}>{t(f)}</button>)}</div><button className="btn btn-secondary btn-small" onClick={() => setCsv(true)}><Download size={15}/>{t('exportCsv')}</button></div></div>
     {rows.length ? <><div className="table-scroll"><table><thead><tr><th>{t('client')}</th><th>{t('date')}</th><th>{t('invoiceAmount')}</th><th>{t('paymentDate')}</th><th>{t('paymentStatus')}</th><th>{t('invoiceTitle')}</th></tr></thead><tbody>{rows.slice(0, limit).map(s => <tr key={s.id}>
       <td><button className="table-client" onClick={() => onClient(s.clientId)}>{data.clients.find(c => c.id === s.clientId)?.name}</button></td><td>{dateLabel(s.date, language, { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>

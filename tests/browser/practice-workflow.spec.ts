@@ -118,17 +118,17 @@ test('an exported encrypted backup can be verified without overwriting the activ
   const { data } = workflowData(); const read = await seedWorkflow(page, data); await nav(page, 'Einstellungen');
   const [download] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'Verschlüsselte Sicherung herunterladen', exact: true }).click({ timeout: 10000 })]); const backupPath = (await download.path())!;
   await page.bringToFront(); const before = await read();
-  await page.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click({ timeout: 10000 }); const verify = page.getByRole('dialog', { name: 'Sicherung prüfen', exact: true }); await expect(verify).toBeVisible();
-  await verify.getByLabel('Verschlüsselte Sicherungsdatei', { exact: true }).setInputFiles(backupPath); await verify.getByLabel('Passphrase dieser Sicherung', { exact: true }).fill('a very strong test passphrase'); await verify.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click(); await expect(verify).toContainText('Prüfung erfolgreich'); expect(await read()).toEqual(before); await verify.getByRole('button', { name: 'Schließen', exact: true }).last().click({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Sicherung testen', exact: true }).click({ timeout: 10000 }); const verify = page.getByRole('dialog', { name: 'Sicherung testen', exact: true }); await expect(verify).toBeVisible();
+  await verify.getByLabel('Verschlüsselte Sicherungsdatei', { exact: true }).setInputFiles(backupPath); await verify.getByLabel('Passphrase dieser Sicherung', { exact: true }).fill('a very strong test passphrase'); await verify.getByRole('button', { name: 'Sicherung testen', exact: true }).click(); await expect(verify).toContainText('Prüfung erfolgreich'); expect(await read()).toEqual(before); await verify.getByRole('button', { name: 'Schließen', exact: true }).last().click({ timeout: 10000 });
 });
 
 // Keep axe's temporary analysis pages separate from the functional tests above.
 // Each dialog gets a fresh context, so an audit cannot affect later user actions.
-for (const dialogTitle of ['Vorschlag umbenennen', 'Sicherung prüfen']) {
+for (const dialogTitle of ['Vorschlag umbenennen', 'Sicherung testen']) {
   test(`${dialogTitle} is accessible in both themes`, async ({ page }) => {
     test.setTimeout(90000);
     const { data } = workflowData(); data.settings.memoLabels = ['Mein Vorschlag']; await seedWorkflow(page, data); await nav(page, 'Einstellungen');
-    await page.getByRole('button', { name: dialogTitle === 'Sicherung prüfen' ? dialogTitle : 'Vorschlag umbenennen: Mein Vorschlag', exact: true }).click();
+    await page.getByRole('button', { name: dialogTitle === 'Sicherung testen' ? dialogTitle : 'Vorschlag umbenennen: Mein Vorschlag', exact: true }).click();
     await expect(page.getByRole('dialog', { name: dialogTitle, exact: true })).toBeVisible();
     await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
     for (const theme of ['dark', 'light']) {
