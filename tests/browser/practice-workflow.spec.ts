@@ -62,6 +62,9 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
 });
 
 test('vocabulary management and backup verification dialogs are accessible in both themes', async ({ page }) => {
+  // Three axe scans on the full settings page are substantially slower in WebKit.
+  // Keep individual interactions bounded below; allow time for the audit itself.
+  test.setTimeout(150000);
   const { data } = workflowData(); data.settings.memoLabels = ['Mein Vorschlag']; const read = await seedWorkflow(page, data); await nav(page, 'Einstellungen');
   const card = page.locator('.memo-labels-card'); await card.getByRole('button', { name: 'Als Favorit markieren: Mein Vorschlag', exact: true }).click();
   await expect.poll(async () => (await read()).settings.memoLabelFavorites).toEqual(['own:mein vorschlag']);
