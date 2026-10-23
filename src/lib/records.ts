@@ -11,6 +11,7 @@ export function deleteClient(data: VaultData, clientId: string) {
   const removed = new Set((data.referrals ?? []).filter(r => r.referrerId === clientId || r.referredId === clientId).map(r => r.id));
   data.referrals = (data.referrals ?? []).filter(r => !removed.has(r.id));
   data.referralPayouts = (data.referralPayouts ?? []).filter(p => p.referrerId !== clientId).map(p => ({ ...p, allocations: p.allocations.filter(a => !removed.has(a.referralId)) }));
+  data.waitlist = (data.waitlist ?? []).filter(w => w.clientId !== clientId);
   data.clients = data.clients.filter(c => c.id !== clientId);
   data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.clientId !== clientId);
   data.appointments = data.appointments.filter(a => a.clientId !== clientId);
@@ -30,7 +31,7 @@ export function deleteSession(data: VaultData, sessionId: string) {
   data.audioMemos = (data.audioMemos ?? []).filter(m => m.sessionId !== sessionId);
   // A completed appointment without its session would otherwise stay "completed" with nothing to show for it.
   const appointment = data.appointments.find(a => a.id === session?.appointmentId);
-  if (appointment?.status === 'completed') appointment.status = 'scheduled';
+  if (appointment && ['completed', 'noShow', 'lateCancelled'].includes(appointment.status)) appointment.status = 'scheduled';
 }
 export const deleteNote = (data: VaultData, noteId: string) => { data.notes = data.notes.filter(n => n.id !== noteId); };
 export const deleteAudioMemo = (data: VaultData, id: string) => { redactAudioMemos(data, new Set([id])); };
@@ -42,7 +43,7 @@ export function findConflict(appointments: Appointment[], candidate: Pick<Appoin
 }
 /** Suggest the fee last agreed with this client, so recurring sessions need no retyping. */
 export function suggestedFee(data: VaultData, clientId: string, fallback = 8500): number {
-  const latest = [...data.sessions.filter(s => s.clientId === clientId), ...data.appointments.filter(a => a.clientId === clientId)]
+  const latest = [...data.sessions.filter(s => s.clientId === clientId && s.kind !== 'cancellationFee'), ...data.appointments.filter(a => a.clientId === clientId)]
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))[0];
   return latest?.feeCents ?? fallback;
 }

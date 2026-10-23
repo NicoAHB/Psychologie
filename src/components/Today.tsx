@@ -1,3 +1,4 @@
+import { WaitingNotice } from './Waitlist';
 import { SetupChecklist } from './SetupChecklist';
 import { HelpButton } from './HelpButton';
 import { PaymentMethodField } from './PaymentMethodField';
@@ -21,7 +22,7 @@ import { WorkBoard } from './WorkBoard';
 import { Avatar, PageHeading, TextLink } from './ui';
 
 type Props = {
-  vault: VaultController;
+  vault: VaultController; onWaitlist: () => void;
   backup?: BackupState | null; onSetup: (section: SettingsSection) => void;
   quickMethod: PaymentMethod; onMethod: (method: PaymentMethod) => void; onQuickComplete: (a: Appointment) => void; quickBusy: boolean;
   onNewAppointment: () => void;
@@ -36,7 +37,7 @@ type Props = {
   onWork: (item: WorkItem) => void;
 };
 
-export function Today({ vault, backup, onSetup, quickMethod, onMethod, onQuickComplete, quickBusy, onNewAppointment, onNewClient, onClient, onClients, onAppointments, onComplete, onPayments, onInvoice, onDocument, onWork }: Props) {
+export function Today({ vault, onWaitlist, backup, onSetup, quickMethod, onMethod, onQuickComplete, quickBusy, onNewAppointment, onNewClient, onClient, onClients, onAppointments, onComplete, onPayments, onInvoice, onDocument, onWork }: Props) {
   const { t, language } = useI18n(); const data = vault.data!;
   const day = practiceToday(data.settings);
   const activeClients = data.clients.filter(c => clientStatus(c) === 'active');
@@ -75,6 +76,7 @@ export function Today({ vault, backup, onSetup, quickMethod, onMethod, onQuickCo
         <WorkBoard vault={vault} scope="invoices" onOpen={onWork}/>
       </section>
     </div>
+    <WaitingNotice vault={vault} onOpen={onWaitlist}/>
     <WorkBoard vault={vault} onOpen={onWork}/>
     <FollowUpBoard vault={vault} onDocument={onDocument}/>
     <section className="card today-clients"><div className="section-heading"><h2>{t('yourClients')}</h2><button className="btn btn-secondary" onClick={onNewClient}><Plus size={17}/>{t('newClient')}</button></div>

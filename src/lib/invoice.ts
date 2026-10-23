@@ -56,7 +56,7 @@ export function buildInvoice(data: VaultData, client: Client, sessions: Session[
     const native = s.billing?.currency === currency;
     const amountCents = native ? wholeCents(s.billing!.amountCents) : convertWhole(s.feeCents, 'EUR', currency, rate);
     const appliedRate = currency === 'UAH' ? (native ? s.billing?.rate : rate) : undefined;
-    return { sessionId: s.id, date: s.date, description: service, amountCents, ...(currency === 'UAH' ? { euroCents: wholeCents(s.feeCents), ...(appliedRate && { rate: { ...appliedRate } }) } : {}) };
+    return { sessionId: s.id, date: s.date, description: s.kind === 'cancellationFee' ? translate(language, 'cancellationFee') : service, amountCents, ...(currency === 'UAH' ? { euroCents: wholeCents(s.feeCents), ...(appliedRate && { rate: { ...appliedRate } }) } : {}) };
   });
   return { id, number: nextInvoiceNumber(data, issuedAt), clientId: client.id, issuedAt, dueOn, lines, totalCents: lines.reduce((sum, l) => sum + l.amountCents, 0),
     recipient: { name: client.name, address: client.address ?? '' }, sender: structuredClone(data.settings.practice), language, currency, paymentAccount: bankFor(data.settings.practice, currency), ...(currency === 'UAH' ? { totalEuroCents: lines.reduce((sum, line) => sum + (line.euroCents ?? 0), 0) } : {}) };

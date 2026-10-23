@@ -30,10 +30,10 @@ const env: Partial<Record<string, string>> = import.meta.env ?? {};
 export const emailConfigured = cloudConfigured && env.VITE_EMAIL_ENABLED === 'true';
 export interface EmailReceipt { providerId: string; acceptedAt: string }
 /** Plaintext leaves the encrypted vault only for this explicit, authenticated email request. Never persist it server-side. */
-export async function sendDocumentEmail(delivery: EmailDelivery, file: DocumentFile, blob: Blob): Promise<EmailReceipt> {
+export async function sendDocumentEmail(delivery: EmailDelivery, file: DocumentFile, blob: Blob, signal?: AbortSignal): Promise<EmailReceipt> {
   const cloud = await getCloud(); if (!cloud) throw new Error('emailNotConfigured');
   const { data: auth, error: authError } = await cloud.auth.getUser(); if (authError || !auth.user) throw new Error('authError');
-  const { data, error } = await cloud.functions.invoke('send-client-email', { body: {
+  const { data, error } = await cloud.functions.invoke('send-client-email', { signal, body: {
     requestId: delivery.id, to: delivery.recipient, subject: delivery.subject, text: delivery.body,
     attachment: { filename: file.fileName, contentType: file.mimeType, content: toBase64(new Uint8Array(await blob.arrayBuffer())) },
   } });

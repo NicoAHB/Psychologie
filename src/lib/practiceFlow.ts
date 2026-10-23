@@ -33,6 +33,6 @@ export function setupItems(settings: Settings, backup: BackupState | null | unde
     { id: 'banks', done: !!(settings.practice.iban.trim() || settings.practice.ibanUa?.trim()), optional: false, target: 'banks' },
     { id: 'backup', done: !!backup, optional: false, target: 'backup' },
     { id: 'cloud', done: settings.autoSync || backup?.kind === 'cloud' || !!settings.skipCloudSetup, optional: true, target: 'cloud' },
-    { id: 'reminders', done: settings.remindersEnabled || !!settings.skipReminderSetup, optional: true, target: 'reminders' },
+    { id: 'reminders', done: settings.remindersEnabled || !!settings.autoEmailReminders || !!settings.skipReminderSetup, optional: true, target: 'reminders' },
   ];
 }

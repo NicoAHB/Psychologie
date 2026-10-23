@@ -24,3 +24,12 @@ html[data-font-size='extraLarge'] .appointment-row-actions { flex-basis: 100%; }
   .appointment-row-actions .btn { white-space: normal; text-align: start; }
   html[data-font-size='extraLarge'] .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
+.email-preview { padding: 16px; margin: 16px 0; border: 1px solid var(--border); border-radius: 12px; overflow-wrap: anywhere; }
+.email-preview h3 { margin: 12px 0; }
+.status-noShow, .status-lateCancelled { border-style: dashed; }
+.waitlist-panel, .waiting-notice { margin: 24px 0; scroll-margin-top: 100px; }
+.waiting-list { list-style: none; padding: 0; }
+.waiting-list li { display: flex; gap: 16px; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.waiting-list li > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.waiting-list .button-row { flex-shrink: 0; align-self: flex-start; }
+@media (max-width: 480px) { .waiting-list li { flex-wrap: wrap; } }

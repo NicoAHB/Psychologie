@@ -1,3 +1,7 @@
+import { WaitlistPanel } from './Waitlist';
+import { releaseSlot } from '../lib/waitlist';
+import { AppointmentFailure } from './AppointmentFailure';
+import { AppointmentEmail } from './AppointmentEmail';
 import { HelpButton } from './HelpButton';
 import { PaymentMethodField } from './PaymentMethodField';
 import type { PaymentMethod } from '../lib/types';
@@ -65,11 +69,15 @@ function useNarrow() {
   return narrow;
 }
 
-export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplete, onEdit, quickMethod, onMethod, onQuickComplete, quickBusy }: { quickMethod: PaymentMethod; onMethod: (method: PaymentMethod) => void; onQuickComplete: (a: Appointment) => void; quickBusy: boolean; vault: VaultController; onNew: () => void; onBackfill: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
+export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplete, onEdit, quickMethod, onMethod, onQuickComplete, quickBusy, focusWaitlist }: { focusWaitlist?: boolean; quickMethod: PaymentMethod; onMethod: (method: PaymentMethod) => void; onQuickComplete: (a: Appointment) => void; quickBusy: boolean; vault: VaultController; onNew: () => void; onBackfill: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
   const { t } = useI18n(); const data = vault.data!;
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming'); const [mode, setMode] = useState<'list' | 'week'>('list');
+  const [failedAppointment, setFailedAppointment] = useState<Appointment>(); const [emailAppointment,setEmailAppointment] = useState<Appointment>();
   const [absenceForm, setAbsenceForm] = useState<CalendarAbsence | 'new'>(); const [weekFocusDate, setWeekFocusDate] = useState<string>();
   const [message, setMessage] = useState<string>(); const [exporting, setExporting] = useState(false);
+  const [limit,setLimit] = useState(100);
+  useEffect(() => { setLimit(100); },[filter]);
+  useEffect(() => { if(focusWaitlist) { const node=document.getElementById('waitlist-panel');node?.focus();node?.scrollIntoView({block:'start'}); } },[focusWaitlist]);
   const startOfToday = new Date(`${today()}T00:00:00`).getTime();
   const upcoming = (a: Appointment) => a.status === 'scheduled' && appointmentEnd(a) >= startOfToday;
   const appointments = [...data.appointments].filter(a => filter === 'all' || (filter === 'upcoming' ? upcoming(a) : !upcoming(a))).sort((a, b) => byStart(a, b) * (filter === 'past' ? -1 : 1));
@@ -88,7 +96,7 @@ export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplet
     const later = a.seriesId ? data.appointments.filter(x => x.seriesId === a.seriesId && x.id !== a.id && x.status === 'scheduled' && appointmentStart(x) > appointmentStart(a)) : [];
     const all = later.length > 0 && window.confirm(`${t('cancelFollowingConfirm')} (${later.length})`);
     const ids = new Set([a.id, ...(all ? later.map(x => x.id) : [])]);
-    void vault.update(d => { for (const x of d.appointments) if (ids.has(x.id)) x.status = 'cancelled'; }).catch(() => {});
+    void vault.update(d => { for (const x of d.appointments) if (ids.has(x.id)) { releaseSlot(x); x.status = 'cancelled'; } }).catch(() => {});
   }
   function exportCalendar(withNames: boolean) {
     const list = data.appointments.filter(upcoming).sort(byStart);
@@ -102,14 +110,19 @@ export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplet
     <div className="appointment-backfill"><button className="btn btn-secondary" onClick={onBackfill}><Plus size={17}/>{t('addSession')}</button><p className="hint">{t('backfillHint')}</p></div>
     <div className="toolbar-row">{mode === 'list' ? <div className="segmented-tabs" role="group" aria-label={t('appointmentFilters')}>{(['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} aria-pressed={filter === f} onClick={() => setFilter(f)}>{t(f)}</button>)}</div> : <span/>}
       <div className="segmented-tabs small-tabs" role="group"><button className={mode === 'list' ? 'active' : ''} aria-pressed={mode === 'list'} onClick={() => setMode('list')}><List size={15}/> {t('listView')}</button><button className={mode === 'week' ? 'active' : ''} aria-pressed={mode === 'week'} onClick={() => setMode('week')}><CalendarDays size={15}/> {t('weekView')}</button></div></div>
-    {mode === 'week' ? <WeekView vault={vault} onEdit={onEdit} focusDate={weekFocusDate} onEditAbsence={setAbsenceForm}/> : <section className="card appointments-card">{appointments.length ? appointments.map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={<div className="appointment-row-actions">{a.status === 'scheduled' ? <>
+    {mode === 'week' ? <WeekView vault={vault} onEdit={onEdit} focusDate={weekFocusDate} onEditAbsence={setAbsenceForm}/> : <section className="card appointments-card">{appointments.length ? appointments.slice(0,limit).map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={<div className="appointment-row-actions">{a.status === 'scheduled' ? <>
       <button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button>
       <button className="btn btn-secondary btn-small" disabled={quickBusy} onClick={() => onQuickComplete(a)}>{t('quickCompletePaid')}</button>
+      <button className="btn btn-secondary btn-small" onClick={() => setFailedAppointment(a)}>{t('appointmentFailure')}</button><button className="btn btn-secondary btn-small" onClick={() => setEmailAppointment(a)}>{t('appointmentEmailTitle')}</button>
       <button className="icon-btn" title={t('editAppointment')} aria-label={t('editAppointment')} onClick={() => onEdit(a)}><Pencil size={17}/></button>
       <button className="icon-btn" title={t('copyConfirmation')} aria-label={t('copyConfirmation')} onClick={() => void copy(a)}><Copy size={17}/></button>
       <button className="icon-btn" title={t('addToCalendar')} aria-label={t('addToCalendar')} onClick={() => ics(a)}><CalendarPlus size={17}/></button>
       <button className="icon-btn danger" title={t('cancelAppointment')} aria-label={t('cancelAppointment')} onClick={() => cancel(a)}><X size={17}/></button></> : <span className="tag-chip">{t(a.status)}</span>}</div>}/>) : <Empty icon={<CalendarDays size={28}/>} title={t('noAppointments')} text={t('noAppointmentsText')} action={<button className="btn btn-secondary" onClick={onNew}>{t('newAppointment')}</button>}/>}</section>}
+    {mode === 'list' && appointments.length > limit && <button type="button" className="btn btn-secondary" onClick={()=>setLimit(n=>n+100)}>{t('showMoreRows')}</button>}
+    <WaitlistPanel vault={vault}/>
     {mode === 'list' && <AvailabilityList vault={vault} filter={filter} onEdit={setAbsenceForm}/>}
+    {failedAppointment && <AppointmentFailure vault={vault} appointment={failedAppointment} onClose={() => setFailedAppointment(undefined)}/>}
+    {emailAppointment && <AppointmentEmail vault={vault} appointment={emailAppointment} onClose={() => setEmailAppointment(undefined)}/>}
     {absenceForm && <AvailabilityForm vault={vault} absence={absenceForm === 'new' ? undefined : absenceForm} onClose={() => setAbsenceForm(undefined)} onSaved={absence => { setAbsenceForm(undefined); setWeekFocusDate(absence.fromDate); setMode('week'); }}/>}
     {exporting && <Modal title={t('exportCalendar')} onClose={() => setExporting(false)}><Notice error>{t('exportCalendarHint')}</Notice><div className="form-actions"><button className="btn btn-secondary" onClick={() => exportCalendar(false)}>{t('withoutNames')}</button><button className="btn btn-primary" onClick={() => exportCalendar(true)}>{t('withNames')}</button></div></Modal>}
   </>;

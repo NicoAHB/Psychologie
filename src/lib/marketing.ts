@@ -263,7 +263,7 @@ export function campaignOccurrence(
     const start =
       campaign.welcomeFrom === "firstSession"
         ? data.sessions
-            .filter((s) => s.clientId === client.id)
+            .filter((s) => s.clientId === client.id && s.kind !== 'cancellationFee')
             .reduce<
               string | undefined
             >((first, s) => (!first || s.date < first ? s.date : first), undefined)

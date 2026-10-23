@@ -11,7 +11,8 @@ export interface ClientOverview {
 const bySessionDesc = (a: Session, b: Session) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`);
 /** Everything the profile's "at a glance" page shows about one client. */
 export function overviewOf(data: VaultData, clientId: string, now = Date.now()): ClientOverview {
-  const sessions = data.sessions.filter(s => s.clientId === clientId).sort(bySessionDesc);
+  const allSessions = data.sessions.filter(s => s.clientId === clientId);
+  const sessions = allSessions.filter(s => s.kind !== 'cancellationFee').sort(bySessionDesc);
   const counts = new Map<string, number>();
   // Photos attached to a session carry that session's tags; counting them again would inflate a theme.
   const own = new Set(sessions.map(s => s.id));
@@ -21,7 +22,7 @@ export function overviewOf(data: VaultData, clientId: string, now = Date.now()):
     nextAppointment: data.appointments.filter(a => a.clientId === clientId && a.status === 'scheduled' && appointmentEnd(a) >= now).sort(byStart)[0],
     openHomework: sessions.filter(s => s.homework?.trim() && !s.homeworkDone),
     threads: [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8),
-    unpaidCents: sessions.filter(s => !s.paidAt && !isSessionVoided(data, s)).reduce((sum, s) => sum + s.feeCents, 0),
+    unpaidCents: allSessions.filter(s => !s.paidAt && !isSessionVoided(data, s)).reduce((sum, s) => sum + s.feeCents, 0),
   };
 }
 /** The newest homework that has not been reviewed yet, so the next session can start by asking about it. */

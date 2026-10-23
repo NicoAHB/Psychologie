@@ -31,6 +31,8 @@ export interface Client extends Stamped {
   followUpOn?: string;
   followUpNote?: string;
   birthday?: string;
+  cancellationFee?: { currency: Currency; amountCents: number };
+  appointmentEmailConsent?: { id: string; destination: string; grantedAt: string; revokedAt?: string };
   /** Separate opt-in for each marketing channel; reminder permission is unrelated. */
   marketingConsent?: Partial<Record<MarketingChannel, MarketingConsent>>;
 }
@@ -39,9 +41,13 @@ export interface Appointment extends Stamped {
   feeCents: number;
   billing?: Billing; originalFeeCents?: number;
   /** Zone in which `date` and `time` were agreed; the exact instant is derived from it. */
-  timeZone: string; reminderId: string; status: 'scheduled' | 'completed' | 'cancelled';
+  timeZone: string; reminderId: string; status: 'scheduled' | 'completed' | 'cancelled' | 'noShow' | 'lateCancelled';
+  emailDeliveries?: AppointmentEmailDelivery[];
+  releasedSlots?: ReleasedSlot[];
   seriesId?: string;
 }
+export interface ReleasedSlot { id: string; date: string; time: string; duration: number; timeZone: string; releasedAt: string }
+export interface WaitlistEntry extends Stamped { id: string; name: string; preferredTimes: string; note: string; createdAt: string; clientId?: string }
 export interface CalendarAbsence extends Stamped {
   id: string; kind: 'vacation' | 'unavailable'; title: string;
   fromDate: string; untilDate: string; allDay: boolean;
@@ -52,6 +58,8 @@ export interface Session extends Stamped {
   paidAt: string | null; notes: string; tags: string[]; appointmentId?: string;
   /** Missing on legacy payments means unspecified, never an assumed payment method. */
   paymentMethod?: PaymentMethod;
+  kind?: 'cancellationFee';
+  failureStatus?: 'noShow' | 'lateCancelled';
   invoiceId?: string;
   billing?: Billing; originalFeeCents?: number;
   /** What the client was asked to do or observe until the next session, and whether it was reviewed. */
@@ -102,13 +110,17 @@ export interface DocumentFile { blobId: string; fileName: string; mimeType: stri
 export interface EmailDelivery {
   id: string; recipient: string; requestedAt: string; subject: string; body: string;
   acceptedAt?: string; providerId?: string;
-  purpose?: 'invoice' | 'paymentReminder';
+  purpose?: 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder';
+}
+export interface AppointmentEmailDelivery extends EmailDelivery {
+  purpose: 'appointmentConfirmation' | 'appointmentReminder';
+  signature: string; consentId: string; calendar: string; state: 'sending' | 'unknown' | 'sent';
 }
 export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: string; uploadedAt: string; assessmentId?: string }
 export interface TelegramDelivery {
   id: string; recipient: string; requestedAt: string; text: string;
   acceptedAt?: string; messageId?: number;
-  purpose?: 'invoice' | 'paymentReminder';
+  purpose?: 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder';
 }
 export interface DocumentShare { id: string; createdAt: string; expiresAt: string; link: string; revokedAt?: string }
 export interface ClientDocument extends Stamped {
@@ -164,6 +176,8 @@ export interface Settings {
   referralProgram?: { rateBps: number; months: number };
   skipCloudSetup?: boolean;
   skipReminderSetup?: boolean;
+  defaultCancellationFeeCents?: number;
+  autoEmailReminders?: boolean;
 }
 /** All relationships and financial information stay inside the encrypted vault. */
 export interface ReferralCode extends Stamped {
@@ -186,7 +200,7 @@ export interface VaultData {
   crdt?: CrdtState;
   schema: 1; clients: Client[]; appointments: Appointment[]; sessions: Session[]; notes: PhotoNote[];
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
-  availability: CalendarAbsence[]; audioMemos: AudioMemo[];
+  availability: CalendarAbsence[]; audioMemos: AudioMemo[]; waitlist: WaitlistEntry[];
   sessionDrafts: SessionDraft[];
   messageTemplates: MessageTemplate[]; marketingCampaigns: MarketingCampaign[]; newsletters: Newsletter[];
   referralCodes: ReferralCode[]; referrals: Referral[]; referralPayouts: ReferralPayout[];
@@ -208,14 +222,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], waitlist: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], waitlist: value.waitlist ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

@@ -1,3 +1,5 @@
+import { releaseSlot } from '../lib/waitlist';
+import { hasAppointmentEmailConsent } from '../lib/appointmentEmail';
 import { PaymentMethodField } from './PaymentMethodField';
 import { completedSessionId } from '../lib/practiceFlow';
 import { useSessionDraft } from '../lib/useSessionDraft';
@@ -40,6 +42,9 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   const [name, setName] = useState(client?.name || '');
   const [contact, setContact] = useState(client?.contact || '');
   const [email, setEmail] = useState(client?.email || '');
+  const [appointmentEmail, setAppointmentEmail] = useState(!!client && hasAppointmentEmailConsent(client));
+  const [cancellationCurrency, setCancellationCurrency] = useState<Currency>(client?.cancellationFee?.currency ?? client?.currency ?? 'EUR');
+  const [cancellationFee, setCancellationFee] = useState(client?.cancellationFee ? feeText(client.cancellationFee.amountCents) : '');
   const [birthday,setBirthday]=useState(client?.birthday??'');
   const [marketingEmail,setMarketingEmail]=useState(!!client&&!!marketingConsent(client,'email'));
   const [marketingTelegram,setMarketingTelegram]=useState(!!client&&!!marketingConsent(client,'telegram'));
@@ -62,10 +67,13 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     if(birthday&&(!validDay(birthday)||birthday>today())){setError('marketingBirthdayInvalid');return;}
     if (!name.trim() || (chat && !/^-?\d+$/.test(chat)) || !isValidZone(zone)) { setError('required'); return; }
     if (email.trim().length>254 || email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
+    if (cancellationFee && (!/^\d{1,6}$/.test(cancellationFee) || parseMoney(cancellationFee) < 0)) { setError('invalidAmount'); return; }
     setBusy(true);
     try {
       const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
-      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined, birthday:birthday||undefined };
+      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency, cancellationFee: cancellationFee ? { currency: cancellationCurrency, amountCents: parseMoney(cancellationFee) } : undefined, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined, birthday:birthday||undefined };
+      const appointmentEmailChanged = appointmentEmail !== !!(client && hasAppointmentEmailConsent(client)) || email.trim() !== (client?.email ?? '');
+      if (appointmentEmailChanged) result.appointmentEmailConsent = appointmentEmail ? { id: uid(), destination: email.trim(), grantedAt: new Date().toISOString() } : client?.appointmentEmailConsent ? { ...client.appointmentEmailConsent, revokedAt: new Date().toISOString() } : undefined;
       const emailChanged=marketingEmail!==!!(client&&marketingConsent(client,'email'))||email.trim()!==(client?.email??'');
       const telegramChanged=marketingTelegram!==!!(client&&marketingConsent(client,'telegram'))||chat.trim()!==(client?.telegramChatId??'');
       const grants={email:emailChanged&&marketingEmail?grantMarketingConsent(result,'email'):undefined,telegram:telegramChanged&&marketingTelegram?grantMarketingConsent(result,'telegram'):undefined};
@@ -75,7 +83,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
         const index = data.clients.findIndex(c => c.id === result.id);
         if (index < 0) { if (client) throw new Error('storageError'); changeClientStatus(result, status); result.marketingConsent={...(grants.email&&{email:grants.email}),...(grants.telegram&&{telegram:grants.telegram})};data.clients.push(result); }
         else { const target = data.clients[index];
-          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'timeZone', 'currency', 'followUpOn', 'followUpNote', 'birthday'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
+          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'timeZone', 'currency', 'followUpOn', 'followUpNote', 'birthday', 'cancellationFee', 'appointmentEmailConsent'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
           for(const channel of ['email','telegram']as const)if(channel==='email'?emailChanged:telegramChanged){target.marketingConsent??={};const previous=target.marketingConsent[channel];if(grants[channel])target.marketingConsent[channel]=grants[channel];else if(previous&&!previous.revokedAt)target.marketingConsent[channel]={...previous,revokedAt:new Date().toISOString()};}
           if (client && status !== clientStatus(client)) changeClientStatus(target, status);
         }
@@ -101,7 +109,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
       {referralCode.trim()&&<><p className="hint mb-3" lang={ukrainian?'uk':'de'}>{translate(ukrainian?'uk':'de','referralConsent')}</p><label className="check-label"><input type="checkbox" checked={referralConsent} onChange={e=>setReferralConsent(e.target.checked)}/><span>{t('referralConsentRecorded')}</span></label></>}
     </fieldset>}
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
-    <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => {setEmail(e.target.value);setMarketingEmail(false);}} placeholder={t('clientEmailPlaceholder')}/></Field>
+    <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => {setEmail(e.target.value);setMarketingEmail(false);setAppointmentEmail(false);}} placeholder={t('clientEmailPlaceholder')}/></Field>
     <Field label={t('marketingBirthday')} hint={t('marketingBirthdayPrivacy')}><input type="date" value={birthday} max={today()} onChange={e=>setBirthday(e.target.value)}/></Field>
     <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
     <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={zone} onChange={setZone}/>
@@ -109,6 +117,8 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <Field label={t('billingCurrency')} hint={t('billingCurrencyHint')}><select value={currency} onChange={e => { setCurrency(e.target.value as Currency); setCurrencyTouched(true); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <Field label={t('telegramChatId')} hint={t('chatHelp')}><input value={chat} maxLength={24} inputMode="numeric" onChange={e => {setChat(e.target.value);setMarketingTelegram(false);}} placeholder={t('chatPlaceholder')}/></Field>
     <label className="check-label"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/><span>{t('reminderConsent')}</span></label>
+    <label className="check-label"><input type="checkbox" checked={appointmentEmail} disabled={!email.trim()} onChange={e => setAppointmentEmail(e.target.checked)}/><span>{t('appointmentEmailConsent')}</span></label><p className="hint">{t('appointmentEmailPrivacy')}</p>
+    <Field label={t('clientCancellationFee')} hint={t('clientCancellationFeeHint')}><input inputMode="numeric" value={cancellationFee} maxLength={6} onChange={e => setCancellationFee(e.target.value)} placeholder={t('cancellationFeeUseDefault')}/></Field><Field label={t('clientCancellationFeeCurrency')}><select value={cancellationCurrency} onChange={e => setCancellationCurrency(e.target.value as Currency)}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <fieldset className="form-section marketing-consent"><legend>{t('marketingConsentHeading')}</legend><p className="hint mb-3">{t('marketingConsentHint')}</p><label className="check-label"><input type="checkbox" checked={marketingEmail} disabled={!email.trim()} onChange={e=>setMarketingEmail(e.target.checked)}/><span>{t('marketingConsentEmail')}</span></label><label className="check-label"><input type="checkbox" checked={marketingTelegram} disabled={!validMarketingContact({...client,telegramChatId:chat} as Client,'telegram')} onChange={e=>setMarketingTelegram(e.target.checked)}/><span>{t('marketingConsentTelegram')}</span></label><button type="button" className="text-link" disabled={!marketingEmail&&!marketingTelegram} onClick={()=>{setMarketingEmail(false);setMarketingTelegram(false);}}>{t('marketingNoMessages')}</button>{!marketingEmail&&!marketingTelegram&&<p className="hint" role="status">{t('marketingPreferencesNone')}</p>}<p className="hint mt-2">{t('marketingConsentContactChange')}</p></fieldset>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={client && onDeleted ? () => void removeClient() : undefined} deleteLabel={t('deleteClient')}/>
   </form></Modal>;
@@ -154,7 +164,7 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
       if (appointment) {
         // A rescheduled appointment gets a fresh reminder so an already delivered one cannot suppress the new date.
         const shift = daysBetween(appointment.date, date);
-        const edit = (a: Appointment, newDate: string): Appointment => { const moved = a.date !== newDate || a.time !== time || a.timeZone !== entryZone; return { ...a, clientId: selected, date: newDate, time, duration: length, feeCents, billing, timeZone: entryZone, reminderId: moved ? uid() : a.reminderId }; };
+        const edit = (a: Appointment, newDate: string): Appointment => { const moved = a.date !== newDate || a.time !== time || a.timeZone !== entryZone; if (a.status === 'scheduled' && (moved || a.duration !== length)) releaseSlot(a); return { ...a, clientId: selected, date: newDate, time, duration: length, feeCents, billing, timeZone: entryZone, reminderId: moved ? uid() : a.reminderId }; };
         const start = Date.parse(appointmentInstant(appointment));
         await vault.update(d => {
           const owner = d.clients.find(c => c.id === selected); if (owner && clientZone(owner, d.settings) !== theirZone) owner.timeZone = theirZone; // remember where the client lives
@@ -258,7 +268,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
       const pricing = lockedPricing && session ? { feeCents: session.feeCents, billing: session.billing ?? { currency: 'EUR' as const, amountCents: session.feeCents } } : !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
         ? { feeCents: session?.feeCents ?? appointment!.feeCents, billing: originalBilling } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
       const originalFeeCents = session?.originalFeeCents ?? appointment?.originalFeeCents;
-      const result: Session = { id: sessionId, clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, ...(paid && paymentMethod && { paymentMethod }), notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
+      const result: Session = { ...(session?.kind && { kind: session.kind, failureStatus: session.failureStatus }), id: sessionId, clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, ...(paid && paymentMethod && { paymentMethod }), notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
         ...(originalFeeCents !== undefined && { originalFeeCents }),
         ...session?.invoiceId && { invoiceId: session.invoiceId }, ...text && { homework: text, homeworkDone } };
       const photoIds = files.map(f => f.blobId); const savedMemos: AudioMemo[] = [];

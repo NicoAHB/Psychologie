@@ -392,11 +392,11 @@ export function useVault() {
   const restoreData = (value: VaultData) => update(next => {
     const payouts = restoreReferralPayouts(next.referralPayouts,value.referralPayouts);
     next.settings = structuredClone(value.settings);
-    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts'] as const) (next[name] as unknown[]) = value[name] ?? [];
+    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist'] as const) (next[name] as unknown[]) = value[name] ?? [];
     next.sessionDrafts = (value.sessionDrafts ?? []).filter(d => !Object.hasOwn(next.deleted, d.id));
     next.audioMemos = (value.audioMemos ?? []).filter(m => !Object.hasOwn(next.deleted, m.id));
     next.referralPayouts = payouts;
-    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability, ...(value.messageTemplates??[]), ...(value.marketingCampaigns??[]), ...(value.newsletters??[]), ...(value.referralCodes??[]), ...(value.referrals??[]), ...(value.referralPayouts??[])].some(r => r.id === id)) delete next.deleted[id];
+    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability, ...(value.messageTemplates??[]), ...(value.marketingCampaigns??[]), ...(value.newsletters??[]), ...(value.referralCodes??[]), ...(value.referrals??[]), ...(value.referralPayouts??[]), ...(value.waitlist??[])].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
   return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, getData: () => current.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };

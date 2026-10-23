@@ -5,7 +5,7 @@ export interface EmailEnvironment {
 }
 const LIMIT = 10 * 1024 * 1024;
 const validEmail = (s: unknown): s is string => typeof s === 'string' && s.length <= 254 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(s);
-const TYPES: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', odt: 'application/vnd.oasis.opendocument.text' };
+const TYPES: Record<string, string> = { ics: 'text/calendar', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', odt: 'application/vnd.oasis.opendocument.text' };
 async function limitedJson(request: Request) {
   const reader = request.body?.getReader(); if (!reader) throw new Error('invalid');
   const chunks: Uint8Array[] = []; let size = 0;
@@ -37,7 +37,9 @@ export function createEmailHandler(env: EmailEnvironment, request: typeof fetch 
       const extension = attachment.filename.split('.').at(-1)?.toLowerCase();
       if (!extension || !TYPES[extension] || TYPES[extension] !== attachment.contentType) return reply(400, { error: 'invalidRequest' });
       const decoded = atob(attachment.content); if (!decoded.length || decoded.length > LIMIT) return reply(400, { error: 'invalidRequest' });
-      const matches = extension === 'pdf' ? decoded.startsWith('%PDF-') : extension === 'png' ? decoded.startsWith('\x89PNG') : ['jpg', 'jpeg'].includes(extension) ? decoded.startsWith('\xff\xd8\xff') : extension === 'webp' ? decoded.startsWith('RIFF') && decoded.slice(8, 12) === 'WEBP' : ['docx', 'odt'].includes(extension) ? decoded.startsWith('PK') : !decoded.includes('\x00');
+      let calendar = ''; try { if (extension === 'ics') calendar = new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(decoded, c => c.charCodeAt(0))); } catch { return reply(400, { error: 'invalidRequest' }); }
+      const safeCalendar = decoded.length <= 32768 && calendar.startsWith('BEGIN:VCALENDAR\r\n') && calendar.endsWith('END:VCALENDAR\r\n') && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(calendar) && calendar.split('\r\n').every(line => !line || line.startsWith(' ') || /^(BEGIN:(VCALENDAR|VEVENT)|END:(VCALENDAR|VEVENT)|VERSION:2\.0|PRODID:|CALSCALE:GREGORIAN|METHOD:PUBLISH|X-WR-CALNAME:|UID:|DTSTAMP:|DTSTART:|DTEND:|SUMMARY:|DESCRIPTION:)/.test(line));
+      const matches = extension === 'ics' ? safeCalendar : extension === 'pdf' ? decoded.startsWith('%PDF-') : extension === 'png' ? decoded.startsWith('\x89PNG') : ['jpg', 'jpeg'].includes(extension) ? decoded.startsWith('\xff\xd8\xff') : extension === 'webp' ? decoded.startsWith('RIFF') && decoded.slice(8, 12) === 'WEBP' : ['docx', 'odt'].includes(extension) ? decoded.startsWith('PK') : !decoded.includes('\x00');
       if (!matches) return reply(400, { error: 'invalidRequest' });
       const response = await request('https://api.resend.com/emails', { method: 'POST', signal: AbortSignal.timeout(25000), headers: {
         Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': `praxisraum/${env.EMAIL_OWNER_USER_ID}/${requestId}`,

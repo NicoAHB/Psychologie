@@ -12,6 +12,7 @@ const csv = (value: string | number) => `"${String(value).replaceAll('"', '""')}
 export async function clientExport(data: VaultData, clientId: string, language: Language, file: (id: string, type?: string) => Promise<Blob>) {
   const client = data.clients.find(item => item.id === clientId); if (!client) throw new Error('required');
   const T = (key: Parameters<typeof translate>[1]) => translate(language, key);
+  const waitlist = (data.waitlist ?? []).filter(w => w.clientId === clientId);
   const sessions = data.sessions.filter(item => item.clientId === clientId).sort((a, b) => a.date.localeCompare(b.date));
   const appointments = data.appointments.filter(item => item.clientId === clientId).sort((a, b) => a.date.localeCompare(b.date));
   const notes = data.notes.filter(item => item.clientId === clientId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -23,9 +24,11 @@ export async function clientExport(data: VaultData, clientId: string, language: 
   const text = (path: string, value: string) => { archive[path] = [strToU8(value), { level: 6 }]; };
   const add = (path: string, blobId: string, mimeType: string) => { attachments.push({ path, blobId, mimeType }); return path; };
   if (client.avatarId) add('bilder/profil.webp', client.avatarId, 'image/webp');
+  text('warteliste.md', `# ${T('waitlist')}\n\n` + waitlist.map(w => `## ${w.createdAt}\n\n${w.name}\n\n${w.preferredTimes}\n\n${w.note}\n`).join('\n'));
   text('profil.md', `# ${client.name}\n\n${T('clientExportProfile')}\n\n- ${T('clientStatus')}: ${T(`clientStatus_${client.status ?? 'active'}`)}\n- ${T('date')}: ${client.createdAt}\n- ${T('clientEmail')}: ${client.email ?? ''}\n- ${T('contact')}: ${client.contact}\n- ${T('invoiceRecipientAddress')}: ${client.address ?? ''}\n\n## ${T('preparation')}\n\n${client.preparation}\n`);
-  text('sitzungen.md', `# ${T('tabDiscussed')}\n\n` + sessions.map(session => `## ${session.date} ${session.time}\n\n${session.notes}\n\n${session.tags.join(' ')}\n\n${T('homeworkOpen')}: ${session.homework ?? ''}\n`).join('\n'));
-  text('termine.md', `# ${T('appointments')}\n\n` + appointments.map(item => `- ${item.date} ${item.time} (${item.timeZone}), ${item.duration} min, ${item.status}`).join('\n'));
+  text('sitzungen.md', `# ${T('tabDiscussed')}\n\n` + sessions.map(session => `## ${session.date} ${session.time}${session.kind === 'cancellationFee' ? ` · ${T('cancellationFee')}` : ''}\n\n${session.notes}\n\n${session.tags.join(' ')}\n\n${T('homeworkOpen')}: ${session.homework ?? ''}\n`).join('\n'));
+  text('termin-emails.md', `# ${T('appointmentEmailTitle')}\n\n` + appointments.flatMap(a => (a.emailDeliveries ?? []).map(d => `## ${a.date} ${a.time}\n\n${T(d.purpose)} · ${d.acceptedAt ?? T('documentNotSent')}\n\n${d.subject}\n\n${d.body}\n`)).join('\n'));
+  text('termine.md', `# ${T('appointments')}\n\n` + appointments.map(item => `- ${item.date} ${item.time} (${item.timeZone}), ${item.duration} min, ${T(item.status)}`).join('\n'));
   text('fotonotizen.md', `# ${T('addNote')}\n\n` + notes.map(note => { const path = add(`bilder/${safe(note.id)}.webp`, note.blobId, 'image/webp'); return `## ${note.createdAt}\n\n${note.caption}\n\n${note.tags.join(' ')}\n\n![${T('addNote')}](${path})\n`; }).join('\n'));
   const memoIndex = audioMemos.map(memo => ({ ...memo, path: add(`sprach-memos/${safe(memo.id)}.${audioExtension(memo.mimeType)}`, memo.blobId, memo.mimeType) }));
   text('sprach-memos.md', `# ${T('memoSection')}\n\n` + memoIndex.map(memo => `## ${memo.label || T('memoDefaultTitle')}\n\n${memo.createdAt} · ${memoTime(memo.durationMs)}\n\n${T('session')}: ${sessions.find(s => s.id === memo.sessionId)?.date ?? ''}\n\n### ${T('memoSummary')}\n\n${memo.summary}\n\n[${T('memoPlay')}](${memo.path})\n`).join('\n'));
@@ -49,7 +52,7 @@ export async function clientExport(data: VaultData, clientId: string, language: 
   text('newsletter.md', `# ${T('newsletter')}\n\n` + newsletters.map(n => `## ${n.createdAt} · ${n.channel}\n\n` + n.messages.map(m => `${m.title}\n\n${m.content}\n\n${m.titleUk ?? ''}\n\n${m.contentUk ?? ''}\n`).join('\n')).join('\n'));
   const referrals = clientReferralExport(data,clientId);
   text('empfehlungen.json', JSON.stringify(referrals,null,2));
-  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, referrals, newsletters, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
+  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, waitlist, referrals, newsletters, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
   text('README.md', `# ${T('clientExportTitle')}: ${client.name}\n\n${T('clientExportReadme')}\n\n${T('clientExportContents')}\n`);
   for (const attachment of attachments) { const blob = await file(attachment.blobId, attachment.mimeType); archive[attachment.path] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]; }
   return { bytes: new Uint8Array(zipSync(archive)), filename: `Praxisraum-${safe(client.name)}-${new Date().toISOString().slice(0, 10)}.zip` };

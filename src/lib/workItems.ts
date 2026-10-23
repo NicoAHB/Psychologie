@@ -15,7 +15,7 @@ export function workItems(data: VaultData, now = new Date()): WorkItem[] {
   const unbilled = new Map<string, Session>();
   for (const session of data.sessions) {
     if (session.date > day) continue;
-    if (!session.notes.trim() && !attachments.has(session.id) && !draftedSessions.has(session.id)) entries.push({ id: session.id, kind: 'session', clientId: session.clientId, date: session.date });
+    if (session.kind !== 'cancellationFee' && !session.notes.trim() && !attachments.has(session.id) && !draftedSessions.has(session.id)) entries.push({ id: session.id, kind: 'session', clientId: session.clientId, date: session.date });
     if (!session.invoiceId && !isSessionVoided(data, session) && (!unbilled.has(session.clientId) || session.date < unbilled.get(session.clientId)!.date)) unbilled.set(session.clientId, session);
   }
   for (const client of data.clients) {

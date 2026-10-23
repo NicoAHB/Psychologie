@@ -1,3 +1,4 @@
+import { reconcileAppointmentOutcomes } from './cancellations';
 import type { PasskeyWrap, VaultData, VaultEnvelope } from './types';
 import { reconcileBillingLinks } from './invoice';
 import { reconcileReferralStarts } from './referrals';
@@ -20,9 +21,11 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
   const sessions = new Map(merged.sessions.map(s => [s.id, s.clientId]));
   for (const newsletter of merged.newsletters ?? []) newsletter.recipients = newsletter.recipients.filter(r => clientIds.has(r.clientId));
   merged.audioMemos = merged.audioMemos.filter(m => sessions.get(m.sessionId) === m.clientId);
+  merged.waitlist = merged.waitlist.filter(w => !w.clientId || clientIds.has(w.clientId));
   merged.referralCodes = merged.referralCodes.filter(c => clientIds.has(c.clientId));
   merged.referrals = merged.referrals.filter(r => clientIds.has(r.referrerId) && clientIds.has(r.referredId));
   merged.referralPayouts = merged.referralPayouts.filter(p => clientIds.has(p.referrerId));
+  reconcileAppointmentOutcomes(merged);
   reconcileBillingLinks(merged);
   reconcileReferralStarts(merged);
   return merged;
