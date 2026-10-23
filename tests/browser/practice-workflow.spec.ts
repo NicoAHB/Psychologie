@@ -14,7 +14,7 @@ test.afterEach(async ({ page }, info) => {
     setTimeout(() => { cancelAnimationFrame(frame); resolve(count); }, 500);
   }));
   const before = await frames(); await page.mouse.move(1, 1); const afterPointer = await frames();
-  await page.screenshot({ timeout: 3000 }); const afterCapture = await frames();
+  const captureError = await page.screenshot({ timeout: 3000 }).then(() => undefined, error => String(error).slice(0, 150)); const afterCapture = await frames();
   const state = await Promise.race([page.evaluate(() => ({
     visible: document.visibilityState, focused: document.hasFocus(), viewport: { width: innerWidth, height: innerHeight, scale: visualViewport?.scale },
     active: document.activeElement?.tagName,
@@ -26,7 +26,7 @@ test.afterEach(async ({ page }, info) => {
     buttons: [...document.querySelectorAll<HTMLButtonElement>('.memo-labels-card button, .settings-card button')].filter(b => /Sicherung|Vorschlag/.test(b.ariaLabel ?? b.textContent ?? '')).slice(0, 10).map(b => ({ name: b.ariaLabel ?? b.textContent, disabled: b.disabled, rect: b.getBoundingClientRect().toJSON() })),
     text: document.body.innerText.slice(-900),
   })), new Promise(resolve => setTimeout(() => resolve('Page did not respond within five seconds'), 5000))]);
-  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify({ frames: { before, afterPointer, afterCapture }, state })}`);
+  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify({ frames: { before, afterPointer, afterCapture }, captureError, state })}`);
 });
 
 test('pause, completion and reactivation keep the full client record; filters and due follow-ups work', async ({ page }) => {
@@ -54,7 +54,9 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   await session.getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).click(); const recorder = page.getByRole('dialog', { name: 'Sprach-Memo aufnehmen', exact: true });
   await recorder.getByRole('button', { name: 'Aufnahme starten', exact: true }).click(); await expect(recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true })).toBeVisible({ timeout: 10000 }); await recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
   await recorder.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Noch nicht abgeschlossene Sitzung'); await recorder.getByLabel('Kurzfassung', { exact: true }).fill('Manuelle Kurzfassung im Entwurf');
-  await expect.poll(async () => (await read()).sessionDrafts[0]?.payload.memos[0]?.summary).toBe('Manuelle Kurzfassung im Entwurf');
+  // Wait for the encrypted write, including queued photo/audio checkpoints;
+  // software-rendered WebKit on a CI runner is slower than the local browser.
+  await expect.poll(async () => (await read()).sessionDrafts[0]?.payload.memos[0]?.summary, { timeout: 15000 }).toBe('Manuelle Kurzfassung im Entwurf');
   expect((await read()).sessions).toHaveLength(data.sessions.length); expect((await read()).audioMemos).toHaveLength(0);
   // Do not press "Memo übernehmen": stopping and the metadata pause already checkpointed the audio.
   await page.reload(); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click();

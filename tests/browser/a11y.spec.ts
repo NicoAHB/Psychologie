@@ -76,8 +76,13 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Profil bearbeiten' }).first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await scan(page, found, 'client profile form');
-    await page.keyboard.press('Escape');
+    await page.getByRole('dialog').getByLabel('Begleitungsstatus', { exact: true }).selectOption('paused');
+    await page.getByRole('dialog').getByLabel('Wiedervorlage am', { exact: true }).fill('2020-01-01');
+    await page.getByRole('dialog').getByRole('button', { name: 'Speichern', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Überblick', exact: true }).click();
+    await expect(page.locator('.client-status-card')).toBeVisible();
+    await scan(page, found, 'paused client status and reactivation');
     await page.getByRole('button', { name: /Videosprechstunde/ }).first().click();
     await expect(page.getByRole('dialog', { name: /Videosprechstunde/ })).toBeVisible(); // a dialog announces its title to screen readers
     await scan(page, found, 'video consultation');
