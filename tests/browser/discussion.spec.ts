@@ -1,5 +1,7 @@
+import { readFile } from 'node:fs/promises';
 import { nav } from './workflow-fixture';
 import { test, expect, type Page } from './fixtures';
+const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import.meta.url), 'utf8')) as Record<string, string>;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAZElEQVR4nO3PQQ3AIADAQMC/CxJMYG4ieFyW9BS0c98z/mzpgFcNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaB+DmAKEfrnO0QAAAABJRU5ErkJggg==', 'base64');
 
 const storedImages = (page: Page) => page.evaluate(async () => {
@@ -18,7 +20,7 @@ test('what we discussed: typed notes, photos of the handwritten sheet, homework,
   await dialog.getByLabel('Name *', { exact: true }).fill('Anna Gespräch'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
 
   const glance = page.getByRole('region', { name: 'Auf einen Blick' });
-  await expect(glance).toContainText('Kein Termin geplant'); await expect(glance).toContainText('Noch keine Termin'); await expect(page.getByText('Keine offenen Hausaufgaben.')).toBeVisible();
+  await expect(glance).toContainText('Kein Termin geplant'); await expect(glance).toContainText(de.noSessionYet); await expect(page.getByText('Keine offenen Hausaufgaben.')).toBeVisible();
   await page.getByRole('button', { name: 'Termin anlegen', exact: true }).first().click(); await dialog.getByLabel('Datum *').fill(new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10)); await dialog.getByLabel('Uhrzeit *').fill('16:30');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await expect(glance).toContainText('16:30');
@@ -33,7 +35,7 @@ test('what we discussed: typed notes, photos of the handwritten sheet, homework,
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await expect.poll(() => storedImages(page)).toBe(2);
 
-  await expect(glance).toContainText('Letzte Termin'); await expect(glance).not.toContainText('Noch keine Termin');
+  await expect(glance).toContainText(de.lastSessionLabel); await expect(glance).not.toContainText(de.noSessionYet);
   await expect(page.getByRole('textbox', { name: 'Vorbereitung für den nächsten Termin' })).toHaveValue('Atemübung vor dem Schlafen besprechen');
   await expect(page.locator('.homework-list')).toContainText('Schlaftagebuch führen');
   await expect(page.locator('.recent-list')).toContainText('Schlafprobleme'); await expect(page.locator('.recent-list')).toContainText('2 Foto(s)');
@@ -49,7 +51,7 @@ test('what we discussed: typed notes, photos of the handwritten sheet, homework,
 
   // The next session starts with a review of the last homework; the new one replaces it in the open list.
   await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
-  await expect(dialog.getByText('Hausaufgabe der letzten Termin')).toBeVisible(); await expect(dialog.locator('.previous-homework')).toContainText('Schlaftagebuch führen');
+  await expect(dialog.getByText(de.homeworkPrevious)).toBeVisible(); await expect(dialog.locator('.previous-homework')).toContainText('Schlaftagebuch führen');
   await expect(dialog.getByLabel('Für das nächste Mal besprechen')).toHaveValue('Atemübung vor dem Schlafen besprechen');
   await dialog.locator('.previous-homework').getByLabel('Erledigt / besprochen').check();
   await dialog.getByLabel('Uhrzeit', { exact: true }).fill('11:00'); await dialog.getByLabel('Terminnotiz (optional)').fill('Tagebuch besprochen'); await dialog.getByLabel('Hausaufgabe für den Klienten').fill('Spaziergang nach dem Abendessen');
