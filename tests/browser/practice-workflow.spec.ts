@@ -3,6 +3,20 @@ import { test, expect } from './fixtures';
 import { fakeMemoCapture } from './memo-fixture';
 import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
 
+// Keep remote Safari failures diagnosable even when CI artifacts cannot be downloaded
+// from a restricted developer environment. This fixture contains fictitious data only.
+test.afterEach(async ({ page }, info) => {
+  if (!info.project.name.includes('webkit') || !info.errors.length || page.isClosed()) return;
+  const state = await Promise.race([page.evaluate(() => ({
+    text: document.body.innerText.slice(-6500), visible: document.visibilityState,
+    active: document.activeElement?.tagName,
+    recorder: String(globalThis.MediaRecorder).slice(0, 100),
+    capture: (window as unknown as { __memo?: unknown }).__memo,
+    dialogs: [...document.querySelectorAll('dialog')].map(d => ({ open: d.open, text: d.innerText.slice(0, 1200), rect: d.getBoundingClientRect().toJSON() })),
+  })), new Promise(resolve => setTimeout(() => resolve('Page did not respond within five seconds'), 5000))]);
+  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify(state)}`);
+});
+
 test('pause, completion and reactivation keep the full client record; filters and due follow-ups work', async ({ page }) => {
   const { data, client } = workflowData(); const read = await seedWorkflow(page, data);
   await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click();
@@ -26,7 +40,7 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click(); await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
   const session = page.getByRole('dialog', { name: 'Sitzung erfassen', exact: true }); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Entwurf bleibt nach Safari-Neustart');
   await session.getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).click(); const recorder = page.getByRole('dialog', { name: 'Sprach-Memo aufnehmen', exact: true });
-  await recorder.getByRole('button', { name: 'Aufnahme starten', exact: true }).click(); await recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
+  await recorder.getByRole('button', { name: 'Aufnahme starten', exact: true }).click(); await expect(recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true })).toBeVisible({ timeout: 10000 }); await recorder.getByRole('button', { name: 'Aufnahme stoppen', exact: true }).click();
   await recorder.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Noch nicht abgeschlossene Sitzung'); await recorder.getByLabel('Kurzfassung', { exact: true }).fill('Manuelle Kurzfassung im Entwurf');
   await expect.poll(async () => (await read()).sessionDrafts[0]?.payload.memos[0]?.summary).toBe('Manuelle Kurzfassung im Entwurf');
   expect((await read()).sessions).toHaveLength(data.sessions.length); expect((await read()).audioMemos).toHaveLength(0);
