@@ -23,6 +23,22 @@ const de = JSON.parse(
   await readFile(new URL("../../src/locales/de.json", import.meta.url), "utf8"),
 ) as Record<string, string>;
 test.use({ actionTimeout: 10000 });
+// Closing follows an encrypted durable write. Headed software-rendered WebKit
+// on a shared runner can need more than the default five-second assertion.
+async function saved(
+  dialog: ReturnType<import("@playwright/test").Page["getByRole"]>,
+) {
+  try {
+    await expect(dialog).toHaveCount(0, { timeout: 15000 });
+  } catch (error) {
+    const visible = await dialog
+      .innerText()
+      .catch(() => "(dialog unavailable)");
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\nVisible dialog state: ${visible.slice(-2500)}`,
+    );
+  }
+}
 const uk = JSON.parse(
   await readFile(new URL("../../src/locales/uk.json", import.meta.url), "utf8"),
 ) as Record<string, string>;
@@ -49,7 +65,7 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
     .getByLabel(de.marketingMessageUk, { exact: true })
     .fill("Практика працює наступного тижня.");
   await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await saved(dialog);
   await page
     .getByRole("button", { name: de.marketingUseTemplate, exact: true })
     .click();
@@ -69,7 +85,7 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
   await dialog.getByLabel(de.marketingConsentEmail, { exact: true }).check();
   await dialog.getByLabel(de.marketingConsentTelegram, { exact: true }).check();
   await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await saved(dialog);
   await page.getByLabel(de.marketingSelectAll, { exact: true }).check();
   await expect(page.getByText("1 ausgewählt", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Українська", exact: true }).click();
@@ -95,7 +111,7 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
     dialog.getByLabel(de.marketingCampaignActive, { exact: true }),
   ).not.toBeChecked();
   await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await saved(dialog);
   await page
     .getByRole("button", { name: "Sperren", exact: true })
     .last()
@@ -139,7 +155,7 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
     dialog.getByLabel(de.marketingConsentTelegram, { exact: true }),
   ).not.toBeChecked();
   await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await saved(dialog);
   await expect(
     page.getByLabel(de.marketingSelectAll, { exact: true }),
   ).toBeDisabled();
