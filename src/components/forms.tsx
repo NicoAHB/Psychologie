@@ -24,6 +24,7 @@ import { Avatar, Field, Modal, Notice } from './ui';
 import { SessionMemos } from './AudioMemos';
 import { validateMemo, type MemoDraft, type MemoMetadata } from '../lib/audioMemos';
 import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
+import { grantMarketingConsent, marketingConsent, marketingError, validMarketingContact } from '../lib/marketing';
 function Actions({ busy, onClose, label, onDelete, deleteLabel }: { busy: boolean; onClose: () => void; label?: string; onDelete?: () => void; deleteLabel?: string }) {
   const { t } = useI18n();
   return <div className="form-actions">{onDelete && <button type="button" className="btn btn-danger" disabled={busy} onClick={onDelete}><Trash2 size={16}/>{deleteLabel || t('delete')}</button>}<button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <Check size={17}/>} {busy ? t('working') : label || t('save')}</button></div>;
@@ -35,6 +36,9 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   const [name, setName] = useState(client?.name || '');
   const [contact, setContact] = useState(client?.contact || '');
   const [email, setEmail] = useState(client?.email || '');
+  const [birthday,setBirthday]=useState(client?.birthday??'');
+  const [marketingEmail,setMarketingEmail]=useState(!!client&&!!marketingConsent(client,'email'));
+  const [marketingTelegram,setMarketingTelegram]=useState(!!client&&!!marketingConsent(client,'telegram'));
   const [ukrainian, setUkrainian] = useState(client?.language === 'uk');
   const [currency, setCurrency] = useState<Currency>(currencyOf(client));
   const [currencyTouched, setCurrencyTouched] = useState(!!client);
@@ -50,24 +54,30 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (followUpOn && !validDay(followUpOn)) { setError('required'); return; }
+    if(birthday&&(!validDay(birthday)||birthday>today())){setError('marketingBirthdayInvalid');return;}
     if (!name.trim() || (chat && !/^-?\d+$/.test(chat)) || !isValidZone(zone)) { setError('required'); return; }
-    if (email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
+    if (email.trim().length>254 || email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
     setBusy(true);
     try {
       const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
-      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined };
+      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined, birthday:birthday||undefined };
+      const emailChanged=marketingEmail!==!!(client&&marketingConsent(client,'email'))||email.trim()!==(client?.email??'');
+      const telegramChanged=marketingTelegram!==!!(client&&marketingConsent(client,'telegram'))||chat.trim()!==(client?.telegramChatId??'');
+      const grants={email:emailChanged&&marketingEmail?grantMarketingConsent(result,'email'):undefined,telegram:telegramChanged&&marketingTelegram?grantMarketingConsent(result,'telegram'):undefined};
       const before = referencedBlobs(vault.data!);
       await vault.update(data => {
+        if(grants.email||grants.telegram||Object.keys(client?.marketingConsent??{}).length)data.settings.marketingUsed=true;
         const index = data.clients.findIndex(c => c.id === result.id);
-        if (index < 0) { if (client) throw new Error('storageError'); changeClientStatus(result, status); data.clients.push(result); }
+        if (index < 0) { if (client) throw new Error('storageError'); changeClientStatus(result, status); result.marketingConsent={...(grants.email&&{email:grants.email}),...(grants.telegram&&{telegram:grants.telegram})};data.clients.push(result); }
         else { const target = data.clients[index];
-          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'timeZone', 'currency', 'followUpOn', 'followUpNote'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
+          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'timeZone', 'currency', 'followUpOn', 'followUpNote', 'birthday'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
+          for(const channel of ['email','telegram']as const)if(channel==='email'?emailChanged:telegramChanged){target.marketingConsent??={};const previous=target.marketingConsent[channel];if(grants[channel])target.marketingConsent[channel]=grants[channel];else if(previous&&!previous.revokedAt)target.marketingConsent[channel]={...previous,revokedAt:new Date().toISOString()};}
           if (client && status !== clientStatus(client)) changeClientStatus(target, status);
         }
       });
       await vault.purgeUnused(before); // a replaced profile picture must not linger encrypted on the device or in the cloud
       onSaved(result.id);
-    } catch (err) { setError(err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error&&['marketingContactMissing','invalidImage'].includes(err.message)?marketingError(err):'storageError'); } finally { setBusy(false); }
   }
   async function removeClient() {
     if (!client || !window.confirm(`${client.name}\n\n${t('deleteClientConfirm')}${vault.data!.invoices.some(i => i.clientId === client.id) ? `\n\n${t('deleteClientInvoicesNote')}` : ''}`)) return;
@@ -79,13 +89,15 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
     <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field><Field label={t('clientFollowUpOn')}><input type="date" value={followUpOn} onChange={e => setFollowUpOn(e.target.value)}/></Field><Field label={t('clientFollowUpNote')}><input value={followUpNote} maxLength={500} onChange={e => setFollowUpNote(e.target.value)}/></Field></div>
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
-    <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder={t('clientEmailPlaceholder')}/></Field>
+    <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => {setEmail(e.target.value);setMarketingEmail(false);}} placeholder={t('clientEmailPlaceholder')}/></Field>
+    <Field label={t('marketingBirthday')} hint={t('marketingBirthdayPrivacy')}><input type="date" value={birthday} max={today()} onChange={e=>setBirthday(e.target.value)}/></Field>
     <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
     <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={zone} onChange={setZone}/>
     <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { setUkrainian(e.target.checked); if (!currencyTouched) setCurrency(e.target.checked ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
     <Field label={t('billingCurrency')} hint={t('billingCurrencyHint')}><select value={currency} onChange={e => { setCurrency(e.target.value as Currency); setCurrencyTouched(true); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
-    <Field label={t('telegramChatId')} hint={t('chatHelp')}><input value={chat} maxLength={24} inputMode="numeric" onChange={e => setChat(e.target.value)} placeholder={t('chatPlaceholder')}/></Field>
+    <Field label={t('telegramChatId')} hint={t('chatHelp')}><input value={chat} maxLength={24} inputMode="numeric" onChange={e => {setChat(e.target.value);setMarketingTelegram(false);}} placeholder={t('chatPlaceholder')}/></Field>
     <label className="check-label"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/><span>{t('reminderConsent')}</span></label>
+    <fieldset className="form-section marketing-consent"><legend>{t('marketingConsentHeading')}</legend><p className="hint mb-3">{t('marketingConsentHint')}</p><label className="check-label"><input type="checkbox" checked={marketingEmail} disabled={!email.trim()} onChange={e=>setMarketingEmail(e.target.checked)}/><span>{t('marketingConsentEmail')}</span></label><label className="check-label"><input type="checkbox" checked={marketingTelegram} disabled={!validMarketingContact({...client,telegramChatId:chat} as Client,'telegram')} onChange={e=>setMarketingTelegram(e.target.checked)}/><span>{t('marketingConsentTelegram')}</span></label><p className="hint mt-2">{t('marketingConsentContactChange')}</p></fieldset>
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={client && onDeleted ? () => void removeClient() : undefined} deleteLabel={t('deleteClient')}/>
   </form></Modal>;
 }

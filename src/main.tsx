@@ -8,11 +8,13 @@ import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { registerServiceWorker } from './lib/updates';
 import './styles.css';
+const MarketingUnsubscribePage = lazy(()=>import('./components/MarketingUnsubscribePage'));
 const SharedDocumentPage = lazy(() => import('./components/SharedDocumentPage'));
 const VideoGuestPage = lazy(() => import('./components/VideoConsultation').then(m => ({ default: m.VideoGuestPage })));
 function Entry() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => { const change = () => setHash(location.hash); window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
+  if(hash.startsWith('#marketing-unsubscribe='))return <Suspense fallback={<p role="status">…</p>}><MarketingUnsubscribePage key={hash} hash={hash}/></Suspense>;
   if (hash.startsWith('#document=')) return <Suspense fallback={<p role="status">…</p>}><SharedDocumentPage key={hash} invitation={parseShareInvitation(hash)}/></Suspense>;
   return hash.startsWith('#video=') ? <Suspense fallback={<p role="status">…</p>}><VideoGuestPage invitation={parseVideoInvitation(hash)}/></Suspense> : <App/>;
 }

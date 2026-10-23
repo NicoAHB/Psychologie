@@ -14,3 +14,7 @@ des WebKit-Testbrowsers. Ergebnisse und Grenzen in `HANDOFF.md` nachlesen.
 Strikte TypeScript-Typen, gleiche Schlüssel in `de.json`/`uk.json`, verschlüsselte
 Ablage vor jedem Speichern/Synchronisieren und bestehende Lösch-/Merge-Regeln erhalten.
 Keine KI, Transkription, Spracherkennung, Modelle oder Audio-Netzwerkdienste ergänzen.
+
+## Neue Marketing-Module
+
+Technische und fachliche Übergabe: [`docs/marketing.md`](docs/marketing.md). Einstieg: `src/lib/navigation.tsx`, `Newsletter.tsx`, `TemplateManager.tsx`, `MarketingCampaigns.tsx`. Datenmodell, Merge, Blob-Referenzen, Sicherungen, Klientenexport und Consent-Widerruf sind integriert. Optionale Migration `supabase/marketing.sql` und Edge Function `send-marketing` sind vorbereitet, jedoch nicht in einem echten Supabase-Projekt eingerichtet. Kampagnen laufen ausschließlich bei geöffnetem, entsperrtem Tresor. Keine Geburtstagslisten oder Tresorschlüssel auf den Server hochladen. Keine echten Nachrichten in Tests senden. Status „unklar“ niemals automatisch erneut versuchen. Der spätere 10-%-Empfehlungsbonus ist kein Bestandteil dieses Auftrags.

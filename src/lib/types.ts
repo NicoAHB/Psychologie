@@ -9,7 +9,9 @@ export interface Billing {
   /** EUR comparison value is kept in the parent record's feeCents. */
 }
 export interface BankAccount { holder: string; iban: string; bank: string; bic: string }
-export type Route = 'overview' | 'clients' | 'appointments' | 'finances' | 'settings';
+export type Route = 'overview' | 'clients' | 'appointments' | 'finances' | 'settings' | 'newsletter' | 'marketingCampaigns' | 'messageTemplates';
+export type MarketingChannel = 'email' | 'telegram';
+export interface MarketingConsent { id: string; token: string; destination: string; grantedAt: string; revokedAt?: string }
 // `updatedAt` is display/audit metadata. Causal CRDT registers drive device merging.
 export interface Stamped { updatedAt?: number }
 export interface Client extends Stamped {
@@ -26,6 +28,9 @@ export interface Client extends Stamped {
   statusHistory?: { id: string; status: ClientStatus; at: string }[];
   followUpOn?: string;
   followUpNote?: string;
+  birthday?: string;
+  /** Separate opt-in for each marketing channel; reminder permission is unrelated. */
+  marketingConsent?: Partial<Record<MarketingChannel, MarketingConsent>>;
 }
 export interface Appointment extends Stamped {
   id: string; clientId: string; date: string; time: string; duration: number;
@@ -114,6 +119,30 @@ export interface Assessment extends Stamped {
   source?: { documentId: string; returnId: string; fileHash?: string };
 }
 export interface Template extends Stamped { id: string; name: string; body: string }
+export interface MessageTemplate extends Stamped {
+  id: string; title: string; category: 'info' | 'greeting' | 'organization';
+  content: string; titleUk?: string; contentUk?: string; createdAt: string;
+}
+export interface MarketingCampaign extends Stamped {
+  id: string; name: string; type: 'birthday' | 'welcome' | 'holiday'; templateId: string;
+  channel: MarketingChannel; isActive: boolean; triggerDays: number; targetDate?: string;
+  welcomeFrom: 'created' | 'firstSession'; repeatYearly: boolean; sendAt: string; createdAt: string;
+  language: 'all' | Language;
+}
+export type NewsletterStatus = 'sending' | 'sent' | 'partial' | 'failed' | 'unknown';
+export interface NewsletterMessage {
+  id: string; title: string; content: string; titleUk?: string; contentUk?: string; image?: DocumentFile;
+}
+export interface NewsletterRecipient {
+  id: string; clientId: string; consentId: string; messageId: string; language: Language;
+  channel: MarketingChannel;
+  status: 'pending' | 'sending' | 'sent' | 'failed' | 'unknown'; requestedAt?: string;
+  acceptedAt?: string; providerId?: string; errorCode?: string;
+}
+export interface Newsletter extends Stamped {
+  id: string; createdAt: string; channel: MarketingChannel; campaignId?: string; occurrenceOn?: string;
+  messages: NewsletterMessage[]; recipients: NewsletterRecipient[]; recipientCount: number; status: NewsletterStatus;
+}
 export interface PracticeProfile {
   name: string; address: string; taxId: string; iban: string; bank: string; taxNote: string; invoicePrefix: string; serviceName: string;
   accountHolder?: string; bic?: string; ibanUa?: string; bankUa?: string; accountHolderUa?: string; bicUa?: string;
@@ -126,6 +155,7 @@ export interface Settings {
   /** Practice-wide memo title choices; encrypted with the rest of the vault. */
   memoLabels?: string[];
   memoLabelFavorites?: string[];
+  marketingUsed?: boolean;
 }
 export interface VaultData {
   crdt?: CrdtState;
@@ -133,6 +163,7 @@ export interface VaultData {
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
   availability: CalendarAbsence[]; audioMemos: AudioMemo[];
   sessionDrafts: SessionDraft[];
+  messageTemplates: MessageTemplate[]; marketingCampaigns: MarketingCampaign[]; newsletters: Newsletter[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
   settings: Settings;
@@ -151,14 +182,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], sessionDrafts: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

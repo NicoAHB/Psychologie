@@ -2,7 +2,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import type { VaultData } from './types';
 import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;
@@ -35,9 +35,10 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
     if ('feeCents' in row && ['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].includes(k)) continue;
     if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
+    else if (collection === 'clients' && k === 'marketingConsent') { for (const [channel, consent] of Object.entries(v as object)) result[`marketingConsent:${channel}`] = consent as Json; }
     else if (k === 'tags') { for (const tag of v as string[]) result[`tag:${tag}`] = true; }
     else if (collection === 'settings' && ['memoLabels', 'memoLabelFavorites'].includes(k)) { for (const label of v as string[]) result[`${k === 'memoLabels' ? 'memoLabel' : 'memoFavorite'}:${label}`] = true; }
-    else if (['deliveries', 'returns', 'telegramDeliveries', 'statusHistory', 'shares'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
+    else if (['deliveries', 'returns', 'telegramDeliveries', 'statusHistory', 'shares', 'messages', 'recipients'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
     else result[k] = v as Json;
   }
   if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
@@ -69,9 +70,9 @@ export function stateOf(data: VaultData): CrdtState {
   return state;
 }
 function preferred(register: Register, field = '') {
-  const revoked = field.startsWith('shares:') ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.revokedAt) : [];
+  const revoked = /^(shares|marketingConsent):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.revokedAt) : [];
   if (revoked.length) return revoked.at(-1)?.value;
-  const accepted = /^(deliveries|telegramDeliveries):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.acceptedAt) : [];
+  const accepted = /^(deliveries|telegramDeliveries|recipients):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.acceptedAt) : [];
   return (accepted.length ? accepted : register.values).at(-1)?.value;
 }
 /** Older app versions can echo unknown CRDT metadata without updating it. Import their actual
@@ -165,7 +166,8 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
       else if (field.startsWith('tag:')) { if (value) (row.tags ??= [] as string[]); if (value) (row.tags as string[]).push(field.slice(4)); }
       else if (field.startsWith('memoLabel:')) { if (value) (row.memoLabels ??= [] as string[]); if (value) (row.memoLabels as string[]).push(field.slice(10)); }
       else if (field.startsWith('memoFavorite:')) { if (value) (row.memoLabelFavorites ??= [] as string[]); if (value) (row.memoLabelFavorites as string[]).push(field.slice(13)); }
-      else if (/^(deliveries|returns|telegramDeliveries|statusHistory|shares):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
+      else if (field.startsWith('marketingConsent:')) { row.marketingConsent ??= {}; (row.marketingConsent as Record<string, Json>)[field.slice(17)] = structuredClone(value); }
+      else if (/^(deliveries|returns|telegramDeliveries|statusHistory|shares|messages|recipients):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
       else row[field] = structuredClone(value);
     }
     if (collection === 'settings') {
@@ -177,6 +179,7 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
       if (['sessions', 'notes'].includes(collection)) row.tags ??= [];
       if (collection === 'clients' && Object.keys(registers).some(field => field.startsWith('statusHistory:'))) row.statusHistory ??= [];
       if (collection === 'documents') { row.deliveries ??= []; row.returns ??= []; }
+      if (collection === 'newsletters') { row.messages ??= []; row.recipients ??= []; }
       if (collection === 'documents') for (const field of ['deliveries', 'returns', 'telegramDeliveries']) {
         const entries = row[field] as { id: string; requestedAt?: string; uploadedAt?: string }[] | undefined;
         entries?.sort((a, b) => (a.requestedAt ?? a.uploadedAt ?? '').localeCompare(b.requestedAt ?? b.uploadedAt ?? '', 'en') || a.id.localeCompare(b.id, 'en'));
@@ -195,9 +198,14 @@ function scrubErasedClients(data: VaultData) {
   const state = data.crdt; if (!state) return;
   const erased = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'clients' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
   const erasedSessions = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'sessions' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
+  for (const newsletter of data.newsletters ?? []) newsletter.recipients = newsletter.recipients.filter(r => !erased.has(r.clientId));
   for (const [entity, fields] of Object.entries(state.entities)) {
     const [collection, id] = JSON.parse(entity) as [Collection, string];
     if (collection === 'settings') continue;
+    if (collection === 'newsletters') for (const [field, register] of Object.entries(fields)) if (field.startsWith('recipients:')) {
+      register.values = register.values.filter(v => !v.value || typeof v.value !== 'object' || Array.isArray(v.value) || typeof v.value.clientId !== 'string' || !erased.has(v.value.clientId));
+      if (!register.values.length) delete fields[field];
+    }
     const owner = fields.clientId?.values.some(v => typeof v.value === 'string' && erased.has(v.value)) || fields.$snapshot?.values.some(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && typeof v.value.clientId === 'string' && erased.has(v.value.clientId));
     const permanentlyDeleted = fields.$exists?.values.every(v => v.value === false);
     const erasedDraft = collection === 'sessionDrafts' && fields.originalSessionId?.values.some(v => typeof v.value === 'string' && erasedSessions.has(v.value));

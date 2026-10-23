@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: **Newsletter**, **Vorlagen-Verwaltung** und optionale **Marketing-Kampagnen** (Geburtstag, Willkommen, fester Termin), mit separater Kanal-Freigabe, DE/UA-Texten, verschlüsseltem Archiv und Abmeldung. [Bedienung, SQL und Einrichtung](docs/marketing.md). Automatik läuft derzeit bei geöffnetem, entsperrtem Tresor; ein echter Versanddienst muss eingerichtet werden. Eigenständiges [Aurora-/Glas-Beispiel in HTML und CSS](examples/README.md).
+
 Neu: pausierbare und wieder aktivierbare Klientenakten mit Statusverlauf/Wiedervorlage, verschlüsselte Sitzungsentwürfe inklusive beendeter Aufnahmen, Aufgabenübersicht, lokale Sicherungsprüfung, Memo-Favoriten und optionale verschlüsselte Dokument-Links. Einrichtung und technische Übergabe an Claude: [Änderungen vom 23. Oktober 2026](docs/claude-uebergabe-2026-10-23.md). Für Dokument-Links ist die zusätzliche Migration [`supabase/document-shares.sql`](supabase/document-shares.sql) erforderlich. [iPad-Abnahmeplan](docs/ipad-abnahme.md).
 
 Neu: kleinere PDF-Basisschriften und Runtime-Cache, Playwright-Browsercache in CI, automatische verschlüsselte In-App-Sicherung auch auf dem iPad, einstellbare Sperrzeit, geprüfter PHQ-9-/GAD-7-PDF-Rücklauf, lesbarer Klienten-ZIP-Export, datierter NBU-Kurscache und Schutz vor wiederholtem Telegram-Versand. Bedienung, Migration und Grenzen: [Performance und Sicherung](docs/performance-und-sicherung.md).
@@ -15,7 +17,7 @@ Der Sonnen-/Mond-Schalter neben der Sprachauswahl wechselt sofort zwischen Hell 
 Der aktuelle veröffentlichte Entwicklungsstand ist auf GitHub im Branch **`main`** gesichert. Der Schreibzugriff funktioniert inzwischen. Für den Gerätewechsel dieses Repository in Codex oder einer lokalen Entwicklungsumgebung öffnen. Alternativ unterstützt GitHub Codespaces die Entwicklung im Browser (kostenlos nur innerhalb des persönlichen Kontingents). Der lokale Ordner einer Cloud-Aufgabe ist kein geräteübergreifender Git-Ersatz.
 
 ```sh
-git clone --branch codex/praxisraum-foundation https://github.com/NicoAHB/Psychologie.git
+git clone --branch main https://github.com/NicoAHB/Psychologie.git
 cd Psychologie
 npm ci
 npm run dev

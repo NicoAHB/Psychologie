@@ -1,3 +1,10 @@
+import { navigationGroups } from './lib/navigation';
+import { Newsletter } from './components/Newsletter';
+import { TemplateManager } from './components/TemplateManager';
+import { MarketingCampaigns } from './components/MarketingCampaigns';
+import { useMarketingAutomation } from './lib/useMarketingAutomation';
+import { syncMarketingArchive } from './lib/marketingArchive';
+import './marketing.css';
 import { flushShareRevocations } from './lib/documentShares';
 import { WorkBoard } from './components/WorkBoard';
 import type { SessionDraft } from './lib/types';
@@ -6,7 +13,7 @@ import { clientStatus } from './lib/clientStatus';
 import type { ClientStatus } from './lib/types';
 import { SyncConflicts } from './components/SyncConflicts';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowDownLeft, ArrowRight, CalendarDays, CheckCheck, ChevronRight, CircleDollarSign, Clock3, Cloud, Download, LayoutDashboard, Leaf, LoaderCircle, LockKeyhole, Menu, FileText, Plus, Search, Settings2, ShieldCheck, Sparkles, TrendingUp, Users, Wallet, WifiOff, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowRight, CalendarDays, CheckCheck, ChevronRight, CircleDollarSign, Clock3, Cloud, Download, Leaf, LoaderCircle, LockKeyhole, Menu, FileText, Plus, Search, ShieldCheck, Sparkles, TrendingUp, Users, Wallet, WifiOff, X } from 'lucide-react';
 import { LanguageSwitch, useI18n, type TextKey } from './lib/i18n';
 import { autoLockMinutes } from './lib/autoLock';
 import { ThemeToggle } from './lib/theme';
@@ -43,11 +50,13 @@ export default function App() {
   const [financeView, setFinanceView] = useState<FinanceView>('year');
   const [clientFilter, setClientFilter] = useState<ClientStatus | 'all'>('active');
   const [clientLimit, setClientLimit] = useState(50);
+  const [marketingOpened,setMarketingOpened]=useState(false),[newsletterTemplate,setNewsletterTemplate]=useState<string>(),[newsletterTab,setNewsletterTab]=useState<'create'|'archive'>('create');
   const [route, setRoute] = useState<Route>('overview'); const [selectedId, setSelectedId] = useState<string>();
   const [form, setForm] = useState<Form>(); const [mobileNav, setMobileNav] = useState(false);
   const [online, setOnline] = useState(navigator.onLine); const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<TextKey>(); const [lastSyncedGeneration, setLastSyncedGeneration] = useState(-1);
   const auto = useAutoBackup(vault);
+  const marketing=useMarketingAutomation(vault,user??undefined,route==='newsletter'||route==='marketingCampaigns');
   const [backupInfo, setBackupInfo] = useState<BackupState | null>(); // undefined = not read yet, null = no copy yet
   const [followInvoiceId, setFollowInvoiceId] = useState<string>(); const [documentFocusId, setDocumentFocusId] = useState<string>();
   const [profileTab, setProfileTab] = useState<ProfileTab>('overview'); const [searching, setSearching] = useState(false); const [search, setSearch] = useState(''); const [tag, setTag] = useState(''); const [photo, setPhoto] = useState<string>();
@@ -55,7 +64,7 @@ export default function App() {
   useEffect(() => { if (vault.data && !vault.demo && online && user && vault.envelope) void flushShareRevocations(vault.envelope.vaultId).catch(() => {}); }, [!!vault.data, vault.demo, vault.envelope, online, user]);
   const syncBusy = useRef(false); const syncAlive = useRef(true); const syncRetry = useRef<number | undefined>(undefined);
   useEffect(() => { syncAlive.current = true; return () => { syncAlive.current = false; clearTimeout(syncRetry.current); }; }, []); const currentVault = useRef(vault); currentVault.current = vault;
-  const navigate = (next: Route) => { setRoute(next); setDocumentFocusId(undefined); setMemoFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
+  const navigate = (next: Route) => { if(next==='newsletter'){setMarketingOpened(true);setNewsletterTemplate(undefined);setNewsletterTab('create');}setRoute(next); setDocumentFocusId(undefined); setMemoFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
   const openClient = (id: string) => { setClientFilter('all'); setSelectedId(id); setProfileTab('overview'); navigate('clients'); };
   useEffect(() => {
     const id = vault.envelope?.vaultId; if (!vault.data || vault.demo || !id) { setBackupInfo(undefined); return; }
@@ -83,7 +92,8 @@ export default function App() {
         await syncVault(snapshot.envelope, snapshot.data);
       }
       const synced = snapshot.generation; const envelope = snapshot.envelope;
-      setLastSyncedGeneration(synced); setSyncMessage('synced'); void markBackup(envelope.vaultId, 'cloud').catch(() => {});
+      setLastSyncedGeneration(synced); setSyncMessage('synced');
+      const archiveKey=v.getKey();if(archiveKey)try{await syncMarketingArchive(snapshot.data,archiveKey,envelope.vaultId,()=>v.getKey()===archiveKey);}catch{setSyncMessage('marketingIndexPending');} void markBackup(envelope.vaultId, 'cloud').catch(() => {});
     } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); if (syncAlive.current && currentVault.current.data?.settings.autoSync && currentVault.current.getGeneration() !== coveredGeneration) syncRetry.current = window.setTimeout(() => void syncNow(), 2500); }
   }, [user]);
   useEffect(() => {
@@ -103,7 +113,7 @@ export default function App() {
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('pageshow', check); window.removeEventListener('pointerdown', touch); window.removeEventListener('keydown', touch); window.removeEventListener('beforeunload', warn); };
   }, [!!vault.data]);
   // Clear plaintext form drafts and image object URLs when the vault locks.
-  useEffect(() => { if (!vault.data) { setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setWorkInvoiceClient(undefined); setDocumentFocusId(undefined); setMemoFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);
+  useEffect(() => { if (!vault.data) { setMarketingOpened(false);setNewsletterTemplate(undefined);setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setWorkInvoiceClient(undefined); setDocumentFocusId(undefined); setMemoFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);
   // Each page names itself in the window/tab title, which also helps screen-reader users and browser history.
   useEffect(() => { document.title = vault.data ? `${t(route)} · Praxisraum` : 'Praxisraum'; }, [vault.data, route, t]);
   if (!vault.data) return <Welcome vault={vault}/>;
@@ -114,7 +124,7 @@ export default function App() {
   const backupNag = backupInfo === undefined ? { needed: false, days: 0 } : backupNeeded(backupInfo ?? undefined, latestChange(data), hasRecords(data));
   const now = new Date(); const year = now.getFullYear(); const month = now.getMonth();
   const income = monthlyIncome(data.sessions, year)[month]; const open = data.sessions.filter(s => !s.paidAt && !isSessionVoided(data, s)).reduce((n, s) => n + s.feeCents, 0);
-  const menuItems: { id: Route; icon: ReactNode }[] = [{ id: 'overview', icon: <LayoutDashboard size={20}/> }, { id: 'clients', icon: <Users size={20}/> }, { id: 'appointments', icon: <CalendarDays size={20}/> }, { id: 'finances', icon: <Wallet size={20}/> }, { id: 'settings', icon: <Settings2 size={20}/> }];
+
   const deleteNoteEntry = (note: PhotoNote) => {
     if (window.confirm(t('deleteNoteConfirm'))) void vault.remove(d => deleteNote(d, note.id)).catch(() => {});
   };
@@ -124,7 +134,7 @@ export default function App() {
     else if (window.confirm(t('paymentRemoveConfirm'))) void vault.update(d => { d.sessions.find(s => s.id === session.id)!.paidAt = null; }).catch(() => {});
   };
   return <div className="app-shell"><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>{mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label={t('close')}/>}
-    <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><Logo/><button className="icon-btn mobile-only" aria-label={t('close')} onClick={() => setMobileNav(false)}><X size={20}/></button></div><p className="sidebar-tagline">{t('tagline')}</p><span className="nav-eyebrow">{t('workspace')}</span><nav aria-label={t('workspace')}>{menuItems.map(item => <button className={`nav-item ${route === item.id ? 'active' : ''}`} key={item.id} aria-current={route === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>{item.icon}<span>{t(item.id)}</span>{item.id === 'clients' && data.clients.length > 0 && <small aria-hidden="true">{data.clients.length}</small>}</button>)}</nav><div className="sidebar-bottom"><div className="privacy-card"><ShieldCheck size={23}/><h3>{t('helpTitle')}</h3><p>{t('helpText')}</p><span className="privacy-dot"/></div><div className="practitioner"><span className="practitioner-avatar"><Leaf size={20}/></span><div><strong>{t('workspace')}</strong><small>{t(vault.demo ? 'demoBadge' : 'localOnly')}</small></div><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></div></aside>
+    <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><Logo/><button className="icon-btn mobile-only" aria-label={t('close')} onClick={() => setMobileNav(false)}><X size={20}/></button></div><p className="sidebar-tagline">{t('tagline')}</p><span className="nav-eyebrow">{t('workspace')}</span><nav aria-label={t('workspace')}>{navigationGroups.map(group=><div key={group.id} className="nav-group">{group.label&&<span className="marketing-nav-title">{t(group.label)}</span>}{group.items.map(item=><button className={`nav-item ${route===item.id?'active':''}`} key={item.id} aria-current={route===item.id?'page':undefined} onClick={()=>navigate(item.id)}><item.icon size={20}/><span>{t(item.id)}</span>{item.id==='clients'&&data.clients.length>0&&<small aria-hidden="true">{data.clients.length}</small>}</button>)}</div>)}</nav><div className="sidebar-bottom"><div className="privacy-card"><ShieldCheck size={23}/><h3>{t('helpTitle')}</h3><p>{t('helpText')}</p><span className="privacy-dot"/></div><div className="practitioner"><span className="practitioner-avatar"><Leaf size={20}/></span><div><strong>{t('workspace')}</strong><small>{t(vault.demo ? 'demoBadge' : 'localOnly')}</small></div><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></div></aside>
     <div className="main-shell"><header className="topbar"><div className="breadcrumb"><button className="icon-btn mobile-only" aria-label={t('openNav')} onClick={() => setMobileNav(true)}><Menu size={22}/></button><span className="desktop-only">{t('workspace')}</span><ChevronRight className="desktop-only" size={14}/><strong>{t(route)}</strong></div><div className="header-actions"><span className="header-status desktop-only">{online ? <span className="status-dot"/> : <WifiOff size={14}/>} {t(online ? 'localSecure' : 'offline')}</span><button className="icon-btn" aria-label={t('searchEverything')} title={`${t('searchEverything')} (Ctrl+K)`} onClick={() => setSearching(true)}><Search size={19}/></button><ThemeToggle/><LanguageSwitch/><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></header>
       <main className="page-content" id="main-content" tabIndex={-1}><UpdateBanner beforeApply={async () => { await flushBeforeLock(); await vault.flush(); }}/><SyncConflicts vault={vault}/>{vault.demo && <Notice>{t('demoNotice')}</Notice>}{route === 'overview' && !vault.demo && backupNag.needed && <Notice error>{t(backupInfo ? 'backupBannerOld' : 'backupBannerNever').replace('{days}', String(backupNag.days))}<button className="text-link" onClick={() => void saveBackupCopy(vault, typeof navigator.canShare === 'function').catch(() => {})}>{t('backupNow')}</button></Notice>}{vault.storageError && <Notice error>{t('storageError')}<button className="text-link" onClick={() => void vault.retry().catch(() => {})}>{t('retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
       {route === 'overview' && <><PageHeading title={t('greeting')} subtitle={t('overviewSubtitle')} action={<button className="btn btn-primary" onClick={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })}><Plus size={18}/>{t('newAppointment')}</button>}/><div className="stats-grid"><Stat icon={<Users size={20}/>} label={t('activeClients')} value={String(data.clients.filter(c => clientStatus(c) === 'active').length)} tone="sage" onClick={() => { setSelectedId(undefined); setClientFilter('active'); navigate('clients'); }} linkLabel={t('goToClients')}/><Stat icon={<CalendarDays size={20}/>} label={t('upcomingCount')} value={String(future.length)} tone="blue" onClick={() => navigate('appointments')} linkLabel={t('goToAppointments')}/><Stat icon={<TrendingUp size={20}/>} label={t('receivedMonth')} value={money(income, language)} tone="beige" onClick={() => { navigate('finances'); setFinanceView('monthIncome'); }} linkLabel={t('goToMonthIncome')}/><Stat icon={<CircleDollarSign size={20}/>} label={t('openAmount')} value={money(open, language)} tone="rose" onClick={() => { navigate('finances'); setFinanceView('unpaid'); }} linkLabel={t('goToUnpaid')}/></div>
@@ -146,10 +156,13 @@ export default function App() {
         if (!window.confirm(t('restoreConfirm'))) return;
         try { const u = await currentUser(); const remote = await fetchRemote(); if (!remote) throw new Error('noRemote'); await vault.importBackup({ type: 'praxisraum-backup-v1', envelope: remoteEnvelope(remote), blobs: [] }); await setRevision(u.id, remote.vault_id, remote.revision); } catch (err) { setSyncMessage(cloudError(err) as TextKey); }
       }}/>}
+      {marketingOpened&&<Newsletter vault={vault} marketing={marketing} active={route==='newsletter'} initialTab={newsletterTab} templateId={newsletterTemplate} onTemplateHandled={()=>setNewsletterTemplate(undefined)} onTemplates={()=>navigate('messageTemplates')} onEditClient={id=>{const client=data.clients.find(c=>c.id===id);if(client)setForm({type:'client',client});}}/>}
+      {route==='messageTemplates'&&<TemplateManager vault={vault} onUse={id=>{navigate('newsletter');setNewsletterTemplate(id);}}/>}
+      {route==='marketingCampaigns'&&<MarketingCampaigns vault={vault} marketing={marketing} onTemplates={()=>navigate('messageTemplates')} onArchive={()=>{navigate('newsletter');setNewsletterTab('archive');}}/>}
       <footer className="page-footer"><SecurityLine/><span>{t('privacyFooter')}</span></footer></main>
       <div className="sync-bar"><span>{vault.saving ? <LoaderCircle size={15} className="spin"/> : <CheckCheck size={16}/>}<span>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</span></span><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
     </div>
-    {form?.type === 'client' && <ClientForm vault={vault} client={form.client} onClose={() => setForm(undefined)} onSaved={id => { setForm(undefined); openClient(id); }} onDeleted={() => { setForm(undefined); setSelectedId(undefined); setTag(''); }}/>} {form?.type === 'appointment' && <AppointmentForm vault={vault} clientId={form.clientId} appointment={form.appointment} onClose={() => setForm(undefined)}/>} {form?.type === 'session' && <SessionForm vault={vault} clientId={form.clientId} appointment={form.appointment} session={form.session} restored={form.restored} onClose={() => setForm(undefined)}/>} {form?.type === 'note' && <NoteForm vault={vault} clientId={form.clientId} onClose={() => setForm(undefined)}/>} {form?.type === 'payment' && <PaymentForm vault={vault} session={form.session} onClose={() => setForm(undefined)}/>}
+    {form?.type === 'client' && <ClientForm vault={vault} client={form.client} onClose={() => setForm(undefined)} onSaved={id => { setForm(undefined); if(route!=='newsletter')openClient(id); }} onDeleted={() => { setForm(undefined); setSelectedId(undefined); setTag(''); }}/>} {form?.type === 'appointment' && <AppointmentForm vault={vault} clientId={form.clientId} appointment={form.appointment} onClose={() => setForm(undefined)}/>} {form?.type === 'session' && <SessionForm vault={vault} clientId={form.clientId} appointment={form.appointment} session={form.session} restored={form.restored} onClose={() => setForm(undefined)}/>} {form?.type === 'note' && <NoteForm vault={vault} clientId={form.clientId} onClose={() => setForm(undefined)}/>} {form?.type === 'payment' && <PaymentForm vault={vault} session={form.session} onClose={() => setForm(undefined)}/>}
     {workInvoiceClient && <InvoiceForm vault={vault} clientId={workInvoiceClient} onClose={() => setWorkInvoiceClient(undefined)} onCreated={invoice => { setWorkInvoiceClient(undefined); setFollowInvoiceId(invoice.id); }}/>}
     {followInvoiceId && data.invoices.find(i => i.id === followInvoiceId) && <InvoiceView key={followInvoiceId} vault={vault} invoice={data.invoices.find(i => i.id === followInvoiceId)!} onClose={() => setFollowInvoiceId(undefined)}/>}
     {vault.passphraseReset && <PassphraseReset vault={vault}/>}

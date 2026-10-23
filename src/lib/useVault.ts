@@ -18,6 +18,8 @@ import { createPasskey, unlockWithPasskey as assertPasskey } from './passkey';
 import { clearSnapshots, commitVaultSnapshot, historyBlobIds, listSnapshots, readSnapshot, recordSnapshot, rewriteSnapshots } from './history';
 import { erasedAudioMemoIds, erasedDraftIds, redactAudioMemos, redactSessionDrafts } from './crdt';
 import { flushBeforeLock, stopMemoMedia } from './autoLock';
+import { changedMarketingRevocations } from './marketing';
+import { queueMarketingRevocations } from './marketingDelivery';
 
 export function useVault() {
   const [envelope, setEnvelope] = useState<VaultEnvelope | null | undefined>(undefined);
@@ -69,6 +71,7 @@ export function useVault() {
       const remainingShares = new Set(value.documents.flatMap(d => d.shares?.map(s => s.id) ?? []));
       const removedShares = (previous?.documents ?? []).flatMap(d => d.shares ?? []).filter(s => !s.revokedAt && !remainingShares.has(s.id)).map(s => s.id);
       await queueShareRevocations(base.vaultId, removedShares);
+      if (previous) await queueMarketingRevocations(base.vaultId, changedMarketingRevocations(previous, value));
       const encrypted = await encryptVault(activeKey, value, base.vaultId, base.salt, { format: base.format, wraps: base.wraps, ...wraps });
       if (erased.size || erasedDrafts.size) await queueBlobCleanup(base.vaultId, removedFileIds);
       const discarded = await commitVaultSnapshot(encrypted, fileIds);
@@ -386,12 +389,12 @@ export function useVault() {
   /** Replace the vault contents by an earlier version (undo of a deletion); stamped like a normal edit so other devices follow. */
   const restoreData = (value: VaultData) => update(next => {
     next.settings = structuredClone(value.settings);
-    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'sessionDrafts'] as const) (next[name] as unknown[]) = value[name];
+    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters'] as const) (next[name] as unknown[]) = value[name];
     next.sessionDrafts = (value.sessionDrafts ?? []).filter(d => !Object.hasOwn(next.deleted, d.id));
     next.audioMemos = (value.audioMemos ?? []).filter(m => !Object.hasOwn(next.deleted, m.id));
-    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability].some(r => r.id === id)) delete next.deleted[id];
+    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability, ...(value.messageTemplates??[]), ...(value.marketingCampaigns??[]), ...(value.newsletters??[])].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
-  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
+  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, getData: () => current.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
 }
 export type VaultController = ReturnType<typeof useVault>;
