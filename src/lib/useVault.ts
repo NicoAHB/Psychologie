@@ -64,16 +64,18 @@ export function useVault() {
       const previousDrafts = previous ? erasedDraftIds(previous) : new Set<string>();
       const erasedDrafts = new Set([...erasedDraftIds(value)].filter(id => !previousDrafts.has(id)));
       const beforeIds = previous ? referencedBlobs(previous) : [];
+      const fileIds = referencedBlobs(value), keptFileIds = new Set(fileIds);
+      const removedFileIds = beforeIds.filter(id => !keptFileIds.has(id));
       const remainingShares = new Set(value.documents.flatMap(d => d.shares?.map(s => s.id) ?? []));
       const removedShares = (previous?.documents ?? []).flatMap(d => d.shares ?? []).filter(s => !s.revokedAt && !remainingShares.has(s.id)).map(s => s.id);
       await queueShareRevocations(base.vaultId, removedShares);
       const encrypted = await encryptVault(activeKey, value, base.vaultId, base.salt, { format: base.format, wraps: base.wraps, ...wraps });
-      if (erased.size || erasedDrafts.size) await queueBlobCleanup(base.vaultId, beforeIds);
-      const discarded = await commitVaultSnapshot(encrypted, referencedBlobs(value));
+      if (erased.size || erasedDrafts.size) await queueBlobCleanup(base.vaultId, removedFileIds);
+      const discarded = await commitVaultSnapshot(encrypted, fileIds);
       info.current = encrypted;
       if (erased.size || erasedDrafts.size) {
         await redactMemoHistory(activeKey, base.vaultId, erased, erasedDrafts);
-        await purgeUnused(beforeIds);
+        await purgeUnused(removedFileIds);
       }
       persisted.current = value; setEnvelope(encrypted);
       await finishBlobCleanup(base.vaultId);
@@ -257,7 +259,12 @@ export function useVault() {
   };
   const purgeUnused = async (before: string[]) => {
     if (!current.current || !before.length) return;
+    // A finalized draft usually transfers every attachment to the session.
+    // Avoid any history I/O when all of these files are still in active use.
+    if (!orphanedBlobs(before, current.current).length) return;
     const kept = info.current && !demoRef.current ? await historyBlobIds(info.current.vaultId) : new Set<string>();
+    if (!current.current) return;
+    // Recheck after the await, as an edit/restore may have added a reference.
     await purge(orphanedBlobs(before, current.current).filter(id => !kept.has(id)));
   };
   async function finishBlobCleanup(vaultId: string) {
