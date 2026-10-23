@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
  */
 export async function auroraContrastIssues(page: Page, theme: string) {
   return page.evaluate(theme => {
-    const base = theme === 'light' ? [210, 210, 210] : [51, 60, 75];
+    const base = theme === 'light' ? [210, 210, 210] : [51, 60, 87];
     const luminance = (rgb: number[]) => rgb.map(c => c / 255)
       .map(c => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4)
       .reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i], 0);
@@ -17,7 +17,8 @@ export async function auroraContrastIssues(page: Page, theme: string) {
     while ((node = walker.nextNode())) {
       if (!node.textContent?.trim()) continue;
       const el = node.parentElement;
-      if (!el || el.closest('script,style,[aria-hidden="true"],:disabled,[aria-disabled="true"]') || !el.getClientRects().length) continue;
+      // The logotype (including its decorative dot) is exempt under WCAG 1.4.3.
+      if (!el || el.closest('script,style,.brand,[aria-hidden="true"],:disabled,[aria-disabled="true"]') || !el.getClientRects().length) continue;
       const style = getComputedStyle(el), foreground = rgb(style.color);
       if (foreground.length < 3 || style.visibility !== 'visible') continue;
       let remaining = 1, ancestor: Element | null = el;
