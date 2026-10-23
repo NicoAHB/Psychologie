@@ -1,0 +1,16 @@
+# Praxisraum: Einstieg für Claude
+
+Bitte zuerst `README.md`, `HANDOFF.md` und `docs/lokale-werkzeuge-und-video.md` lesen.
+
+Die Änderungen vom 23. Oktober 2026 sind ausführlich dokumentiert in
+**`docs/claude-uebergabe-2026-10-23.md`**. Dort stehen Datenmodell, Entwurfssicherung,
+Begleitungsstatus mit Wiederaufnahme, Aufgaben, Sicherungsprüfung, Memo-Favoriten,
+verschlüsselte Dokumentfreigaben und die erforderliche Supabase-Migration.
+
+Der echte iPad-Gerätetest ist als `docs/ipad-abnahme.md` vorbereitet. Tests laufen mit
+`npm test`, `npm run build`, `npm run test:e2e` sowie `npm run test:ipad` nach Installation
+des WebKit-Testbrowsers. Ergebnisse und Grenzen in `HANDOFF.md` nachlesen.
+
+Strikte TypeScript-Typen, gleiche Schlüssel in `de.json`/`uk.json`, verschlüsselte
+Ablage vor jedem Speichern/Synchronisieren und bestehende Lösch-/Merge-Regeln erhalten.
+Keine KI, Transkription, Spracherkennung, Modelle oder Audio-Netzwerkdienste ergänzen.

@@ -22,7 +22,7 @@ export async function clientExport(data: VaultData, clientId: string, language: 
   const text = (path: string, value: string) => { archive[path] = [strToU8(value), { level: 6 }]; };
   const add = (path: string, blobId: string, mimeType: string) => { attachments.push({ path, blobId, mimeType }); return path; };
   if (client.avatarId) add('bilder/profil.webp', client.avatarId, 'image/webp');
-  text('profil.md', `# ${client.name}\n\n${T('clientExportProfile')}\n\n- ${T('date')}: ${client.createdAt}\n- ${T('clientEmail')}: ${client.email ?? ''}\n- ${T('contact')}: ${client.contact}\n- ${T('invoiceRecipientAddress')}: ${client.address ?? ''}\n\n## ${T('preparation')}\n\n${client.preparation}\n`);
+  text('profil.md', `# ${client.name}\n\n${T('clientExportProfile')}\n\n- ${T('clientStatus')}: ${T(`clientStatus_${client.status ?? 'active'}`)}\n- ${T('date')}: ${client.createdAt}\n- ${T('clientEmail')}: ${client.email ?? ''}\n- ${T('contact')}: ${client.contact}\n- ${T('invoiceRecipientAddress')}: ${client.address ?? ''}\n\n## ${T('preparation')}\n\n${client.preparation}\n`);
   text('sitzungen.md', `# ${T('tabDiscussed')}\n\n` + sessions.map(session => `## ${session.date} ${session.time}\n\n${session.notes}\n\n${session.tags.join(' ')}\n\n${T('homeworkOpen')}: ${session.homework ?? ''}\n`).join('\n'));
   text('termine.md', `# ${T('appointments')}\n\n` + appointments.map(item => `- ${item.date} ${item.time} (${item.timeZone}), ${item.duration} min, ${item.status}`).join('\n'));
   text('fotonotizen.md', `# ${T('addNote')}\n\n` + notes.map(note => { const path = add(`bilder/${safe(note.id)}.webp`, note.blobId, 'image/webp'); return `## ${note.createdAt}\n\n${note.caption}\n\n${note.tags.join(' ')}\n\n![${T('addNote')}](${path})\n`; }).join('\n'));
@@ -34,10 +34,12 @@ export async function clientExport(data: VaultData, clientId: string, language: 
   const documentIndex = documents.map(document => {
     const original = add(`dokumente/${safe(document.id)}-${safe(document.file.fileName)}`, document.file.blobId, document.file.mimeType);
     const returned = document.returns.map(item => ({ ...item, path: add(`dokumente/${safe(document.id)}-${safe(item.id)}-${safe(item.file.fileName)}`, item.file.blobId, item.file.mimeType) }));
-    return { ...document, path: original, returns: returned };
+    return { ...document, shares: document.shares?.map(({ link: _link, ...entry }) => entry), path: original, returns: returned };
   });
   text('dokumente.md', `# ${T('clientDocuments')}\n\n` + documentIndex.map(document => `## ${document.title}\n\n[${document.file.fileName}](${document.path})\n\n${[...document.deliveries.map(item => `${T('documentSentOn')}: ${item.acceptedAt ?? T('documentNotSent')} · ${item.recipient}\n${item.subject}\n${item.body}\n`), ...(document.telegramDeliveries ?? []).map(item => `${T('telegramSentOn')}: ${item.acceptedAt ?? T('telegramNotSent')}\n${item.text}\n`), ...document.returns.map(item => `${T('documentReceivedOn')}: ${item.receivedOn} · [${item.file.fileName}](${item.path})`)].join('\n')}\n`).join('\n'));
-  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client, appointments, sessions, notes, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
+  const sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.clientId === clientId).map(d => ({ ...d, payload: { ...d.payload, photos: d.payload.photos.map(f => ({ ...f, path: add(`entwuerfe/${safe(d.id)}-${safe(f.blobId)}.webp`, f.blobId, f.mimeType) })), memos: d.payload.memos.map(m => ({ ...m, path: add(`entwuerfe/${safe(d.id)}-${safe(m.id)}.${audioExtension(m.mimeType)}`, m.blobId, m.mimeType) })) } }));
+  text('entwuerfe.md', `# ${T('draftsTitle')}\n\n` + sessionDrafts.map(d => `## ${d.payload.date} ${d.payload.time}\n\n${d.payload.notes}\n\n${d.payload.homework}\n\n${d.payload.memos.map(m => `${m.label || T('memoDefaultTitle')}: ${m.summary}\n[${T('memoPlay')}](${m.path})`).join('\n')}\n`).join('\n'));
+  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
   text('README.md', `# ${T('clientExportTitle')}: ${client.name}\n\n${T('clientExportReadme')}\n\n${T('clientExportContents')}\n`);
   for (const attachment of attachments) { const blob = await file(attachment.blobId, attachment.mimeType); archive[attachment.path] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]; }
   return { bytes: new Uint8Array(zipSync(archive)), filename: `Praxisraum-${safe(client.name)}-${new Date().toISOString().slice(0, 10)}.zip` };

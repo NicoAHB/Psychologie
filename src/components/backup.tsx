@@ -7,7 +7,7 @@ import { markBackup } from '../lib/backupState';
 import type { SnapshotEntry } from '../lib/history';
 import type { AutoBackup } from '../lib/useAutoBackup';
 import type { VaultController } from '../lib/useVault';
-import { Notice } from './ui';
+import { Field, Modal, Notice } from './ui';
 import { runSecureTask } from '../lib/workerTasks';
 
 /** Hand the backup to the share sheet (iPad: "Save to Files"); falls back to a normal download. */
@@ -23,6 +23,7 @@ export async function saveBackupCopy(vault: VaultController, preferShare: boolea
 }
 export function BackupCard({ vault, auto }: { vault: VaultController; auto: AutoBackup }) {
   const { t, language } = useI18n(); const [message, setMessage] = useState<TextKey>(); const [busy, setBusy] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const canShare = typeof navigator.canShare === 'function' && typeof File === 'function';
   const run = async (share: boolean) => {
     setBusy(true); setMessage(undefined);
@@ -32,7 +33,7 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
   return <section className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><p>{t('securityText')}</p>
     <div className="button-row"><button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(false)}><Download size={17}/>{t(busy ? 'working' : 'exportBackup')}</button>
       {canShare && <button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(true)}><Share2 size={17}/>{t('shareBackup')}</button>}</div>
-    <p className="hint">{t('backupHelp')}</p>{message && <Notice>{t(message)}</Notice>}
+    <p className="hint">{t('backupHelp')}</p><p className="hint">{t('backupExternalHint')}</p><button className="btn btn-secondary" disabled={vault.demo} onClick={() => setVerifying(true)}>{t('backupVerify')}</button>{verifying && <BackupVerifyDialog onClose={() => setVerifying(false)}/>}{message && <Notice>{t(message)}</Notice>}
     <h3 className="mini-heading">{t('autoBackup')}</h3>
     {!auto.supported ? <p className="hint">{t('autoBackupUnsupported')}</p> : <>
       <p className="hint">{t('autoBackupText')}</p>
@@ -62,4 +63,10 @@ export function HistoryCard({ vault }: { vault: VaultController }) {
     {error && <Notice error>{t('storageError')}</Notice>}
     {done && <Notice>{t('historyRestored')}</Notice>}
     {entries.length > 0 && <button className="btn btn-ghost" onClick={() => { void vault.clearHistory().then(refresh); }}>{t('historyClear')}</button>}</section>;
+}
+
+function BackupVerifyDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n(); const [file, setFile] = useState<File>(), [passphrase, setPassphrase] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(false), [result, setResult] = useState<import('../lib/verifyBackup').BackupCheck>();
+  async function check() { if (!file) return; setBusy(true); setError(false); setResult(undefined); try { setResult(await runSecureTask('verifyBackup', { text: await file.text(), passphrase })); setPassphrase(''); } catch { setError(true); } finally { setBusy(false); } }
+  return <Modal title={t('backupVerify')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={e => { e.preventDefault(); void check(); }}><p>{t('backupVerifyHint')}</p><Field label={t('backupVerifyFile')}><input type="file" accept=".json,application/json" disabled={busy} onChange={e => { setFile(e.target.files?.[0]); setResult(undefined); setError(false); }}/></Field><Field label={t('backupVerifyPassphrase')}><input type="password" autoComplete="off" value={passphrase} disabled={busy} onChange={e => setPassphrase(e.target.value)}/></Field>{busy && <p role="status">{t('backupVerifying')}</p>}{error && <Notice error>{t('backupVerifyError')}</Notice>}{result && <Notice>{Object.entries(result).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), t('backupVerified'))}</Notice>}<div className="form-actions"><button className="btn btn-secondary" type="button" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-primary" disabled={busy || !file || !passphrase}>{t('backupVerify')}</button></div></form></Modal>;
 }

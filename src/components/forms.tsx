@@ -1,9 +1,13 @@
+import { useSessionDraft } from '../lib/useSessionDraft';
+import { deleteSessionDraft } from '../lib/sessionDrafts';
+import { changeClientStatus, clientStatus } from '../lib/clientStatus';
+import { validDay } from '../lib/invoice';
 import { conflictsWithAbsence } from '../lib/availability';
 import { isSessionVoided } from '../lib/invoice';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Camera, Check, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
-import { uid, type Appointment, type AudioMemo, type Client, type Currency, type ExchangeRate, type Session } from '../lib/types';
+import { uid, type Appointment, type AudioMemo, type Client, type Currency, type ExchangeRate, type Session, type ClientStatus, type SessionDraft, type SessionDraftValues, type DocumentFile } from '../lib/types';
 import { addDays, addMonths, appointmentInstant, clientZone, dateLabel, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
 import { ZoneSelect } from './ZoneSelect';
 import { isValidZone, utcOffset, zonePlace } from '../lib/zones';
@@ -26,6 +30,8 @@ function Actions({ busy, onClose, label, onDelete, deleteLabel }: { busy: boolea
 }
 export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vault: VaultController; client?: Client; onClose: () => void; onSaved: (id: string) => void; onDeleted?: () => void }) {
   const { t } = useI18n();
+  const [status, setStatus] = useState<ClientStatus>(client ? clientStatus(client) : 'active');
+  const [followUpOn, setFollowUpOn] = useState(client?.followUpOn ?? ''), [followUpNote, setFollowUpNote] = useState(client?.followUpNote ?? '');
   const [name, setName] = useState(client?.name || '');
   const [contact, setContact] = useState(client?.contact || '');
   const [email, setEmail] = useState(client?.email || '');
@@ -43,14 +49,22 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   useEffect(() => { if (!file) return; const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
+    if (followUpOn && !validDay(followUpOn)) { setError('required'); return; }
     if (!name.trim() || (chat && !/^-?\d+$/.test(chat)) || !isValidZone(zone)) { setError('required'); return; }
     if (email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
     setBusy(true);
     try {
       const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
-      const result: Client = { id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency };
+      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined };
       const before = referencedBlobs(vault.data!);
-      await vault.update(data => { const index = data.clients.findIndex(c => c.id === result.id); if (index < 0) data.clients.push(result); else data.clients[index] = result; });
+      await vault.update(data => {
+        const index = data.clients.findIndex(c => c.id === result.id);
+        if (index < 0) { if (client) throw new Error('storageError'); changeClientStatus(result, status); data.clients.push(result); }
+        else { const target = data.clients[index];
+          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'timeZone', 'currency', 'followUpOn', 'followUpNote'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
+          if (client && status !== clientStatus(client)) changeClientStatus(target, status);
+        }
+      });
       await vault.purgeUnused(before); // a replaced profile picture must not linger encrypted on the device or in the cloud
       onSaved(result.id);
     } catch (err) { setError(err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
@@ -63,6 +77,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   return <Modal title={t(client ? 'editClient' : 'newClient')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
+    <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field><Field label={t('clientFollowUpOn')}><input type="date" value={followUpOn} onChange={e => setFollowUpOn(e.target.value)}/></Field><Field label={t('clientFollowUpNote')}><input value={followUpNote} maxLength={500} onChange={e => setFollowUpNote(e.target.value)}/></Field></div>
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
     <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} placeholder={t('clientEmailPlaceholder')}/></Field>
     <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
@@ -76,7 +91,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
 }
 export function AppointmentForm({ vault, clientId, appointment, onClose }: { vault: VaultController; clientId?: string; appointment?: Appointment; onClose: () => void }) {
   const { t, language } = useI18n(); const data = vault.data!; const practiceZone = data.settings.timeZone;
-  const [selected, setSelected] = useState(appointment?.clientId || clientId || data.clients[0]?.id || '');
+  const [selected, setSelected] = useState(appointment?.clientId || clientId || data.clients.find(c => clientStatus(c) === 'active')?.id || data.clients[0]?.id || '');
   const [date, setDate] = useState(appointment?.date || today()); const [time, setTime] = useState(appointment?.time || '10:00');
   const initialNative = currencyOf(data.clients.find(c => c.id === selected)) === 'UAH' && appointment?.billing?.currency === 'UAH';
   const [duration, setDuration] = useState(String(appointment?.duration ?? 50)); const [fee, setFee] = useState(feeText(initialNative ? appointment!.billing!.amountCents : appointment?.feeCents ?? suggestedFee(data, selected)));
@@ -148,41 +163,71 @@ export function AppointmentForm({ vault, clientId, appointment, onClose }: { vau
   </form></Modal>;
 }
 const zoneLabel = (zone: string, language: 'de' | 'uk') => `${zonePlace(zone, language)} (${utcOffset(zone, Date.now())})`;
-export function SessionForm({ vault, clientId, appointment, session, onClose }: { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; onClose: () => void }) {
+type SessionFormProps = { vault: VaultController; clientId?: string; appointment?: Appointment; session?: Session; restored?: SessionDraft; onClose: () => void };
+export function SessionForm(props: SessionFormProps) {
+  const { t } = useI18n();
+  const candidate = props.restored ?? [...props.vault.data!.sessionDrafts ?? []].filter(d => props.session ? d.originalSessionId === props.session.id : props.appointment ? d.appointmentId === props.appointment.id : !d.originalSessionId && !d.appointmentId && (!props.clientId || d.clientId === props.clientId)).sort((a, b) => b.savedAt.localeCompare(a.savedAt))[0];
+  const [choice, setChoice] = useState<'ask' | 'resume' | 'new'>(() => props.restored ? 'resume' : candidate ? 'ask' : 'new');
+  if (choice === 'ask' && candidate) return <Modal title={t('draftsTitle')} onClose={props.onClose}><p>{t('draftFound')}</p><p>{props.vault.data!.clients.find(c => c.id === candidate.clientId)?.name} · {candidate.payload.date}</p><div className="form-actions"><button type="button" className="btn btn-secondary" onClick={() => setChoice('new')}>{t('draftStartNew')}</button><button type="button" className="btn btn-primary" onClick={() => setChoice('resume')}>{t('draftResume')}</button></div></Modal>;
+  return <SessionEditor {...props} restored={choice === 'resume' ? candidate : undefined}/>;
+}
+function SessionEditor({ vault, clientId, appointment, session, restored, onClose }: SessionFormProps) {
   const { t, language } = useI18n(); const data = vault.data!;
-  const [sessionId] = useState(() => session?.id ?? uid());
-  const [memoDrafts, setMemoDrafts] = useState<MemoDraft[]>([]), [removedMemos, setRemovedMemos] = useState<string[]>([]);
-  const [editedMemos, setEditedMemos] = useState<Record<string, MemoMetadata>>({});
+  const initial = restored?.payload;
+  const [draftId] = useState(() => restored?.id ?? uid());
+  const [sessionId] = useState(() => restored?.sessionId ?? session?.id ?? uid());
+  const [memoDrafts, setMemoDrafts] = useState<AudioMemo[]>(initial?.memos ?? []), [removedMemos, setRemovedMemos] = useState<string[]>(initial?.removedMemos ?? []);
+  const [editedMemos, setEditedMemos] = useState<Record<string, MemoMetadata>>(initial?.editedMemos ?? {});
   const memos = useMemo(() => [...data.audioMemos.filter(m => m.sessionId === sessionId && !removedMemos.includes(m.id)).map(m => ({ ...m, ...editedMemos[m.id] })), ...memoDrafts], [data.audioMemos, sessionId, removedMemos, editedMemos, memoDrafts]);
-  const [selected, setSelected] = useState(session?.clientId || appointment?.clientId || clientId || data.clients[0]?.id || '');
-  const [date, setDate] = useState(session?.date || appointment?.date || today()); const [time, setTime] = useState(session?.time || appointment?.time || '10:00');
+  const [selected, setSelected] = useState(restored?.clientId || session?.clientId || appointment?.clientId || clientId || data.clients.find(c => clientStatus(c) === 'active')?.id || data.clients[0]?.id || '');
+  const [date, setDate] = useState(initial?.date || session?.date || appointment?.date || today()); const [time, setTime] = useState(initial?.time || session?.time || appointment?.time || '10:00');
   const lockedPricing = !!session?.invoiceId && !isSessionVoided(data, session);
   const originalBilling = session?.billing ?? appointment?.billing;
   const initialNative = currencyOf(data.clients.find(c => c.id === selected)) === 'UAH' && originalBilling?.currency === 'UAH';
-  const [fee, setFee] = useState(feeText(initialNative ? originalBilling!.amountCents : session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
+  const [fee, setFee] = useState(initial?.fee ?? feeText(initialNative ? originalBilling!.amountCents : session?.feeCents ?? appointment?.feeCents ?? suggestedFee(data, selected)));
   const [feeTouched, setFeeTouched] = useState(!!(session || appointment));
-  const [inputCurrency, setInputCurrency] = useState<Currency>(initialNative ? 'UAH' : 'EUR');
-  const [rate, setRate] = useState<ExchangeRate | undefined>(originalBilling?.rate ?? data.settings.exchangeRate);
-  const [pricingChanged, setPricingChanged] = useState(false);
-  const [paid, setPaid] = useState(!!session?.paidAt); const [paymentDate, setPaymentDate] = useState(session?.paidAt || today());
-  const templates = useTemplates(data); const [notes, setNotes] = useState(session?.notes || ''); const [tags, setTags] = useState(session?.tags.map(tag => `#${tag}`).join(', ') || '');
-  const [homework, setHomework] = useState(session?.homework || ''); const [homeworkDone, setHomeworkDone] = useState(!!session?.homeworkDone);
+  const [inputCurrency, setInputCurrency] = useState<Currency>(initial?.inputCurrency ?? (initialNative ? 'UAH' : 'EUR'));
+  const [rate, setRate] = useState<ExchangeRate | undefined>(initial?.rate ?? originalBilling?.rate ?? data.settings.exchangeRate);
+  const [pricingChanged, setPricingChanged] = useState(initial?.pricingChanged ?? false);
+  const [paid, setPaid] = useState(initial?.paid ?? !!session?.paidAt); const [paymentDate, setPaymentDate] = useState(initial?.paymentDate ?? session?.paidAt ?? today());
+  const templates = useTemplates(data); const [notes, setNotes] = useState(initial?.notes ?? session?.notes ?? ''); const [tags, setTags] = useState(initial?.tags ?? session?.tags.map(tag => `#${tag}`).join(', ') ?? '');
+  const [homework, setHomework] = useState(initial?.homework ?? session?.homework ?? ''); const [homeworkDone, setHomeworkDone] = useState(initial?.homeworkDone ?? !!session?.homeworkDone);
   const client = data.clients.find(c => c.id === selected);
-  const [nextTopics, setNextTopics] = useState(client?.preparation ?? ''); const [nextTouched, setNextTouched] = useState(false);
-  const [files, setFiles] = useState<File[]>([]); const [removedPhotos, setRemovedPhotos] = useState<string[]>([]);
-  const [reviewPrevious, setReviewPrevious] = useState(false);
+  const [nextTopics, setNextTopics] = useState(initial?.nextTopics ?? client?.preparation ?? ''); const [nextTouched, setNextTouched] = useState(initial?.nextTouched ?? false);
+  const [files, setFiles] = useState<DocumentFile[]>(initial?.photos ?? []); const [removedPhotos, setRemovedPhotos] = useState<string[]>(initial?.removedPhotos ?? []);
+  const [reviewPrevious, setReviewPrevious] = useState(initial?.reviewPrevious ?? false);
   const previous = selected ? pendingHomework(data, selected, session?.id) : undefined;
   const attached = session ? data.notes.filter(n => n.sessionId === session.id && !removedPhotos.includes(n.id)) : [];
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
+  const payload = useMemo<SessionDraftValues>(() => ({ date, time, fee, inputCurrency, rate, paid, paymentDate, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, photos: files, removedPhotos, memos: memoDrafts, removedMemos, editedMemos }), [date, time, fee, inputCurrency, rate, paid, paymentDate, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, files, removedPhotos, memoDrafts, removedMemos, editedMemos]);
+  const draft = useSessionDraft(vault, { id: draftId, clientId: selected, sessionId, originalSessionId: session?.id, appointmentId: appointment?.id }, payload);
+  async function closeDraft() { if (busy) return; try { await draft.flush(); onClose(); } catch { setError('storageError'); } }
+  async function discardDraft() { if (!window.confirm(t('draftDiscardConfirm'))) return; setBusy(true); try { draft.stop(); await vault.update(d => deleteSessionDraft(d, draftId)); await vault.purgeUnused([...files.map(f => f.blobId), ...memoDrafts.map(m => m.blobId)]); onClose(); } catch { draft.resume(); setError('storageError'); setBusy(false); } }
   function choose(id: string) { if (inputCurrency === 'UAH') { try { setFee(feeText(convertWhole(parseMoney(fee), 'UAH', 'EUR', rate))); } catch { setFee(feeText(suggestedFee(data, id))); } } setInputCurrency('EUR'); setPricingChanged(true); setSelected(id); setReviewPrevious(false); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); if (!nextTouched) setNextTopics(data.clients.find(c => c.id === id)?.preparation ?? ''); }
   // Copy the files out at once: the input's FileList is emptied as soon as its value is reset.
-  const addFiles = (list: FileList | null) => { const picked = Array.from(list ?? []); if (picked.length) setFiles(current => [...current, ...picked].slice(0, 12)); };
+  const addFiles = async (list: FileList | null) => {
+    const picked = Array.from(list ?? []).slice(0, 12 - files.length); if (!picked.length) return;
+    setBusy(true); const added: DocumentFile[] = [];
+    try { for (const file of picked) { const bytes = await compressImage(file); try { added.push({ blobId: await vault.addFile(bytes), fileName: file.name, mimeType: 'image/webp', size: bytes.length }); } finally { bytes.fill(0); } }
+      const next = [...files, ...added]; setFiles(next); await draft.flush({ photos: next });
+    } catch { setError('storageError'); await vault.purgeUnused(added.map(f => f.blobId)).catch(() => {}); } finally { setBusy(false); }
+  };
+  async function keepMemo(recording: MemoDraft) {
+    setBusy(true); let blobId: string | undefined;
+    try { validateMemo(recording, recording); const old = memoDrafts.find(m => m.id === recording.id); blobId = old?.blobId;
+      if (!blobId) { const bytes = new Uint8Array(await recording.blob.arrayBuffer()); try { blobId = await vault.addFile(bytes); } finally { bytes.fill(0); } }
+      const { id, label, summary, createdAt, mimeType, size, durationMs } = recording;
+      const next = [...memoDrafts.filter(m => m.id !== id), { id, label, summary, createdAt, mimeType, size, durationMs, blobId, clientId: selected, sessionId }];
+      setMemoDrafts(next); await draft.flush({ memos: next });
+    } catch (error) { if (blobId) await vault.purgeUnused([blobId]).catch(() => {}); throw error; } finally { setBusy(false); }
+  }
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (!selected || !date || !time || (paid && (!paymentDate || paymentDate > today()))) { setError('required'); return; }
     setBusy(true);
     const before = referencedBlobs(data); const added: string[] = [];
     try {
+      await draft.flush(); draft.stop();
       const text = homework.trim();
       const pricing = lockedPricing && session ? { feeCents: session.feeCents, billing: session.billing ?? { currency: 'EUR' as const, amountCents: session.feeCents } } : !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
         ? { feeCents: session?.feeCents ?? appointment!.feeCents, billing: originalBilling } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
@@ -190,17 +235,16 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
       const result: Session = { id: sessionId, clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
         ...(originalFeeCents !== undefined && { originalFeeCents }),
         ...session?.invoiceId && { invoiceId: session.invoiceId }, ...text && { homework: text, homeworkDone } };
-      for (const file of files) added.push(await vault.addImage(await compressImage(file)));
-      const photoIds = [...added]; const savedMemos: AudioMemo[] = [];
+      const photoIds = files.map(f => f.blobId); const savedMemos: AudioMemo[] = [];
       for (const draft of memoDrafts) {
         validateMemo(draft, draft);
-        const bytes = new Uint8Array(await draft.blob.arrayBuffer()); let blobId: string;
-        try { blobId = await vault.addFile(bytes); } finally { bytes.fill(0); }
-        added.push(blobId);
+        const blobId = draft.blobId;
         const { id, label, summary, createdAt, mimeType, size, durationMs } = draft;
         savedMemos.push({ id, label, summary, createdAt, mimeType, size, durationMs, blobId, clientId: selected, sessionId });
       }
       await vault.update(d => {
+        if (!d.clients.some(c => c.id === selected)) throw new Error('storageError');
+        deleteSessionDraft(d, draftId);
         if (pricing.billing.rate) d.settings.exchangeRate = pricing.billing.rate;
         if (session) { const index = d.sessions.findIndex(s => s.id === session.id); if (index < 0) throw new Error('storageError'); d.sessions[index] = result; }
         else {
@@ -218,29 +262,30 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
         const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
       });
       await vault.purgeUnused([...before, ...added]); onClose();
-    } catch (err) { await vault.purgeUnused(added).catch(() => {}); setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
+    } catch (err) { draft.resume(); await vault.purgeUnused(added).catch(() => {}); setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
     if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}${data.notes.some(n => n.sessionId === session.id) ? `\n\n${t('deleteSessionPhotosNote')}` : ''}${data.audioMemos.some(m => m.sessionId === session.id) ? `\n\n${t('memoDeleteSessionNote')}` : ''}`)) return;
     setBusy(true);
-    try { await vault.remove(d => deleteSession(d, session.id)); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
+    try { draft.stop(); await vault.remove(d => { deleteSession(d, session.id); deleteSessionDraft(d, draftId); }); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
-  return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => { if (!busy) onClose(); }} wide><form onSubmit={submit} noValidate>
+  return <Modal title={t(session ? 'editSession' : 'addSession')} onClose={() => void closeDraft()} wide><form onSubmit={submit} noValidate>
+    <Notice>{t('draftHint')}</Notice>{draft.status !== 'idle' && <p className="hint" role="status" aria-live="polite">{t(draft.status === 'saving' ? 'draftSaving' : draft.status === 'error' ? 'storageError' : 'draftSaved')}</p>}
     <Field label={t('client')}><select value={selected} disabled={!!appointment || lockedPricing} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
     <div className="form-section"><h3>{t('discussedTitle')}</h3>
       <Field label={t('insertTemplate')}><select value="" onChange={e => { const chosen = templates.find(x => x.id === e.target.value); if (chosen) setNotes(withTemplate(notes, chosen.body)); }}><option value="">—</option>{templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
       <Field label={t('sessionNotes')}><textarea rows={4} value={notes} maxLength={20000} placeholder={t('sessionDiscussedPlaceholder')} onChange={e => setNotes(e.target.value)}/></Field>
       <div className="photo-pick" role="group" aria-label={t('handwritten')}><span className="photo-pick-label">{t('handwritten')}</span>
-        <label className="btn btn-secondary file-label"><Camera size={16}/>{t('photoTake')}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { addFiles(e.target.files); e.target.value = ''; }}/></label>
-        <label className="btn btn-secondary file-label"><ImagePlus size={16}/>{t('photoChoose')}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { addFiles(e.target.files); e.target.value = ''; }}/></label></div>
+        <label className="btn btn-secondary file-label"><Camera size={16}/>{t('photoTake')}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e => { void addFiles(e.target.files); e.target.value = ''; }}/></label>
+        <label className="btn btn-secondary file-label"><ImagePlus size={16}/>{t('photoChoose')}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => { void addFiles(e.target.files); e.target.value = ''; }}/></label></div>
       {(files.length > 0 || attached.length > 0) && <ul className="photo-list" aria-label={t('photosAttached')}>
         {attached.map(n => <li key={n.id}><span><ImagePlus size={14}/> {t('photoNote')}</span><button type="button" className="icon-btn danger" aria-label={t('photoRemove')} title={t('photoRemove')} onClick={() => setRemovedPhotos([...removedPhotos, n.id])}><Trash2 size={15}/></button></li>)}
-        {files.map((f, i) => <li key={`${f.name}${i}`}><span><ImagePlus size={14}/> {f.name}</span><button type="button" className="icon-btn danger" aria-label={`${t('photoRemove')}: ${f.name}`} title={t('photoRemove')} onClick={() => setFiles(files.filter((_, j) => j !== i))}><Trash2 size={15}/></button></li>)}</ul>}
-      <SessionMemos items={memos} vault={vault} disabled={busy} onAdd={draft => setMemoDrafts(previous => [...previous, draft])}
+        {files.map((f, i) => <li key={`${f.fileName}${i}`}><span><ImagePlus size={14}/> {f.fileName}</span><button type="button" className="icon-btn danger" aria-label={`${t('photoRemove')}: ${f.fileName}`} title={t('photoRemove')} onClick={() => setFiles(files.filter((_, j) => j !== i))}><Trash2 size={15}/></button></li>)}</ul>}
+      <SessionMemos items={memos} vault={vault} disabled={busy} onAdd={keepMemo} checkpoint
         onEdit={(id, metadata) => { setMemoDrafts(previous => previous.map(m => m.id === id ? { ...m, ...metadata } : m)); setEditedMemos(previous => ({ ...previous, [id]: metadata })); }}
         onDelete={async id => {
-          if (data.audioMemos.some(m => m.id === id)) await vault.remove(d => deleteAudioMemo(d, id));
+          await vault.remove(d => deleteAudioMemo(d, id));
           setRemovedMemos(previous => [...previous, id]); setMemoDrafts(previous => previous.filter(m => m.id !== id));
         }}/>
       {memoDrafts.length > 0 && <p className="hint">{t('memoSaveSessionHint')}</p>}
@@ -253,7 +298,7 @@ export function SessionForm({ vault, clientId, appointment, session, onClose }: 
     <div className="form-section">{lockedPricing ? <Notice>{t('invoiceSessionPricingLocked')}</Notice> : <FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>}
       <label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
       {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</div>
-    {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>
+    {error && <Notice error>{t(error)}</Notice>}<p className="hint">{t('draftCloseHint')}</p><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void discardDraft()}>{t('draftDiscard')}</button><Actions busy={busy} onClose={() => void closeDraft()} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>
   </form></Modal>;
 }
 export function NoteForm({ vault, clientId, onClose }: { vault: VaultController; clientId: string; onClose: () => void }) {

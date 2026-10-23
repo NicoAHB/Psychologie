@@ -6,5 +6,5 @@
     "noEmit": true, "strict": true, "noUnusedLocals": true, "noUnusedParameters": true, "noFallthroughCasesInSwitch": true, "skipLibCheck": true,
     "esModuleInterop": true, "types": ["vite/client", "node"]
   },
-  "include": ["src", "vite.config.ts", "tests", "playwright.config.ts"]
+  "include": ["src", "vite.config.ts", "tests", "playwright.config.ts", "playwright.ipad.config.ts"]
 }

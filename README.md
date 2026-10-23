@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: pausierbare und wieder aktivierbare Klientenakten mit Statusverlauf/Wiedervorlage, verschlüsselte Sitzungsentwürfe inklusive beendeter Aufnahmen, Aufgabenübersicht, lokale Sicherungsprüfung, Memo-Favoriten und optionale verschlüsselte Dokument-Links. Einrichtung und technische Übergabe an Claude: [Änderungen vom 23. Oktober 2026](docs/claude-uebergabe-2026-10-23.md). Für Dokument-Links ist die zusätzliche Migration [`supabase/document-shares.sql`](supabase/document-shares.sql) erforderlich. [iPad-Abnahmeplan](docs/ipad-abnahme.md).
+
 Neu: kleinere PDF-Basisschriften und Runtime-Cache, Playwright-Browsercache in CI, automatische verschlüsselte In-App-Sicherung auch auf dem iPad, einstellbare Sperrzeit, geprüfter PHQ-9-/GAD-7-PDF-Rücklauf, lesbarer Klienten-ZIP-Export, datierter NBU-Kurscache und Schutz vor wiederholtem Telegram-Versand. Bedienung, Migration und Grenzen: [Performance und Sicherung](docs/performance-und-sicherung.md).
 
 Neu: Zahlungsziele, vorbereitete Zahlungserinnerungen auf DE/UA, verknüpfte Storno- und Ersatzrechnungen, eine zentrale Rücklaufübersicht sowie auffällige Urlaubs- und Abwesenheitseinträge im Kalender. Bedienung und Grenzen: [Rechnungen und Abwesenheiten](docs/rechnungen-und-abwesenheiten.md).
@@ -182,7 +184,7 @@ Video ist optional: `supabase/video.sql` installieren und Supabase konfigurieren
 
 ## Sprach-Memos pro Sitzung
 
-Im Sitzungsformular (neu/bearbeiten) und unter **Klienten → Besprochen** lassen sich mehrere Sprach-Memos aufnehmen. Erst **Aufnahme starten** fordert das Mikrofon an. Stopp, Anhören, Wiederholen und Verwerfen sind möglich; höchstens 20 Minuten bzw. 25 MB je Memo. Neue Memos im Formular werden erst beim Speichern der Sitzung abgelegt. Eine vorhandene Aufnahme zu löschen wirkt sofort und endgültig, auch wenn das Sitzungsformular anschließend abgebrochen wird.
+Im Sitzungsformular (neu/bearbeiten) und unter **Klienten → Besprochen** lassen sich mehrere Sprach-Memos aufnehmen. Erst **Aufnahme starten** fordert das Mikrofon an. Stopp, Anhören, Wiederholen und Verwerfen sind möglich; höchstens 20 Minuten bzw. 25 MB je Memo. Neue Memos im Formular werden schon nach Stopp als Teil eines verschlüsselten Entwurfs gesichert; erst beim Speichern der Sitzung erscheinen sie im fertigen Verlauf. Eine vorhandene Aufnahme zu löschen wirkt sofort und endgültig, auch wenn das Sitzungsformular anschließend abgebrochen wird.
 
 Für die Bezeichnung gibt es acht passende Vorschläge auf DE/UA, etwa „Ressourcen & Stärken“ oder „Vorbereitung der nächsten Sitzung“. Eigene Eingaben werden beim Speichern in der verschlüsselten praxisweiten Vorauswahl gemerkt und können bei anderen Klienten erneut gewählt werden. Im Klienten-**Überblick** stehen Sprach-Memos mit Titel, Aufnahmedatum und Uhrzeit, neueste zuerst; Antippen öffnet die Kurzfassung und den Player.
 

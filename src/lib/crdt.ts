@@ -2,7 +2,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import type { VaultData } from './types';
 import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;
@@ -36,8 +36,8 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
     if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
     else if (k === 'tags') { for (const tag of v as string[]) result[`tag:${tag}`] = true; }
-    else if (collection === 'settings' && k === 'memoLabels') { for (const label of v as string[]) result[`memoLabel:${label}`] = true; }
-    else if (['deliveries', 'returns', 'telegramDeliveries'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
+    else if (collection === 'settings' && ['memoLabels', 'memoLabelFavorites'].includes(k)) { for (const label of v as string[]) result[`${k === 'memoLabels' ? 'memoLabel' : 'memoFavorite'}:${label}`] = true; }
+    else if (['deliveries', 'returns', 'telegramDeliveries', 'statusHistory', 'shares'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
     else result[k] = v as Json;
   }
   if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
@@ -69,6 +69,8 @@ export function stateOf(data: VaultData): CrdtState {
   return state;
 }
 function preferred(register: Register, field = '') {
+  const revoked = field.startsWith('shares:') ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.revokedAt) : [];
+  if (revoked.length) return revoked.at(-1)?.value;
   const accepted = /^(deliveries|telegramDeliveries):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.acceptedAt) : [];
   return (accepted.length ? accepted : register.values).at(-1)?.value;
 }
@@ -136,6 +138,7 @@ export function recordChanges(before: VaultData, after: VaultData, at: number, a
   }
   after.crdt = state;
   scrubErasedClients(after);
+  scrubDraftMemoReferences(after, erasedAudioMemoIds(after));
 }
 
 export function mergeStates(a: CrdtState, b: CrdtState): CrdtState {
@@ -161,15 +164,18 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
       else if (field.startsWith('practice.')) { row.practice ??= {}; (row.practice as Record<string, Json>)[field.slice(9)] = value; }
       else if (field.startsWith('tag:')) { if (value) (row.tags ??= [] as string[]); if (value) (row.tags as string[]).push(field.slice(4)); }
       else if (field.startsWith('memoLabel:')) { if (value) (row.memoLabels ??= [] as string[]); if (value) (row.memoLabels as string[]).push(field.slice(10)); }
-      else if (/^(deliveries|returns|telegramDeliveries):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
+      else if (field.startsWith('memoFavorite:')) { if (value) (row.memoLabelFavorites ??= [] as string[]); if (value) (row.memoLabelFavorites as string[]).push(field.slice(13)); }
+      else if (/^(deliveries|returns|telegramDeliveries|statusHistory|shares):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
       else row[field] = structuredClone(value);
     }
     if (collection === 'settings') {
       if (base.settings.memoLabels || Object.keys(registers).some(field => field.startsWith('memoLabel:'))) row.memoLabels ??= [];
+      if (base.settings.memoLabelFavorites || Object.keys(registers).some(field => field.startsWith('memoFavorite:'))) row.memoLabelFavorites ??= [];
       delete (row as Partial<Row>).id; result.settings = { ...result.settings, ...row, autoSync: base.settings.autoSync } as VaultData['settings'];
     }
     else {
       if (['sessions', 'notes'].includes(collection)) row.tags ??= [];
+      if (collection === 'clients' && Object.keys(registers).some(field => field.startsWith('statusHistory:'))) row.statusHistory ??= [];
       if (collection === 'documents') { row.deliveries ??= []; row.returns ??= []; }
       if (collection === 'documents') for (const field of ['deliveries', 'returns', 'telegramDeliveries']) {
         const entries = row[field] as { id: string; requestedAt?: string; uploadedAt?: string }[] | undefined;
@@ -180,6 +186,8 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
   }
   for (const collection of COLLECTIONS) (result[collection] as unknown as Row[]).sort((a, b) => Number(preferred(state.entities[keyOf(collection, a.id)].$order) ?? 0) - Number(preferred(state.entities[keyOf(collection, b.id)].$order) ?? 0) || a.id.localeCompare(b.id, 'en'));
   scrubErasedClients(result);
+  scrubDraftMemoReferences(result, erasedAudioMemoIds(result));
+  result.sessionDrafts = (result.sessionDrafts ?? []).filter(d => !Object.hasOwn(result.deleted, d.id) && (!d.originalSessionId || !Object.hasOwn(result.deleted, d.originalSessionId)));
   return result;
 }
 /** Erasure must not leave a hidden copy of an erased client's record in conflict metadata. */
@@ -192,8 +200,9 @@ function scrubErasedClients(data: VaultData) {
     if (collection === 'settings') continue;
     const owner = fields.clientId?.values.some(v => typeof v.value === 'string' && erased.has(v.value)) || fields.$snapshot?.values.some(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && typeof v.value.clientId === 'string' && erased.has(v.value.clientId));
     const permanentlyDeleted = fields.$exists?.values.every(v => v.value === false);
+    const erasedDraft = collection === 'sessionDrafts' && fields.originalSessionId?.values.some(v => typeof v.value === 'string' && erasedSessions.has(v.value));
     const erasedMemo = collection === 'audioMemos' && (fields.$exists?.values.some(v => v.value === false) || fields.sessionId?.values.some(v => typeof v.value === 'string' && erasedSessions.has(v.value)));
-    if (collection === 'clients' && erased.has(id) || owner || permanentlyDeleted || erasedMemo) {
+    if (collection === 'clients' && erased.has(id) || owner || permanentlyDeleted || erasedMemo || erasedDraft) {
       const deletedAt = Math.max(0, ...Object.values(fields).flatMap(r => r.values.map(v => v.at)));
       const deletion = fields.$exists?.values.find(v => v.value === false) ?? { actor: 'erasure', sequence: 1, at: deletedAt, value: false };
       state.entities[entity] = { $exists: { seen: join(state.clock, { [deletion.actor]: deletion.sequence }), values: [{ ...deletion, value: false }] } };
@@ -201,6 +210,17 @@ function scrubErasedClients(data: VaultData) {
       if (collection === 'audioMemos') data.audioMemos = (data.audioMemos ?? []).filter(m => m.id !== id);
     }
   }
+}
+/** Also erase a recording from every unfinished and conflicting draft variant. */
+function scrubDraftMemoReferences(data: VaultData, ids: ReadonlySet<string>) {
+  const clean = (value: unknown) => {
+    const payload = value as VaultData['sessionDrafts'][number]['payload'];
+    if (!payload || !Array.isArray(payload.memos)) return;
+    payload.memos = payload.memos.filter(m => !ids.has(m.id));
+    if (payload.editedMemos) for (const id of ids) delete payload.editedMemos[id];
+  };
+  for (const draft of data.sessionDrafts ?? []) clean(draft.payload);
+  for (const [entity, fields] of Object.entries(data.crdt?.entities ?? {})) if ((JSON.parse(entity) as string[])[0] === 'sessionDrafts') for (const version of fields.payload?.values ?? []) clean(version.value);
 }
 /** IDs whose audio is irrevocably erased; used to scrub local encrypted recovery points. */
 export function erasedAudioMemoIds(data: VaultData): Set<string> {
@@ -212,7 +232,18 @@ export function redactAudioMemos(data: VaultData, ids: ReadonlySet<string>, at =
     const actor = `memo-erasure-${id}`, sequence = (state.clock[actor] ?? 0) + 1; state.clock[actor] = sequence;
     put(state, keyOf('audioMemos', id), '$exists', false, actor, sequence, at); data.deleted[id] = at;
   }
-  data.audioMemos = (data.audioMemos ?? []).filter(m => !ids.has(m.id)); data.crdt = state; scrubErasedClients(data);
+  data.audioMemos = (data.audioMemos ?? []).filter(m => !ids.has(m.id)); data.crdt = state; scrubDraftMemoReferences(data, ids); scrubErasedClients(data);
+}
+export function erasedDraftIds(data: VaultData): Set<string> {
+  return new Set(Object.entries(data.crdt?.entities ?? {}).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'sessionDrafts' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
+}
+export function redactSessionDrafts(data: VaultData, ids: ReadonlySet<string>, at = Date.now()) {
+  const state = stateOf(data);
+  for (const id of ids) {
+    const actor = `draft-erasure-${id}`, sequence = (state.clock[actor] ?? 0) + 1; state.clock[actor] = sequence;
+    put(state, keyOf('sessionDrafts', id), '$exists', false, actor, sequence, at); data.deleted[id] = at;
+  }
+  data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => !ids.has(d.id)); data.crdt = state; scrubErasedClients(data);
 }
 const conflictCache = new WeakMap<CrdtState, SyncConflict[]>();
 export function syncConflicts(data: VaultData): SyncConflict[] {

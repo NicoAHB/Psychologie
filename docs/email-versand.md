@@ -7,7 +7,7 @@
 3. Alternativ unter **Dokumente → Dokument hochladen** eine Aufgabe, ein Bild oder eine andere Unterlage hinterlegen. Erlaubt: PDF, JPG, PNG, WebP, TXT, DOCX, ODT, maximal 10 MB je Datei. Dokumentdateien bleiben im Originalformat erhalten. Die vorhandene Komprimierung von Profilbildern und Fotonotizen bleibt bestehen.
 4. Bei Bedarf **Ausgefüllte Rücksendung erforderlich** und **Per E-Mail an Klient versenden** aktivieren. Nach dem Speichern öffnet sich die Prüfung von Empfänger, Betreff und Nachricht. Erst **E-Mail jetzt versenden** überträgt die ausgewählte Datei an den eingerichteten Anbieter. Später ist der gleiche Versand über den Button am gespeicherten Dokument möglich.
 5. Nach erfolgreicher Annahme durch den E-Mail-Anbieter erscheint der Zeitpunkt samt Empfänger in der Historie. Fehlgeschlagene oder noch nicht eingerichtete Versände bekommen keinen Erfolgszeitpunkt. Annahme bedeutet keine bestätigte Zustellung und keine Lesebestätigung.
-6. Nach einer Antwort die zurückgeschickte Datei unter **Ausgefüllte Datei hinterlegen** hochladen und **Zurückerhalten am** eintragen. Original und alle früheren Rückläufe bleiben nebeneinander erhalten. Antworten werden nicht automatisch aus PDFs ausgelesen oder klinisch bewertet; Ergebnisse können in der bestehenden Fragebogen-Auswertung erfasst werden.
+6. Nach einer Antwort die zurückgeschickte Datei unter **Ausgefüllte Datei hinterlegen** hochladen und **Zurückerhalten am** eintragen. Original und alle früheren Rückläufe bleiben nebeneinander erhalten. PHQ-9-/GAD-7-Rückläufe können clientseitig aus den passenden AcroForm-Feldern ausgelesen und nach ausdrücklicher Prüfung in die Verlaufs-Auswertung übernommen werden. Unvollständige oder unpassende Dateien bleiben als Datei ablegbar; es gibt keine automatische klinische Bewertung.
 
 Die PDF kann in einem PDF-Programm ausgefüllt und anschließend gespeichert werden. Einige Messenger- und Browser-Vorschauen unterstützen keine Formularbearbeitung; dann die heruntergeladene Datei in einer geeigneten PDF-App öffnen. Die komplette Dokumentenablage und PDF-Erzeugung funktionieren auch ohne eingerichteten E-Mail-Anbieter.
 
@@ -57,3 +57,5 @@ PLAYWRIGHT_EMAIL_TEST=true PLAYWRIGHT_PORT=4190 npx playwright test tests/browse
 ```
 
 Anschließend `npm run build` bzw. den normalen Pages-Build ausführen, damit die lokale Vorschau wieder die tatsächliche Projekt-Konfiguration verwendet. Den fiktiven Build nicht veröffentlichen.
+
+Für vertrauliche Unterlagen ist alternativ ein separat verschlüsselter Download-Link möglich. Einrichtung und Grenzen: [Dokumentfreigaben](claude-uebergabe-2026-10-23.md#6-vertrauliche-dokument-links-notwendige-einrichtung). Der gewöhnliche E-Mail-Anhang bleibt ein ausdrücklich gewählter Versandweg ohne Ende-zu-Ende-Verschlüsselung.

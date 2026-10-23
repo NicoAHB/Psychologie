@@ -1,3 +1,4 @@
+import { DocumentShareDialog, DocumentShareHistory } from './DocumentShare';
 import { runSecureTask } from '../lib/workerTasks';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Download, FilePlus2, FileText, Mail, Paperclip, Reply } from 'lucide-react';
@@ -160,6 +161,7 @@ export function QuestionnairePdfButton({ vault, client }: { vault: VaultControll
 export function DocumentsSection({ vault, client, focusId }: { vault: VaultController; client: Client; focusId?: string }) {
   const { t, language } = useI18n(); const [adding, setAdding] = useState(false); const [emailId, setEmailId] = useState<string>(); const [returnId, setReturnId] = useState<string>(); const [error, setError] = useState<TextKey>();
   const documents = vault.data!.documents.filter(d => d.clientId === client.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const [shareId, setShareId] = useState<string>();
   const [telegramId, setTelegramId] = useState<string>(); const [settingsId, setSettingsId] = useState<string>();
   useEffect(() => { if (!focusId) return; const id = requestAnimationFrame(() => { const item = globalThis.document.getElementById(`client-document-${focusId}`); item?.scrollIntoView({ block: 'start' }); item?.focus({ preventScroll: true }); }); return () => cancelAnimationFrame(id); }, [focusId, documents.length]);
   const day = (iso: string) => dateLabel(iso.slice(0, 10), language, { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -174,6 +176,7 @@ export function DocumentsSection({ vault, client, focusId }: { vault: VaultContr
         {(doc.telegramDeliveries ?? []).map(delivery => <p className="hint" key={delivery.id}>{delivery.purpose === 'paymentReminder' && `${t('invoiceReminderTitle')} · `}{t(delivery.acceptedAt ? 'telegramSentOn' : 'telegramNotSent')} · {when(delivery.acceptedAt ?? delivery.requestedAt)} · {delivery.recipient}</p>)}
         {!doc.deliveries.length && !doc.telegramDeliveries?.length && <p className="hint">{t('documentNotSent')}</p>}
         <button className="btn btn-secondary btn-small" disabled={!validEmail(client.email ?? '')} onClick={() => setEmailId(doc.id)}><Mail size={16}/>{t('emailClientDocument')}</button>
+        <button className="btn btn-secondary btn-small" onClick={() => setShareId(doc.id)}>{t('shareTitle')}</button><DocumentShareHistory vault={vault} document={doc}/>
         {doc.invoiceId && <button className="btn btn-secondary btn-small" onClick={() => setTelegramId(doc.id)}>{t('invoiceTelegram')}</button>}
       </section><section><h4>{t('documentReturnColumn')}</h4>
         {doc.returns.length ? <ul className="document-returns">{doc.returns.map(returned => <li key={returned.id}><strong>{t('documentReceivedOn')} <time dateTime={returned.receivedOn}>{day(returned.receivedOn)}</time></strong><button className="document-download" onClick={() => void download(returned.file)}><Download size={17}/>{returned.file.fileName}</button><small>{t('documentAddedOn')} {day(returned.uploadedAt)}</small>{returned.assessmentId && <small>{t('questionnaireImportedStatus')}</small>}</li>)}</ul> : <p className="hint">{t(doc.returnClosedAt ? 'returnClose' : doc.returnExpected ? hasDocumentReceipt(doc) ? 'documentAwaitingReturn' : 'returnNotSent' : 'documentNoReturn')}</p>}
@@ -183,6 +186,7 @@ export function DocumentsSection({ vault, client, focusId }: { vault: VaultContr
     {adding && <DocumentDialog vault={vault} client={client} questionnaire={false} onClose={() => setAdding(false)} onSaved={(doc, email) => { setAdding(false); if (email) setEmailId(doc.id); }}/>}
     {emailId && <EmailComposer vault={vault} client={client} documentId={emailId} onClose={() => setEmailId(undefined)}/>}
     {telegramId && <TelegramComposer vault={vault} client={client} documentId={telegramId} onClose={() => setTelegramId(undefined)}/>}
+    {shareId && <DocumentShareDialog vault={vault} client={client} documentId={shareId} onClose={() => setShareId(undefined)}/>}
     {settingsId && <ReturnSettingsDialog vault={vault} documentId={settingsId} onClose={() => setSettingsId(undefined)}/>}
     {returnId && <ReturnDialog vault={vault} documentId={returnId} onClose={() => setReturnId(undefined)}/>}
   </section>;

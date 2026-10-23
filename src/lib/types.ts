@@ -1,6 +1,7 @@
 import type { CrdtState } from './crdt';
 export type Language = 'de' | 'uk';
 export type Currency = 'EUR' | 'UAH';
+export type ClientStatus = 'active' | 'paused' | 'closed';
 /** Hrywnja per euro, stored with six decimal places as an integer. Never a patient-data request. */
 export interface ExchangeRate { micros: number; date: string; source: 'nbu' | 'manual' }
 export interface Billing {
@@ -20,6 +21,11 @@ export interface Client extends Stamped {
   timeZone?: string;
   currency?: Currency;
   email?: string;
+  /** Missing on old records means active. A status change never deletes clinical or financial records. */
+  status?: ClientStatus;
+  statusHistory?: { id: string; status: ClientStatus; at: string }[];
+  followUpOn?: string;
+  followUpNote?: string;
 }
 export interface Appointment extends Stamped {
   id: string; clientId: string; date: string; time: string; duration: number;
@@ -53,6 +59,18 @@ export interface AudioMemo extends Stamped {
   id: string; clientId: string; sessionId: string; blobId: string; createdAt: string;
   mimeType: string; size: number; durationMs: number; label: string; summary: string;
 }
+export interface SessionDraftValues {
+  date: string; time: string; fee: string; inputCurrency: Currency; rate?: ExchangeRate;
+  paid: boolean; paymentDate: string; notes: string; tags: string; homework: string; homeworkDone: boolean;
+  nextTopics: string; nextTouched: boolean; reviewPrevious: boolean; pricingChanged: boolean;
+  photos: DocumentFile[]; removedPhotos: string[]; memos: AudioMemo[]; removedMemos: string[];
+  editedMemos: Record<string, { label: string; summary: string }>;
+}
+/** Unfinished work: encrypted and backed up with the vault, never counted as a completed session. */
+export interface SessionDraft extends Stamped {
+  id: string; clientId: string; sessionId: string; originalSessionId?: string; appointmentId?: string;
+  savedAt: string; payload: SessionDraftValues;
+}
 export interface InvoiceLine { sessionId: string; date: string; description: string; amountCents: number; euroCents?: number; rate?: ExchangeRate }
 export interface Invoice extends Stamped {
   id: string; number: string; clientId: string; issuedAt: string; lines: InvoiceLine[]; totalCents: number;
@@ -82,13 +100,14 @@ export interface TelegramDelivery {
   acceptedAt?: string; messageId?: number;
   purpose?: 'invoice' | 'paymentReminder';
 }
+export interface DocumentShare { id: string; createdAt: string; expiresAt: string; link: string; revokedAt?: string }
 export interface ClientDocument extends Stamped {
   id: string; clientId: string; title: string; file: DocumentFile; createdAt: string;
   kind?: AssessmentKind; language?: Language; returnExpected: boolean;
   deliveries: EmailDelivery[]; returns: DocumentReturn[];
   /** Each generated invoice copy preserves its payment status at the time of export. */
   invoiceId?: string; invoicePaidOn?: string | null; telegramDeliveries?: TelegramDelivery[];
-  returnDueOn?: string; returnClosedAt?: string;
+  returnDueOn?: string; returnClosedAt?: string; shares?: DocumentShare[];
 }
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;
@@ -106,12 +125,14 @@ export interface Settings {
   exchangeRate?: ExchangeRate;
   /** Practice-wide memo title choices; encrypted with the rest of the vault. */
   memoLabels?: string[];
+  memoLabelFavorites?: string[];
 }
 export interface VaultData {
   crdt?: CrdtState;
   schema: 1; clients: Client[]; appointments: Appointment[]; sessions: Session[]; notes: PhotoNote[];
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
   availability: CalendarAbsence[]; audioMemos: AudioMemo[];
+  sessionDrafts: SessionDraft[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
   settings: Settings;
@@ -130,14 +151,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], sessionDrafts: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

@@ -7,6 +7,9 @@ import { normalizeVault } from '../lib/types';
 const scope = globalThis as unknown as { onmessage: (event: MessageEvent) => void; postMessage: (value: unknown, transfer?: Transferable[]) => void };
 async function execute<K extends keyof WorkerTasks>(task: K, input: WorkerTasks[K]['input']): Promise<WorkerTasks[K]['output']> {
   switch (task) {
+    case 'sealSharedDocument': { const { sealSharedDocument } = await import('../lib/documentShareCrypto'); return await sealSharedDocument(input as WorkerTasks['sealSharedDocument']['input']) as WorkerTasks[K]['output']; }
+    case 'openSharedDocument': { const { openSharedDocument } = await import('../lib/documentShareCrypto'); return await openSharedDocument(input as WorkerTasks['openSharedDocument']['input']) as WorkerTasks[K]['output']; }
+    case 'verifyBackup': { const p = input as WorkerTasks['verifyBackup']['input']; const { verifyBackup } = await import('../lib/verifyBackup'); return await verifyBackup(JSON.parse(p.text), p.passphrase) as WorkerTasks[K]['output']; }
     case 'encryptVault': { const p = input as WorkerTasks['encryptVault']['input']; return await crypto.encryptVault(p.key, p.data, p.vaultId, p.salt, p.base) as WorkerTasks[K]['output']; }
     case 'decryptVault': { const p = input as WorkerTasks['decryptVault']['input']; const data = await crypto.decryptVault(p.key, p.envelope, p.wholeAmounts); const { stateOf } = await import('../lib/crdt'); data.crdt = stateOf(data); return data as WorkerTasks[K]['output']; }
     case 'openVault': {

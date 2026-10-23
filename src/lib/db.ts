@@ -41,6 +41,15 @@ export async function purgeBlobs(vault: string, ids: string[]) {
 export const metaGet = <T>(key: string) => operation<T | undefined>('meta', 'readonly', s => s.get(key));
 export const metaPut = (key: string, value: unknown) => operation('meta', 'readwrite', s => s.put(value, key));
 export const metaDelete = (key: string) => operation('meta', 'readwrite', s => s.delete(key));
+/** Atomic set update, so a background acknowledgement cannot drop a new queued deletion. */
+export async function updateMetaSet(key: string, add: readonly string[] = [], remove: readonly string[] = []) {
+  const db = await database(), removed = new Set(remove);
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('meta', 'readwrite'), store = tx.objectStore('meta'), request = store.get(key);
+    request.onsuccess = () => store.put([...new Set([...(request.result ?? []) as string[], ...add])].filter(id => !removed.has(id)), key);
+    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storageError'));
+  });
+}
 // Only opaque file IDs, like snapshot references. Keep cleanup candidates before
 // changing references so a browser crash cannot strand an encrypted orphan.
 const cleanupKey = (vault: string) => `blob-cleanup:${vault}`;

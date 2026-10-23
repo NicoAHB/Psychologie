@@ -1,3 +1,4 @@
+import { MemoLabelsCard } from './MemoLabelsCard';
 import { useState } from 'react';
 import { Briefcase, CalendarDays, Cloud, FileText, Leaf, Trash2 } from 'lucide-react';
 import { uid } from '../lib/types';
@@ -60,6 +61,7 @@ export function SettingsPage({ vault, auto, onSync, syncing, onRestore }: { vaul
     <SecurityCard vault={vault}/>
     <HistoryCard vault={vault}/>
     <TemplatesCard vault={vault}/>
+    <MemoLabelsCard vault={vault}/>
     <PracticeCard vault={vault}/>
   </div></>;
 }

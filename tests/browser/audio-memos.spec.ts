@@ -27,7 +27,8 @@ test('encrypted session memos: create/edit, playback, summaries, search, backup,
   const session = page.getByRole('dialog', { name: 'Sitzung erfassen', exact: true });
   await session.getByLabel('Sitzungsnotiz (optional)').fill('Sitzung mit Sprach-Memos'); await openNewMemo(page);
   expect((await memoState(page)).calls).toBe(0); await recordMemo(page, 'Ressourcen-Memo', 'Ручна коротка нотатка: Hoffnung und Ressourcen.');
-  await expect(session.locator('.memo-open')).toHaveCount(1); expect(await storedMemoBlobs(page)).toHaveLength(0); // preview only in RAM
+  await expect(session.locator('.memo-open')).toHaveCount(1); expect(await storedMemoBlobs(page)).toHaveLength(1); // unfinished audio is already encrypted for crash recovery
+  expect((await read()).audioMemos).toHaveLength(0); expect((await read()).sessionDrafts[0].payload.memos).toHaveLength(1);
   await session.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(session).not.toBeVisible();
   await expect.poll(async () => (await read()).audioMemos.length).toBe(1); await expect.poll(async () => (await storedMemoBlobs(page)).length).toBe(1);
   await expect(page.locator('.recent-list')).toContainText('Sprach-Memos: 1');

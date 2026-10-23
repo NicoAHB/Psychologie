@@ -2,6 +2,9 @@ import type { AssessmentKind, Ciphertext, Invoice, Language, VaultData, VaultEnv
 import type { ImportedQuestionnaire } from './questionnaireImport';
 
 export interface WorkerTasks {
+  sealSharedDocument: { input: Parameters<typeof import('./documentShareCrypto').sealSharedDocument>[0]; output: import('./documentShareCrypto').SharePacket };
+  openSharedDocument: { input: Parameters<typeof import('./documentShareCrypto').openSharedDocument>[0]; output: Awaited<ReturnType<typeof import('./documentShareCrypto').openSharedDocument>> };
+  verifyBackup: { input: { text: string; passphrase: string }; output: import('./verifyBackup').BackupCheck };
   encryptVault: { input: { key: CryptoKey; data: VaultData; vaultId: string; salt: string; base?: Partial<VaultEnvelope> }; output: VaultEnvelope };
   decryptVault: { input: { key: CryptoKey; envelope: VaultEnvelope; wholeAmounts?: boolean }; output: VaultData };
   openVault: { input: { key: CryptoKey; envelope: VaultEnvelope }; output: { value: VaultData; migrated: boolean } };

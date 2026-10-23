@@ -6,3 +6,9 @@ export function autoLockMinutes(value?: number): number { return AUTO_LOCK_MINUT
 const memoMedia = new Set<() => void>();
 export function registerMemoMedia(stop: () => void): () => void { memoMedia.add(stop); return () => { memoMedia.delete(stop); }; }
 export function stopMemoMedia(): void { for (const stop of [...memoMedia]) { try { stop(); } catch { /* Continue stopping the other media handles. */ } } }
+
+// Flush debounced encrypted drafts before the vault key is dropped. A failed
+// write keeps the vault open and the existing storage error visible.
+const beforeLock = new Set<() => Promise<void>>();
+export function registerBeforeLock(flush: () => Promise<void>) { beforeLock.add(flush); return () => { beforeLock.delete(flush); }; }
+export async function flushBeforeLock() { await Promise.all([...beforeLock].map(flush => flush())); }

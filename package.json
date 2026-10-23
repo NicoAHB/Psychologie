@@ -9,7 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
-    "reminders": "node scripts/send-reminders.mjs"
+    "reminders": "node scripts/send-reminders.mjs",
+    "test:ipad": "playwright test --config playwright.ipad.config.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",

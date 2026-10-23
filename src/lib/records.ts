@@ -1,3 +1,4 @@
+import { redactAudioMemos } from './crdt';
 import type { Appointment, VaultData } from './types';
 import { appointmentEnd, appointmentStart } from './dates';
 import { referencedBlobs } from './blobs';
@@ -7,6 +8,7 @@ export const orphanedBlobs = (before: string[], data: VaultData) => { const kept
 
 export function deleteClient(data: VaultData, clientId: string) {
   data.clients = data.clients.filter(c => c.id !== clientId);
+  data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.clientId !== clientId);
   data.appointments = data.appointments.filter(a => a.clientId !== clientId);
   data.sessions = data.sessions.filter(s => s.clientId !== clientId);
   data.notes = data.notes.filter(n => n.clientId !== clientId);
@@ -17,6 +19,7 @@ export function deleteClient(data: VaultData, clientId: string) {
 }
 export function deleteSession(data: VaultData, sessionId: string) {
   const session = data.sessions.find(s => s.id === sessionId);
+  data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.originalSessionId !== sessionId);
   data.sessions = data.sessions.filter(s => s.id !== sessionId);
   data.notes = data.notes.filter(n => n.sessionId !== sessionId); // photos of the session go with it
   data.audioMemos = (data.audioMemos ?? []).filter(m => m.sessionId !== sessionId);
@@ -25,7 +28,7 @@ export function deleteSession(data: VaultData, sessionId: string) {
   if (appointment?.status === 'completed') appointment.status = 'scheduled';
 }
 export const deleteNote = (data: VaultData, noteId: string) => { data.notes = data.notes.filter(n => n.id !== noteId); };
-export const deleteAudioMemo = (data: VaultData, id: string) => { data.audioMemos = (data.audioMemos ?? []).filter(m => m.id !== id); };
+export const deleteAudioMemo = (data: VaultData, id: string) => { redactAudioMemos(data, new Set([id])); };
 
 /** A scheduled appointment that overlaps the candidate in real time, even if the two were agreed in different zones. */
 export function findConflict(appointments: Appointment[], candidate: Pick<Appointment, 'id' | 'date' | 'time' | 'duration' | 'timeZone'>): Appointment | undefined {

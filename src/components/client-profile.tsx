@@ -1,3 +1,4 @@
+import { clientStatus } from '../lib/clientStatus';
 import { BillingMoney } from './money';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Mic, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
@@ -19,6 +20,7 @@ import { ClientExportButton } from './client-export';
 import { ClientMemoOverview, SessionMemos } from './AudioMemos';
 import { deleteAudioMemo } from '../lib/records';
 import { validateMemo } from '../lib/audioMemos';
+import { ClientStatusCard } from './ClientStatusCard';
 import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
 
 const VideoConsultation = lazy(() => import('./VideoConsultation').then(m => ({ default: m.VideoConsultation })));
@@ -59,6 +61,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
   const ago = (date: string) => { const days = daysSince(date); return days === 0 ? t('today') : days === 1 ? t('daysAgoOne') : t('daysAgo').replace('{n}', String(days)); };
   async function copyHomework(s: Session) { setMessage(await copyText(homeworkMessage(client, s, o.nextAppointment, data.settings)) ? t('copiedHomework') : t('copyFailed')); }
   return <>
+    {clientStatus(client) !== 'active' && <ClientStatusCard vault={vault} client={client}/>}
     <section className="card glance-card" aria-labelledby="glance-title"><div className="section-heading"><h2 id="glance-title">{t('glanceTitle')}</h2></div>
       <div className="glance-grid">
         <Tile icon={<CalendarDays size={15}/>} label={t('nextAppointmentLabel')}>{next ? <><strong>{dateLabel(next.practice.iso, language, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><small>{t('practiceTime')} ({next.practice.tag}): <b>{clockText(next.practice.time, language)}</b></small>{next.differs && <small className="client-line">{t('clientTime')} ({next.client.tag}): <b>{clockText(next.client.time, language)}</b>{next.client.shift ? ` · ${t(next.client.shift > 0 ? 'dayLater' : 'dayEarlier')}` : ''}</small>}</> : <><strong>{t('noNextAppointment')}</strong><button className="text-link" onClick={actions.onNewAppointment}><Plus size={14}/>{t('newAppointment')}</button></>}</Tile>
@@ -80,6 +83,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
         <span className="recent-text">{excerpt(s.notes, 220) || '—'}</span></button></li>)}</ul> : <p className="hint">{t('nothingDiscussedYet')}</p>}
       {o.threads.length > 0 && <><h3 className="mini-heading">{t('recurringThemes')}</h3><div className="tag-filters">{o.threads.map(([tag, count]) => <button key={tag} className="tag-chip" onClick={() => openTab('discussed', tag)}>#{tag} · {count}</button>)}</div></>}</section>
     <ClientMemoOverview vault={vault} clientId={client.id}/>
+    {clientStatus(client) === 'active' && (!!client.statusHistory?.length || !!client.followUpOn) && <ClientStatusCard vault={vault} client={client}/>}
   </>;
 }
 function Discussed({ vault, client, tag, setTag, actions, focusMemoId, onMemoFocusHandled }: { vault: VaultController; client: Client; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
@@ -153,7 +157,7 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
   const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
   return <div className="profile-content">{videoOpen && <Suspense fallback={<p role="status">…</p>}><VideoConsultation vault={vault} client={client} onClose={() => setVideoOpen(false)}/></Suspense>}
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
-    <div className="profile-heading"><Avatar client={client} vault={vault} large/><div><h2>{client.name}</h2><p>{client.contact || t('profile')}</p></div><button className="btn btn-secondary" onClick={actions.onEditClient}>{t('editClient')}</button></div>
+    <div className="profile-heading"><Avatar client={client} vault={vault} large/><div><h2>{client.name}</h2><p>{client.contact || t('profile')} · <span className="workflow-chip">{t(`clientStatus_${clientStatus(client)}`)}</span></p></div><button className="btn btn-secondary" onClick={actions.onEditClient}>{t('editClient')}</button></div>
     <div className="button-row profile-actions"><button className="btn btn-primary btn-small" onClick={actions.onNewSession}><Plus size={16}/>{t('addSession')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewNote}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewAppointment}><CalendarDays size={16}/>{t('newAppointment')}</button><ClientExportButton vault={vault} client={client}/><button className="btn btn-secondary btn-small" onClick={() => setVideoOpen(true)}>{t('videoTitle')}</button></div>
     <div className="profile-tabs" role="tablist" aria-label={t('profileSections')}>{tabs.map(x => <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls="profile-panel" className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.icon}{x.label}</button>)}</div>
     <div role="tabpanel" id="profile-panel" aria-labelledby={`tab-${tab}`} className="profile-panel">

@@ -3,7 +3,7 @@ import { Mic, Pause, Pencil, Play, RotateCcw, Square, Trash2 } from 'lucide-reac
 import { useI18n, type TextKey } from '../lib/i18n';
 import { audioMime, MEMO_MAX_LABEL, MEMO_MAX_SUMMARY, memoTime, validateMemo, type MemoDraft, type MemoItem, type MemoMetadata, type MemoRecording } from '../lib/audioMemos';
 import { MemoRecorder, memoRecordingSupported } from '../lib/memoRecorder';
-import { registerMemoMedia } from '../lib/autoLock';
+import { registerBeforeLock, registerMemoMedia } from '../lib/autoLock';
 import { uid } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
@@ -45,24 +45,47 @@ export function MemoPlayer({ blob, durationMs }: { blob: Blob; durationMs: numbe
 }
 function MemoMetadataFields({ label, summary, setLabel, setSummary, vault }: { label: string; summary: string; setLabel: (value: string) => void; setSummary: (value: string) => void; vault: VaultController }) {
   const { t, language } = useI18n();
-  const choices = useMemo(() => memoLabelChoices(vault.data?.settings.memoLabels, language), [vault.data?.settings.memoLabels, language]);
+  const choices = useMemo(() => memoLabelChoices(vault.data?.settings.memoLabels, language, vault.data?.settings.memoLabelFavorites), [vault.data?.settings.memoLabels, vault.data?.settings.memoLabelFavorites, language]);
   const visible = useMemo(() => visibleMemoLabelChoices(choices, label), [choices, label]);
   const selected = visible.find(choice => memoLabelKey(choice.label) === memoLabelKey(label))?.id ?? '';
   return <><Field label={t('memoLabelPick')}><select value={selected} onChange={e => { const choice = choices.find(item => item.id === e.target.value); if (choice) setLabel(choice.label); }}>
-      <option value="">{t('memoLabelChoose')}</option><optgroup label={t('memoLabelStandard')}>{visible.filter(choice => choice.builtIn).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup>
-      {visible.some(choice => !choice.builtIn) && <optgroup label={t('memoLabelOwn')}>{visible.filter(choice => !choice.builtIn).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup>}
+      <option value="">{t('memoLabelChoose')}</option><optgroup label={t('memoLabelFavorite')}>{visible.filter(choice => choice.favorite).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup><optgroup label={t('memoLabelStandard')}>{visible.filter(choice => choice.builtIn && !choice.favorite).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup>
+      {visible.some(choice => !choice.builtIn) && <optgroup label={t('memoLabelOwn')}>{visible.filter(choice => !choice.builtIn && !choice.favorite).map(choice => <option key={choice.id} value={choice.id}>{choice.label}</option>)}</optgroup>}
     </select></Field><Field label={t('memoLabel')} hint={t('memoLabelRememberHint') + (choices.length > 58 ? ` ${t('memoLabelManyHint')}` : '')}><input value={label} maxLength={MEMO_MAX_LABEL} placeholder={t('memoLabelPlaceholder')} onChange={e => setLabel(e.target.value)}/></Field>
     <Field label={t('memoSummary')} hint={t('memoSummaryHint')}><textarea rows={4} maxLength={MEMO_MAX_SUMMARY} value={summary} placeholder={t('memoSummaryPlaceholder')} onChange={e => setSummary(e.target.value)}/></Field></>;
 }
 // These dialogs can be opened inside the existing session form. No nested form or implicit submit.
 const preventImplicitSubmit = (e: KeyboardEvent) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && e.target.type !== 'range') e.preventDefault(); };
 
-function MemoRecorderDialog({ onSave, onClose, vault }: { onSave: (draft: MemoDraft) => Promise<void> | void; onClose: () => void; vault: VaultController }) {
+function MemoRecorderDialog({ onSave, onClose, vault, checkpoint = false, onDiscardCheckpoint }: { checkpoint?: boolean; onDiscardCheckpoint?: (id: string) => Promise<void> | void; onSave: (draft: MemoDraft) => Promise<void> | void; onClose: () => void; vault: VaultController }) {
   const { t } = useI18n(); const [phase, setPhase] = useState<'idle' | 'requesting' | 'recording' | 'stopping' | 'review' | 'error'>('idle');
   const [recording, setRecording] = useState<MemoRecording>(), [elapsed, setElapsed] = useState(0);
   const [label, setLabel] = useState(''), [summary, setSummary] = useState(''), [message, setMessage] = useState<TextKey>();
   const [saving, setSaving] = useState(false), recorder = useRef<MemoRecorder | undefined>(undefined), alive = useRef(true);
   const close = useRef(onClose); close.current = onClose;
+  const memoId = useRef(uid()), checkpointQueue = useRef(Promise.resolve()), checkpointTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const latest = useRef({ onSave, recording, label, summary }); latest.current = { onSave, recording, label, summary };
+  function checkpointNow(value = latest.current.recording) {
+    clearTimeout(checkpointTimer.current);
+    if (!checkpoint || !value) return checkpointQueue.current;
+    const item = { ...value, id: memoId.current, label: latest.current.label.trim(), summary: latest.current.summary.trim() };
+    setSaving(true);
+    const pending = checkpointQueue.current.catch(() => {}).then(() => latest.current.onSave(item));
+    checkpointQueue.current = pending.then(() => {});
+    void pending.then(() => { if (alive.current) setSaving(false); }, () => { if (alive.current) { setSaving(false); setMessage('storageError'); } });
+    return checkpointQueue.current;
+  }
+  useEffect(() => {
+    if (!checkpoint || !recording) return;
+    checkpointTimer.current = setTimeout(() => void checkpointNow().catch(() => {}), 700);
+    return () => clearTimeout(checkpointTimer.current);
+  }, [label, summary, recording, checkpoint]);
+  useEffect(() => registerBeforeLock(async () => { await checkpointNow(); }), []);
+  async function discard() {
+    recorder.current?.dispose(); clearTimeout(checkpointTimer.current);
+    try { await checkpointQueue.current; if (checkpoint && recording) await onDiscardCheckpoint?.(memoId.current); onClose(); } catch { setMessage('storageError'); }
+  }
+
   useEffect(() => {
     alive.current = true;
     const terminate = () => { alive.current = false; recorder.current?.dispose(); close.current(); };
@@ -72,11 +95,12 @@ function MemoRecorderDialog({ onSave, onClose, vault }: { onSave: (draft: MemoDr
     return () => { alive.current = false; unregister(); recorder.current?.dispose(); document.removeEventListener('visibilitychange', hide); window.removeEventListener('pagehide', terminate); };
   }, []);
   function start() {
+    memoId.current = uid();
     if (!alive.current) return;
     recorder.current?.dispose(); setRecording(undefined); setElapsed(0); setMessage(undefined);
     const next = new MemoRecorder({
       status: value => { if (alive.current) setPhase(value); }, tick: value => { if (alive.current) setElapsed(value); },
-      recorded: value => { if (alive.current) { setRecording(value); setElapsed(value.durationMs); setPhase('review'); } },
+      recorded: value => { if (alive.current) { setRecording(value); setElapsed(value.durationMs); setPhase('review'); void checkpointNow(value).catch(() => {}); } },
       error: value => { if (alive.current) { setMessage(value); setPhase('error'); } }, limit: value => { if (alive.current) setMessage(value); },
     });
     recorder.current = next; void next.start();
@@ -84,11 +108,11 @@ function MemoRecorderDialog({ onSave, onClose, vault }: { onSave: (draft: MemoDr
   async function save() {
     if (!recording) return; setSaving(true); setMessage(undefined);
     try {
-      validateMemo(recording, { label, summary }); await onSave({ ...recording, id: uid(), label: label.trim(), summary: summary.trim() });
+      validateMemo(recording, { label, summary }); if (checkpoint) await checkpointNow(recording); else await onSave({ ...recording, id: memoId.current, label: label.trim(), summary: summary.trim() });
       if (alive.current) onClose();
     } catch { if (alive.current) setMessage('storageError'); } finally { if (alive.current) setSaving(false); }
   }
-  return <Modal title={t('memoRecord')} onClose={() => { if (!saving) { recorder.current?.dispose(); onClose(); } }}>
+  return <Modal title={t('memoRecord')} onClose={() => { if (!saving) { recorder.current?.dispose(); void checkpointNow().then(onClose).catch(() => setMessage('storageError')); } }}>
     <div className="memo-recorder" onKeyDown={preventImplicitSubmit}>
       <p className="hint">{t('memoPrivacyHint')}</p><p className="hint">{t('memoLimits')}</p>
       <p role="status" aria-live="polite" aria-atomic="true">{t(phase === 'recording' ? 'memoRecording' : phase === 'requesting' ? 'memoRequesting' : phase === 'stopping' ? 'memoStopping' : phase === 'review' ? 'memoReview' : 'memoReady')}</p>
@@ -99,8 +123,8 @@ function MemoRecorderDialog({ onSave, onClose, vault }: { onSave: (draft: MemoDr
       {recording && phase === 'review' && <><MemoMetadataFields label={label} summary={summary} setLabel={setLabel} setSummary={setSummary} vault={vault}/><MemoPlayer blob={recording.blob} durationMs={recording.durationMs}/></>}
       {message && <Notice error>{t(message)}</Notice>}
       <div className="form-actions memo-actions">
-        <button className="btn btn-secondary" disabled={saving} type="button" onClick={() => { recorder.current?.dispose(); onClose(); }}><Trash2 size={16}/>{t('memoDiscard')}</button>
-        {phase === 'review' && <><button className="btn btn-secondary" type="button" disabled={saving} onClick={start}><RotateCcw size={16}/>{t('memoRepeat')}</button><button className="btn btn-primary" type="button" disabled={saving} onClick={() => void save()}>{t(saving ? 'working' : 'memoSave')}</button></>}
+        <button className="btn btn-secondary" disabled={saving} type="button" onClick={() => void discard()}><Trash2 size={16}/>{t('memoDiscard')}</button>
+        {phase === 'review' && <><button className="btn btn-secondary" type="button" disabled={saving} onClick={() => { void (async () => { await checkpointQueue.current; if (checkpoint && recording) await onDiscardCheckpoint?.(memoId.current); start(); })().catch(() => setMessage('storageError')); }}><RotateCcw size={16}/>{t('memoRepeat')}</button><button className="btn btn-primary" type="button" disabled={saving} onClick={() => void save()}>{t(saving ? 'working' : 'memoSave')}</button></>}
       </div>
     </div>
   </Modal>;
@@ -140,10 +164,10 @@ function MemoView({ item, vault, onEdit, onDelete, onClose }: { item: MemoItem; 
   </Modal>;
 }
 
-export function SessionMemos({ items, vault, onAdd, onEdit, onDelete, disabled = false, focusId, onFocusHandled }: {
+export function SessionMemos({ items, vault, onAdd, onEdit, onDelete, disabled = false, focusId, onFocusHandled, checkpoint = false }: {
   items: readonly MemoItem[]; vault: VaultController; onAdd: (draft: MemoDraft) => Promise<void> | void;
   onEdit: (id: string, metadata: MemoMetadata) => Promise<void> | void; onDelete: (id: string) => Promise<void> | void;
-  disabled?: boolean; focusId?: string; onFocusHandled?: () => void;
+  checkpoint?: boolean; disabled?: boolean; focusId?: string; onFocusHandled?: () => void;
 }) {
   const { t, language } = useI18n(); const [recording, setRecording] = useState(false), [opened, setOpened] = useState<string>(); const [shown, setShown] = useState(10);
   const ordered = useMemo(() => [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [items]);
@@ -159,7 +183,7 @@ export function SessionMemos({ items, vault, onAdd, onEdit, onDelete, disabled =
       <time dateTime={item.createdAt}>{date(item.createdAt)}</time>{item.summary && <span className="memo-excerpt">{item.summary.slice(0, 180)}{item.summary.length > 180 ? '…' : ''}</span>}
     </button></li>)}</ul>}
     {ordered.length > shown && <button type="button" className="text-link" onClick={() => setShown(n => n + 10)}>{t('memoMore')}</button>}
-    {recording && <MemoRecorderDialog onSave={onAdd} onClose={() => setRecording(false)} vault={vault}/>}
+    {recording && <MemoRecorderDialog checkpoint={checkpoint} onDiscardCheckpoint={onDelete} onSave={onAdd} onClose={() => setRecording(false)} vault={vault}/>}
     {selected && <MemoView item={selected} vault={vault} onEdit={onEdit} onDelete={onDelete} onClose={() => setOpened(undefined)}/>}
   </section>;
 }

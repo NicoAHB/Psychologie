@@ -18,7 +18,12 @@ export function backupNeeded(state: BackupState | undefined, latestChange: numbe
   const days = Math.floor((now - state.at) / 864e5);
   return { needed: days >= BACKUP_MAX_AGE_DAYS && latestChange > state.at, days };
 }
-export function latestChange(data: { clients: { updatedAt?: number }[]; appointments: { updatedAt?: number }[]; sessions: { updatedAt?: number }[]; notes: { updatedAt?: number }[]; invoices: { updatedAt?: number }[]; assessments?: { updatedAt?: number }[]; templates?: { updatedAt?: number }[]; documents?: { updatedAt?: number }[]; availability?: { updatedAt?: number }[] }) {
-  return Math.max(0, ...[data.clients, data.appointments, data.sessions, data.notes, data.invoices, data.assessments ?? [], data.templates ?? [], data.documents ?? [], data.availability ?? []].flat().map(r => r.updatedAt ?? 0));
+export function latestChange<T extends object>(data: T) {
+  // All stamped collections, including memos, unfinished sessions and future additions.
+  let latest = (data as { settings?: { updatedAt?: number } }).settings?.updatedAt ?? 0;
+  for (const rows of Object.values(data)) if (Array.isArray(rows)) for (const row of rows) {
+    if (row && typeof row === 'object' && typeof row.updatedAt === 'number') latest = Math.max(latest, row.updatedAt);
+  }
+  return latest;
 }
-export const hasRecords = (data: { clients: unknown[]; sessions: unknown[]; notes: unknown[]; availability?: unknown[] }) => data.clients.length + data.sessions.length + data.notes.length + (data.availability?.length ?? 0) > 0;
+export const hasRecords = (data: { clients: unknown[]; sessions: unknown[]; notes: unknown[]; availability?: unknown[]; audioMemos?: unknown[]; sessionDrafts?: unknown[] }) => data.clients.length + data.sessions.length + data.notes.length + (data.availability?.length ?? 0) + (data.audioMemos?.length ?? 0) + (data.sessionDrafts?.length ?? 0) > 0;
