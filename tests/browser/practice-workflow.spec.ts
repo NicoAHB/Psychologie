@@ -3,6 +3,29 @@ import { test, expect } from './fixtures';
 import { fakeMemoCapture } from './memo-fixture';
 import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
 
+test.beforeEach(async ({ page }, info) => {
+  if (!info.project.name.includes('webkit')) return;
+  await page.addInitScript(() => {
+    const state = { jobs: {} as Record<number, string>, transactions: [] as { stores: string; mode: string; done: boolean }[] };
+    (window as unknown as { __workflowIO: typeof state }).__workflowIO = state;
+    const NativeWorker = Worker;
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) { super(url, options); this.addEventListener('message', event => { delete state.jobs[event.data.id]; }); }
+      postMessage(message: unknown, options?: Transferable[] | StructuredSerializeOptions) {
+        if (message && typeof message === 'object' && 'id' in message && 'task' in message && typeof message.id === 'number' && typeof message.task === 'string') state.jobs[message.id] = message.task;
+        if (Array.isArray(options)) super.postMessage(message, options); else super.postMessage(message, options);
+      }
+    };
+    const transaction = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function(...args: Parameters<typeof transaction>) {
+      const tx = Reflect.apply(transaction, this, args); const item = { stores: [...tx.objectStoreNames].join(','), mode: tx.mode, done: false };
+      state.transactions.push(item); if (state.transactions.length > 30) state.transactions.shift();
+      for (const event of ['complete', 'abort', 'error']) tx.addEventListener(event, () => { item.done = true; });
+      return tx;
+    };
+  });
+});
+
 // Keep remote Safari failures diagnosable even when CI artifacts cannot be downloaded
 // from a restricted developer environment. This fixture contains fictitious data only.
 test.afterEach(async ({ page }, info) => {
@@ -18,6 +41,7 @@ test.afterEach(async ({ page }, info) => {
   const state = await Promise.race([page.evaluate(() => ({
     visible: document.visibilityState, focused: document.hasFocus(), viewport: { width: innerWidth, height: innerHeight, scale: visualViewport?.scale },
     active: document.activeElement?.tagName,
+    io: (() => { const state = (window as unknown as { __workflowIO?: { jobs: Record<number, string>; transactions: { stores: string; mode: string; done: boolean }[] } }).__workflowIO; return state && { jobs: state.jobs, pendingTransactions: state.transactions.filter(tx => !tx.done) }; })(),
     recorder: String(globalThis.MediaRecorder).slice(0, 100),
     capture: (window as unknown as { __memo?: unknown }).__memo,
     dialogs: [...document.querySelectorAll('dialog')].map(d => ({ open: d.open, text: d.innerText.slice(-700), rect: d.getBoundingClientRect().toJSON() })),

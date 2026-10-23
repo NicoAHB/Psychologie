@@ -7,6 +7,9 @@ permissions:
 jobs:
   webkit:
     runs-on: ubuntu-24.04
+    env:
+      # Xvfb has no physical GPU; use WebKit's software rendering path.
+      WEBKIT_DISABLE_COMPOSITING_MODE: '1'
     # Match package-lock.json. The official image already contains WebKit and
     # its native libraries; avoid repeating a large apt/browser installation.
     container:
