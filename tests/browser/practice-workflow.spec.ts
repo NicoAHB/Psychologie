@@ -71,7 +71,7 @@ test('pause, completion and reactivation keep the full client record; filters an
 });
 
 test('encrypted session drafts recover text and a stopped memo after reload, lock and offline work without creating charges', async ({ page }, info) => {
-  test.setTimeout(60000); if (!/mobile|iphone/.test(info.project.name)) await page.setViewportSize({ width: 820, height: 1180 }); await fakeMemoCapture(page, 'mp4');
+  test.setTimeout(90000); if (!/mobile|iphone/.test(info.project.name)) await page.setViewportSize({ width: 820, height: 1180 }); await fakeMemoCapture(page, 'mp4');
   const { data } = workflowData(); data.clients[0].currency = 'EUR'; const read = await seedWorkflow(page, data);
   await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click(); await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
   const session = page.getByRole('dialog', { name: 'Sitzung erfassen', exact: true }); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Entwurf bleibt nach Safari-Neustart');
@@ -80,7 +80,7 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   await recorder.getByLabel('Bezeichnung (optional)', { exact: true }).fill('Noch nicht abgeschlossene Sitzung'); await recorder.getByLabel('Kurzfassung', { exact: true }).fill('Manuelle Kurzfassung im Entwurf');
   // Wait for the encrypted write, including queued photo/audio checkpoints;
   // software-rendered WebKit on a CI runner is slower than the local browser.
-  await expect.poll(async () => (await read()).sessionDrafts[0]?.payload.memos[0]?.summary, { timeout: 15000 }).toBe('Manuelle Kurzfassung im Entwurf');
+  await expect.poll(async () => (await read()).sessionDrafts[0]?.payload.memos[0]?.summary, { timeout: 30000 }).toBe('Manuelle Kurzfassung im Entwurf');
   expect((await read()).sessions).toHaveLength(data.sessions.length); expect((await read()).audioMemos).toHaveLength(0);
   // Do not press "Memo übernehmen": stopping and the metadata pause already checkpointed the audio.
   await page.reload(); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click();
