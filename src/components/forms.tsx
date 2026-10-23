@@ -25,6 +25,8 @@ import { SessionMemos } from './AudioMemos';
 import { validateMemo, type MemoDraft, type MemoMetadata } from '../lib/audioMemos';
 import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
 import { grantMarketingConsent, marketingConsent, marketingError, validMarketingContact } from '../lib/marketing';
+import { registerReferral, resolveReferralCode, referralError } from '../lib/referrals';
+import { translate } from '../lib/i18n';
 function Actions({ busy, onClose, label, onDelete, deleteLabel }: { busy: boolean; onClose: () => void; label?: string; onDelete?: () => void; deleteLabel?: string }) {
   const { t } = useI18n();
   return <div className="form-actions">{onDelete && <button type="button" className="btn btn-danger" disabled={busy} onClick={onDelete}><Trash2 size={16}/>{deleteLabel || t('delete')}</button>}<button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <Check size={17}/>} {busy ? t('working') : label || t('save')}</button></div>;
@@ -44,6 +46,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   const [currencyTouched, setCurrencyTouched] = useState(!!client);
   const [chat, setChat] = useState(client?.telegramChatId || '');
   const [consent, setConsent] = useState(client?.reminderConsent || false);
+  const [referralCode,setReferralCode] = useState(''), [referralConsent,setReferralConsent] = useState(false), [referralChecked,setReferralChecked] = useState(false);
   const [address, setAddress] = useState(client?.address || '');
   const [zone, setZone] = useState(client?.timeZone || vault.data!.settings.timeZone);
   const [file, setFile] = useState<File>();
@@ -74,10 +77,11 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
           for(const channel of ['email','telegram']as const)if(channel==='email'?emailChanged:telegramChanged){target.marketingConsent??={};const previous=target.marketingConsent[channel];if(grants[channel])target.marketingConsent[channel]=grants[channel];else if(previous&&!previous.revokedAt)target.marketingConsent[channel]={...previous,revokedAt:new Date().toISOString()};}
           if (client && status !== clientStatus(client)) changeClientStatus(target, status);
         }
+        if (!client) registerReferral(data,result.id,referralCode,referralConsent,result.language);
       });
       await vault.purgeUnused(before); // a replaced profile picture must not linger encrypted on the device or in the cloud
       onSaved(result.id);
-    } catch (err) { setError(err instanceof Error&&['marketingContactMissing','invalidImage'].includes(err.message)?marketingError(err):'storageError'); } finally { setBusy(false); }
+    } catch (err) { setError(err instanceof Error&&['marketingContactMissing','invalidImage'].includes(err.message)?marketingError(err):referralError(err)); } finally { setBusy(false); }
   }
   async function removeClient() {
     if (!client || !window.confirm(`${client.name}\n\n${t('deleteClientConfirm')}${vault.data!.invoices.some(i => i.clientId === client.id) ? `\n\n${t('deleteClientInvoicesNote')}` : ''}`)) return;
@@ -88,12 +92,18 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
     <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field><Field label={t('clientFollowUpOn')}><input type="date" value={followUpOn} onChange={e => setFollowUpOn(e.target.value)}/></Field><Field label={t('clientFollowUpNote')}><input value={followUpNote} maxLength={500} onChange={e => setFollowUpNote(e.target.value)}/></Field></div>
+    {!client && <fieldset className="form-section"><legend>{t('referralOptionalCode')}</legend>
+      <Field label={t('referralOptionalCode')} hint={t('referralCodeHint')}><input autoComplete="off" autoCapitalize="characters" maxLength={24} value={referralCode} onChange={e=>{setReferralCode(e.target.value.toUpperCase());setReferralChecked(false);setReferralConsent(false);setError(undefined);}}/></Field>
+      <button type="button" className="btn btn-secondary mb-3" disabled={!referralCode.trim()} onClick={()=>{try{resolveReferralCode(vault.data!,referralCode);setReferralChecked(true);setError(undefined);}catch(e){setReferralChecked(false);setError(referralError(e));}}}>{t('referralCheck')}</button>
+      {referralChecked&&<Notice>{t('referralCodeValid')}</Notice>}
+      {referralCode.trim()&&<><p className="hint mb-3" lang={ukrainian?'uk':'de'}>{translate(ukrainian?'uk':'de','referralConsent')}</p><label className="check-label"><input type="checkbox" checked={referralConsent} onChange={e=>setReferralConsent(e.target.checked)}/><span>{t('referralConsentRecorded')}</span></label></>}
+    </fieldset>}
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
     <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => {setEmail(e.target.value);setMarketingEmail(false);}} placeholder={t('clientEmailPlaceholder')}/></Field>
     <Field label={t('marketingBirthday')} hint={t('marketingBirthdayPrivacy')}><input type="date" value={birthday} max={today()} onChange={e=>setBirthday(e.target.value)}/></Field>
     <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
     <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={zone} onChange={setZone}/>
-    <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { setUkrainian(e.target.checked); if (!currencyTouched) setCurrency(e.target.checked ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
+    <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { setUkrainian(e.target.checked); setReferralConsent(false); if (!currencyTouched) setCurrency(e.target.checked ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
     <Field label={t('billingCurrency')} hint={t('billingCurrencyHint')}><select value={currency} onChange={e => { setCurrency(e.target.value as Currency); setCurrencyTouched(true); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <Field label={t('telegramChatId')} hint={t('chatHelp')}><input value={chat} maxLength={24} inputMode="numeric" onChange={e => {setChat(e.target.value);setMarketingTelegram(false);}} placeholder={t('chatPlaceholder')}/></Field>
     <label className="check-label"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/><span>{t('reminderConsent')}</span></label>

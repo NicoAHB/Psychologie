@@ -3,6 +3,7 @@ import {
   CalendarClock,
   LayoutDashboard,
   Mail,
+  Gift,
   NotebookPen,
   Settings2,
   Users,
@@ -33,6 +34,7 @@ export const navigationGroups: {
       { id: "newsletter", icon: Mail },
       { id: "marketingCampaigns", icon: CalendarClock },
       { id: "messageTemplates", icon: NotebookPen },
+      { id: "referrals", icon: Gift },
     ],
   },
 ];

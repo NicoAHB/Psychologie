@@ -9,7 +9,7 @@ export interface Billing {
   /** EUR comparison value is kept in the parent record's feeCents. */
 }
 export interface BankAccount { holder: string; iban: string; bank: string; bic: string }
-export type Route = 'overview' | 'clients' | 'appointments' | 'finances' | 'settings' | 'newsletter' | 'marketingCampaigns' | 'messageTemplates';
+export type Route = 'overview' | 'clients' | 'appointments' | 'finances' | 'settings' | 'newsletter' | 'marketingCampaigns' | 'messageTemplates' | 'referrals';
 export type MarketingChannel = 'email' | 'telegram';
 export type MarketingChannelSelection = MarketingChannel | 'both' | 'none';
 export interface MarketingConsent { id: string; token: string; destination: string; grantedAt: string; revokedAt?: string }
@@ -157,6 +157,24 @@ export interface Settings {
   memoLabels?: string[];
   memoLabelFavorites?: string[];
   marketingUsed?: boolean;
+  referralProgram?: { rateBps: number; months: number };
+}
+/** All relationships and financial information stay inside the encrypted vault. */
+export interface ReferralCode extends Stamped {
+  id: string; clientId: string; code: string; createdAt: string; revokedAt?: string;
+}
+export interface Referral extends Stamped {
+  id: string; referrerId: string; referredId: string; code: string; registeredOn: string;
+  consentAt: string; consentLanguage: Language; consentVersion: '2026-10-23';
+  /** Terms are fixed at enrolment; later settings changes affect only new referrals. */
+  rateBps: number; months: number; firstPaidOn?: string;
+}
+export interface ReferralPayout extends Stamped {
+  /** One cumulative settlement per referrer, currency and completed calendar quarter. */
+  id: string; referrerId: string; currency: Currency; through: string; paidOn: string;
+  amountCents: number; allocations: { referralId: string; amountCents: number }[];
+  /** A mistaken ledger entry is reversed, never silently overwritten or removed. */
+  reverses?: string;
 }
 export interface VaultData {
   crdt?: CrdtState;
@@ -165,6 +183,7 @@ export interface VaultData {
   availability: CalendarAbsence[]; audioMemos: AudioMemo[];
   sessionDrafts: SessionDraft[];
   messageTemplates: MessageTemplate[]; marketingCampaigns: MarketingCampaign[]; newsletters: Newsletter[];
+  referralCodes: ReferralCode[]; referrals: Referral[]; referralPayouts: ReferralPayout[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
   settings: Settings;
@@ -183,14 +202,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

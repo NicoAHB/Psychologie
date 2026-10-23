@@ -7,6 +7,10 @@ import { referencedBlobs } from './blobs';
 export const orphanedBlobs = (before: string[], data: VaultData) => { const kept = new Set(referencedBlobs(data)); return before.filter(id => !kept.has(id)); };
 
 export function deleteClient(data: VaultData, clientId: string) {
+  data.referralCodes = (data.referralCodes ?? []).filter(c => c.clientId !== clientId);
+  const removed = new Set((data.referrals ?? []).filter(r => r.referrerId === clientId || r.referredId === clientId).map(r => r.id));
+  data.referrals = (data.referrals ?? []).filter(r => !removed.has(r.id));
+  data.referralPayouts = (data.referralPayouts ?? []).filter(p => p.referrerId !== clientId).map(p => ({ ...p, allocations: p.allocations.filter(a => !removed.has(a.referralId)) }));
   data.clients = data.clients.filter(c => c.id !== clientId);
   data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.clientId !== clientId);
   data.appointments = data.appointments.filter(a => a.clientId !== clientId);

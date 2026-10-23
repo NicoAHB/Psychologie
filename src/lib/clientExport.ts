@@ -4,6 +4,7 @@ import { scoreOf } from './assessments';
 import { translate } from './i18n';
 import type { Language, VaultData } from './types';
 import { audioExtension, memoTime } from './audioMemos';
+import { clientReferralExport } from './referrals';
 
 const safe = (value: string) => value.normalize('NFC').replace(/[^\p{L}\p{N}._-]/gu, '-').replace(/\.{2,}/g, '-').slice(0, 100) || 'datei';
 const csv = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
@@ -46,7 +47,9 @@ export async function clientExport(data: VaultData, clientId: string, language: 
     return { id:n.id, createdAt:n.createdAt, channel:n.channel, messages, recipients };
   });
   text('newsletter.md', `# ${T('newsletter')}\n\n` + newsletters.map(n => `## ${n.createdAt} · ${n.channel}\n\n` + n.messages.map(m => `${m.title}\n\n${m.content}\n\n${m.titleUk ?? ''}\n\n${m.contentUk ?? ''}\n`).join('\n')).join('\n'));
-  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, newsletters, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
+  const referrals = clientReferralExport(data,clientId);
+  text('empfehlungen.json', JSON.stringify(referrals,null,2));
+  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, referrals, newsletters, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
   text('README.md', `# ${T('clientExportTitle')}: ${client.name}\n\n${T('clientExportReadme')}\n\n${T('clientExportContents')}\n`);
   for (const attachment of attachments) { const blob = await file(attachment.blobId, attachment.mimeType); archive[attachment.path] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]; }
   return { bytes: new Uint8Array(zipSync(archive)), filename: `Praxisraum-${safe(client.name)}-${new Date().toISOString().slice(0, 10)}.zip` };

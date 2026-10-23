@@ -1,5 +1,9 @@
 # Weiterarbeit am Tablet
 
+## Neu: Empfehlungen
+
+**Marketing → Empfehlungen** und **Klientenprofil → Empfehlungskarte** sind integriert. Klienten bekommen nur eine teilbare PNG-Karte, keinen Login. Bei Neuanlage Code und Einwilligung freiwillig erfassen. Laufzeit ab erster Zahlung, getrennte EUR-/UAH-Prämien und Quartalsabrechnung. Die Code-Ausgabe braucht eine einmalige Supabase-Migration; Finanzdaten bleiben verschlüsselt. Vollständige Anleitung und technische Übergabe: [docs/empfehlungen.md](docs/empfehlungen.md).
+
 ## Neue Darstellung: Pastell und Milchglas
 
 Die tatsächliche App enthält jetzt **Einstellungen → Darstellung** mit vier

@@ -1,0 +1,23 @@
+.referrals-page,.referral-record,.referral-code-list>li{min-width:0}
+.referral-tabs{flex-wrap:wrap;gap:.25rem}
+.referral-tabs button{min-height:44px;white-space:normal}
+.referral-form-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:1rem}
+.referral-form-grid>.btn{margin-top:1.7rem;align-self:start}
+.referral-form-grid select,.referral-filters select{min-width:0;width:100%;text-overflow:ellipsis}
+.referral-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
+.referral-id{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.referral-code{font-size:1.5rem;font-weight:700;letter-spacing:.04em;margin:1rem 0;overflow-wrap:anywhere}
+.referral-card-image{display:block;width:100%;max-width:400px;height:auto;border:1px solid var(--border);border-radius:12px}
+.referral-code-list{list-style:none;padding:0;margin:1rem 0 0}
+.referral-code-list>li{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:1rem 0;border-bottom:1px solid var(--border)}
+.referral-code-list>li>div{min-width:0;flex:1 1 240px}
+.referral-code-list p{margin-top:.35rem}
+.referral-records{display:grid;gap:1rem}
+.referral-record{border:1px solid var(--border);border-radius:12px;padding:1rem}
+.referral-record h3{font-size:1rem;margin:0 0 1rem}
+.referral-record dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin:0}
+.referral-record dt{font-size:.8rem;color:var(--text-secondary,var(--muted))}
+.referral-record dd{font-weight:600;margin:.3rem 0 0;overflow-wrap:anywhere}
+.referrals-page .is-disabled{opacity:.6;pointer-events:none}
+@media(max-width:900px){.referral-filters{grid-template-columns:1fr}.referral-record dl{grid-template-columns:repeat(2,minmax(0,1fr))}.referral-form-grid{grid-template-columns:1fr}.referral-form-grid>.btn{margin-top:0}}
+@media(max-width:460px){.referral-record dl{grid-template-columns:1fr}.referral-tabs{display:flex}.referral-tabs button{flex:1 1 100%}.referral-code-list .btn{width:100%}}

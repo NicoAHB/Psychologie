@@ -2,7 +2,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import type { VaultData } from './types';
 import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;
@@ -29,6 +29,10 @@ export function mergeRegister(a: Register, b: Register): Register {
 function fields(row: Row, collection: Collection): Record<string, Json | undefined> {
   // Issued invoices and currency/rate/amount tuples are indivisible snapshots.
   if (collection === 'invoices') return { $snapshot: Object.fromEntries(Object.entries(row).filter(([k]) => k !== 'id' && k !== 'updatedAt')) as Json };
+  if (['referralCodes', 'referrals', 'referralPayouts'].includes(collection)) return {
+    $snapshot: Object.fromEntries(Object.entries(row).filter(([k]) => !['id', 'updatedAt', 'firstPaidOn'].includes(k))) as Json,
+    ...(collection === 'referrals' && { firstPaidOn: row.firstPaidOn as Json | undefined }),
+  };
   const result: Record<string, Json | undefined> = {};
   for (const [k, v] of Object.entries(row)) {
     if (k === 'id' || k === 'updatedAt' || collection === 'settings' && k === 'autoSync') continue;
@@ -70,6 +74,7 @@ export function stateOf(data: VaultData): CrdtState {
   return state;
 }
 function preferred(register: Register, field = '') {
+  if (field === 'firstPaidOn') return register.values.map(v => v.value).filter((v): v is string => typeof v === 'string').sort()[0];
   const revoked = /^(shares|marketingConsent):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.revokedAt) : [];
   if (revoked.length) return revoked.at(-1)?.value;
   const accepted = /^(deliveries|telegramDeliveries|recipients):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.acceptedAt) : [];
@@ -198,6 +203,13 @@ function scrubErasedClients(data: VaultData) {
   const state = data.crdt; if (!state) return;
   const erased = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'clients' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
   const erasedSessions = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'sessions' && fields.$exists?.values.some(v => v.value === false)).map(([key]) => (JSON.parse(key) as string[])[1]));
+  const erasedReferrals = new Set(Object.entries(state.entities).filter(([key, fields]) => (JSON.parse(key) as string[])[0] === 'referrals' && (fields.$exists?.values.some(v => v.value === false) || fields.$snapshot?.values.some(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && ['referrerId','referredId'].some(k => erased.has(String((v.value as Record<string, Json>)[k])))))) .map(([key]) => (JSON.parse(key) as string[])[1]));
+  data.referralCodes = (data.referralCodes ?? []).filter(c => !erased.has(c.clientId));
+  data.referrals = (data.referrals ?? []).filter(r => !erased.has(r.referrerId) && !erased.has(r.referredId) && !erasedReferrals.has(r.id));
+  data.referralPayouts = (data.referralPayouts ?? []).filter(p => !erased.has(p.referrerId)).map(p => ({ ...p, allocations: p.allocations.filter(a => !erasedReferrals.has(a.referralId)) }));
+  for (const [key, fields] of Object.entries(state.entities)) if ((JSON.parse(key) as string[])[0] === 'referralPayouts') for (const v of fields.$snapshot?.values ?? []) {
+    if (v.value && typeof v.value === 'object' && !Array.isArray(v.value) && Array.isArray(v.value.allocations)) v.value.allocations = v.value.allocations.filter(a => !a || typeof a !== 'object' || Array.isArray(a) || !erasedReferrals.has(String(a.referralId)));
+  }
   for (const newsletter of data.newsletters ?? []) newsletter.recipients = newsletter.recipients.filter(r => !erased.has(r.clientId));
   for (const [entity, fields] of Object.entries(state.entities)) {
     const [collection, id] = JSON.parse(entity) as [Collection, string];
@@ -206,7 +218,7 @@ function scrubErasedClients(data: VaultData) {
       register.values = register.values.filter(v => !v.value || typeof v.value !== 'object' || Array.isArray(v.value) || typeof v.value.clientId !== 'string' || !erased.has(v.value.clientId));
       if (!register.values.length) delete fields[field];
     }
-    const owner = fields.clientId?.values.some(v => typeof v.value === 'string' && erased.has(v.value)) || fields.$snapshot?.values.some(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && typeof v.value.clientId === 'string' && erased.has(v.value.clientId));
+    const owner = fields.clientId?.values.some(v => typeof v.value === 'string' && erased.has(v.value)) || fields.$snapshot?.values.some(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && ['clientId', 'referrerId', 'referredId'].some(key => typeof (v.value as Record<string, Json>)[key] === 'string' && erased.has((v.value as Record<string, string>)[key])));
     const permanentlyDeleted = fields.$exists?.values.every(v => v.value === false);
     const erasedDraft = collection === 'sessionDrafts' && fields.originalSessionId?.values.some(v => typeof v.value === 'string' && erasedSessions.has(v.value));
     const erasedMemo = collection === 'audioMemos' && (fields.$exists?.values.some(v => v.value === false) || fields.sessionId?.values.some(v => typeof v.value === 'string' && erasedSessions.has(v.value)));
@@ -259,6 +271,8 @@ export function syncConflicts(data: VaultData): SyncConflict[] {
   const cached = conflictCache.get(data.crdt); if (cached) return cached;
   const result = Object.entries(data.crdt.entities).flatMap(([entity, fields]) => Object.entries(fields).flatMap(([field, register]) => {
     if (field === '$order' || register.values.length < 2) return [];
+    // first-payment dates form a monotone minimum; their join needs no manual choice.
+    if (field === 'firstPaidOn' && (JSON.parse(entity) as string[])[0] === 'referrals') return [];
     let variants = register.values.filter((v, i, all) => all.findIndex(w => same(v.value, w.value)) === i);
     if (/^(deliveries|telegramDeliveries):/.test(field)) {
       const identity = (v: Version) => v.value && typeof v.value === 'object' && !Array.isArray(v.value) ? Object.fromEntries(Object.entries(v.value).filter(([k]) => !['acceptedAt', 'providerId', 'messageId'].includes(k))) : v.value;

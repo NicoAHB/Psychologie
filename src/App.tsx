@@ -2,6 +2,7 @@ import { navigationGroups } from './lib/navigation';
 import { Newsletter } from './components/Newsletter';
 import { TemplateManager } from './components/TemplateManager';
 import { MarketingCampaigns } from './components/MarketingCampaigns';
+import { Referrals } from './components/Referrals';
 import { useMarketingAutomation } from './lib/useMarketingAutomation';
 import { syncMarketingArchive } from './lib/marketingArchive';
 import './marketing.css';
@@ -159,6 +160,7 @@ export default function App() {
       {marketingOpened&&<Newsletter vault={vault} marketing={marketing} active={route==='newsletter'} initialTab={newsletterTab} templateId={newsletterTemplate} onTemplateHandled={()=>setNewsletterTemplate(undefined)} onTemplates={()=>navigate('messageTemplates')} onEditClient={id=>{const client=data.clients.find(c=>c.id===id);if(client)setForm({type:'client',client});}}/>}
       {route==='messageTemplates'&&<TemplateManager vault={vault} onUse={id=>{navigate('newsletter');setNewsletterTemplate(id);}}/>}
       {route==='marketingCampaigns'&&<MarketingCampaigns vault={vault} marketing={marketing} onTemplates={()=>navigate('messageTemplates')} onArchive={()=>{navigate('newsletter');setNewsletterTab('archive');}}/>}
+      {route==='referrals'&&<Referrals vault={vault}/>}
       <footer className="page-footer"><SecurityLine/><span>{t('privacyFooter')}</span></footer></main>
       <div className="sync-bar"><span>{vault.saving ? <LoaderCircle size={15} className="spin"/> : <CheckCheck size={16}/>}<span>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</span></span><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
     </div>
