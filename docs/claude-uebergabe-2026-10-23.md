@@ -56,3 +56,9 @@ Siehe **`docs/ipad-abnahme.md`**. Neue Browserfälle prüfen Wiederaufnahme, Fil
 Neue Bibliotheken: **keine**. Bestehende Browser-Standards, Secure-Worker, Web Crypto, IndexedDB, Supabase und Playwright werden weiterverwendet. Keine KI, Transkription, Spracherkennung oder Audio-Modelle.
 
 Lokale Prüfergebnisse stehen in `HANDOFF.md`. Den zugehörigen Quellstand mit `git log -1` und die ergänzenden GitHub-Läufe unter Actions prüfen.
+
+### Ergänzung aus der Safari-Prüfung
+
+Die gemeinsame `Modal`-Komponente rendert native Dialoge über ein Body-Portal, schließt sie synchron im Layout-Effect vor dem Entfernen und stellt den Fokus wieder her. Escape wird nur vom obersten Dialog verarbeitet. Touch-Eingaben haben mindestens 16 px Schrift, damit iOS beim Fokussieren nicht automatisch zoomt; die manuelle Seitenvergrößerung bleibt erlaubt.
+
+Der WebKit-Test fixiert den synthetischen `mediaDevices`-Ersatz direkt am Navigator, damit kein nativer Mikrofonzugriff stattfindet. Der separate GitHub-Job verwendet das offizielle Playwright-Image `v1.64.1-noble` mit bereits installierter Safari-Engine. Bei Änderung der Playwright-Version in `package-lock.json` muss die Image-Version mitgezogen werden.

@@ -17,7 +17,9 @@ export async function fakeMemoCapture(page: Page, format: 'webm' | 'mp4' = 'webm
       const track = { stop: () => { state.stopped++; }, kind: 'audio' };
       return { getTracks: () => [track], getAudioTracks: () => [track] } as unknown as MediaStream;
     } });
-    if (!navigator.mediaDevices) Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: devices });
+    // Pin the same wrapper on WebKit too: its native getter can return a fresh
+    // binding that drops an override installed only on the previous wrapper.
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: devices });
     class FakeMediaRecorder {
       static isTypeSupported(type: string) { return type.split(';')[0] === mime; }
       state = 'inactive'; mimeType = mime;

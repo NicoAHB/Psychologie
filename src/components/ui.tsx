@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useEffect, useLayoutEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Leaf, ShieldCheck, X, ImageOff, LoaderCircle } from 'lucide-react';
 import { LanguageSwitch, useI18n } from '../lib/i18n';
@@ -12,7 +12,7 @@ export function Botanical({ small = false }: { small?: boolean }) {
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null); const titleId = useId();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const d = ref.current!, previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const origin = previous?.closest('section');
     d.showModal();
