@@ -61,28 +61,37 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('vocabulary management and backup verification dialogs are accessible in both themes', async ({ page }) => {
-  // Three axe scans on the full settings page are substantially slower in WebKit.
-  // Keep individual interactions bounded below; allow time for the audit itself.
-  test.setTimeout(150000);
+test('memo vocabulary favorites, renaming and removal persist without changing existing memos', async ({ page }) => {
   const { data } = workflowData(); data.settings.memoLabels = ['Mein Vorschlag']; const read = await seedWorkflow(page, data); await nav(page, 'Einstellungen');
   const card = page.locator('.memo-labels-card'); await card.getByRole('button', { name: 'Als Favorit markieren: Mein Vorschlag', exact: true }).click();
   await expect.poll(async () => (await read()).settings.memoLabelFavorites).toEqual(['own:mein vorschlag']);
   await card.getByRole('button', { name: 'Vorschlag umbenennen: Mein Vorschlag', exact: true }).click(); const rename = page.getByRole('dialog', { name: 'Vorschlag umbenennen', exact: true });
-  await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
-  const audit = async () => {
-    // axe aggregates its results in a temporary second page. WebKit can leave
-    // the app's rendering frames suspended after that page closes. Restore the
-    // user's foreground tab before Playwright's frame-based stability checks.
-    try { expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]); }
-    finally { await page.bringToFront(); }
-  };
-  for (const theme of ['dark', 'light']) { await page.evaluate(t => document.documentElement.dataset.theme = t, theme); await audit(); }
   await rename.getByLabel('Neue Bezeichnung', { exact: true }).fill('Neuer Vorschlag'); await rename.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(rename).not.toBeVisible(); await expect(card).toContainText('Neuer Vorschlag');
   await card.getByRole('button', { name: 'Vorschlag entfernen: Neuer Vorschlag', exact: true }).click({ timeout: 10000 }); await expect(card).not.toContainText('Neuer Vorschlag'); await expect.poll(async () => (await read()).settings.memoLabels).toEqual([]);
-  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'Verschlüsselte Sicherung herunterladen', exact: true }).click({ timeout: 10000 })]); const backupPath = (await download.path())!;
-  await page.bringToFront();
-  const before = await read();
-  await page.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click({ timeout: 10000 }); const verify = page.getByRole('dialog', { name: 'Sicherung prüfen', exact: true }); await expect(verify).toBeVisible();
-  await audit(); await verify.getByLabel('Verschlüsselte Sicherungsdatei', { exact: true }).setInputFiles(backupPath); await verify.getByLabel('Passphrase dieser Sicherung', { exact: true }).fill('a very strong test passphrase'); await verify.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click(); await expect(verify).toContainText('Prüfung erfolgreich'); expect(await read()).toEqual(before); await verify.getByRole('button', { name: 'Schließen', exact: true }).last().click({ timeout: 10000 });
+  expect((await read()).audioMemos).toEqual(data.audioMemos);
 });
+
+test('an exported encrypted backup can be verified without overwriting the active vault', async ({ page }) => {
+  const { data } = workflowData(); const read = await seedWorkflow(page, data); await nav(page, 'Einstellungen');
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.getByRole('button', { name: 'Verschlüsselte Sicherung herunterladen', exact: true }).click({ timeout: 10000 })]); const backupPath = (await download.path())!;
+  await page.bringToFront(); const before = await read();
+  await page.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click({ timeout: 10000 }); const verify = page.getByRole('dialog', { name: 'Sicherung prüfen', exact: true }); await expect(verify).toBeVisible();
+  await verify.getByLabel('Verschlüsselte Sicherungsdatei', { exact: true }).setInputFiles(backupPath); await verify.getByLabel('Passphrase dieser Sicherung', { exact: true }).fill('a very strong test passphrase'); await verify.getByRole('button', { name: 'Sicherung prüfen', exact: true }).click(); await expect(verify).toContainText('Prüfung erfolgreich'); expect(await read()).toEqual(before); await verify.getByRole('button', { name: 'Schließen', exact: true }).last().click({ timeout: 10000 });
+});
+
+// Keep axe's temporary analysis pages separate from the functional tests above.
+// Each dialog gets a fresh context, so an audit cannot affect later user actions.
+for (const dialogTitle of ['Vorschlag umbenennen', 'Sicherung prüfen']) {
+  test(`${dialogTitle} is accessible in both themes`, async ({ page }) => {
+    test.setTimeout(90000);
+    const { data } = workflowData(); data.settings.memoLabels = ['Mein Vorschlag']; await seedWorkflow(page, data); await nav(page, 'Einstellungen');
+    await page.getByRole('button', { name: dialogTitle === 'Sicherung prüfen' ? dialogTitle : 'Vorschlag umbenennen: Mein Vorschlag', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: dialogTitle, exact: true })).toBeVisible();
+    await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate(t => document.documentElement.dataset.theme = t, theme);
+      try { expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]); }
+      finally { await page.bringToFront(); }
+    }
+  });
+}
