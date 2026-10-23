@@ -1,5 +1,7 @@
 # Aurora-Dashboard ohne Bibliotheken
 
+**Für die echte App:** Die entsprechende Gestaltung ist unter **Einstellungen → Darstellung** auswählbar und direkt einstellbar. [Anleitung](../docs/darstellung.md). Die Dateien hier sind ein zusätzliches, unabhängiges HTML-/CSS-Beispiel.
+
 `aurora-dashboard.html` und `aurora-dashboard.css` zusammen in einen Ordner laden. Die HTML-Datei kann in einem gewöhnlichen Browser geöffnet werden. Für eine lokale HTTP-Vorschau im Repository:
 
 ```sh

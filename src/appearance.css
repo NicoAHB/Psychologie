@@ -1,0 +1,142 @@
+/* Appearance controls. Values are also applied before first paint by theme-init.js.
+   Only surface backgrounds are translucent; text never inherits opacity.
+   Keep this stylesheet after styles.css, including its legacy glass rules. */
+:root {
+  --aurora-color-1: #d3e5d9;
+  --aurora-color-2: #d7e5f7;
+  --aurora-strength: .75;
+  --aurora-blur: 64px;
+  --card-alpha: .88;
+  --menu-alpha: .88;
+  --glass-blur: 16px;
+  --glass-border-width: 1px;
+  --glass-border-color: #cdd9d3;
+  --glass-shadow: 0 8px 30px #263e3209;
+  --app-canvas: #f7f8f5;
+  --panel-rgb: 255 255 255;
+  --menu-rgb: 250 252 250;
+  --feature-rgb: 234 241 232;
+  --aurora-tint-1: var(--aurora-color-1);
+  --aurora-tint-2: var(--aurora-color-2);
+}
+
+@media screen {
+  :root[data-theme="dark"] {
+    --app-canvas: #0c1628;
+    --panel-rgb: 23 38 61;
+    --menu-rgb: 16 29 50;
+    --feature-rgb: 32 58 81;
+    --glass-border-color: #405672;
+    --glass-shadow: 0 12px 34px #02071330;
+    --aurora-tint-1: #27384d;
+    --aurora-tint-2: #253c57;
+  }
+  @supports (color: color-mix(in srgb, white, black)) {
+    :root[data-theme="dark"] {
+      --aurora-tint-1: color-mix(in srgb, var(--aurora-color-1) 16%, #0c1628);
+      --aurora-tint-2: color-mix(in srgb, var(--aurora-color-2) 16%, #0c1628);
+    }
+  }
+  :root[data-theme] { background: var(--app-canvas); }
+  :root[data-theme] :is(body, .app-shell, .welcome-page) { background: transparent; }
+  #root { isolation: isolate; min-height: 100dvh; }
+  .app-aurora {
+    position: fixed; inset: 0; z-index: -1; overflow: hidden;
+    pointer-events: none; background: var(--app-canvas);
+  }
+  .app-aurora::before {
+    content: ""; position: absolute; inset: -120px;
+    background:
+      radial-gradient(ellipse at 6% 8%, var(--aurora-tint-1), transparent 65%),
+      radial-gradient(ellipse at 96% 65%, var(--aurora-tint-2), transparent 70%),
+      linear-gradient(135deg, var(--aurora-tint-1), var(--aurora-tint-2));
+    filter: blur(var(--aurora-blur)); opacity: var(--aurora-strength);
+    /* Static gradients: no animation, images, network requests or per-frame JS. */
+  }
+  /* Solid baseline is also the fallback for browsers without backdrop-filter. */
+  :root[data-theme] :is(.card, .stat-card, .welcome-card, .week-grid) {
+    background: rgb(var(--panel-rgb));
+    border: var(--glass-border-width) solid var(--glass-border-color);
+    box-shadow: var(--glass-shadow);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  :root[data-theme] :is(.sidebar, .topbar, .sync-bar) {
+    background: rgb(var(--menu-rgb));
+    border-color: var(--glass-border-color);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  :root[data-theme] :is(.hero-card, .preparation-card) {
+    background: rgb(var(--feature-rgb));
+    border: var(--glass-border-width) solid var(--glass-border-color);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root[data-theme] :is(.card, .stat-card, .welcome-card, .week-grid) {
+      background: rgb(var(--panel-rgb) / var(--card-alpha));
+      -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+    }
+    :root[data-theme] :is(.sidebar, .topbar, .sync-bar) {
+      background: rgb(var(--menu-rgb) / var(--menu-alpha));
+      -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+    }
+    :root[data-theme] :is(.hero-card, .preparation-card) {
+      background: rgb(var(--feature-rgb) / var(--card-alpha));
+      -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+    }
+  }
+  /* Form fields, dialogs and table headings retain their opaque existing colours. */
+  .appearance-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; margin-top: 24px; }
+  .appearance-controls { min-width: 0; }
+  .appearance-controls h3 { font-size: 15px; margin: 0 0 22px; }
+  .appearance-palettes { border: 0; padding: 0; margin: 22px 0; min-width: 0; }
+  .appearance-palettes legend { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+  .appearance-palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .appearance-palette {
+    position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 12px; min-height: 58px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--surface); cursor: pointer; font-size: 12px; overflow-wrap: anywhere;
+  }
+  .appearance-palette.is-selected { border-color: var(--sage); box-shadow: inset 0 0 0 1px var(--sage); }
+  .appearance-palette:focus-within { outline: 3px solid var(--sage); outline-offset: 3px; }
+  .appearance-palette input { accent-color: var(--sage); width: 20px; height: 20px; flex: 0 0 20px; margin: 0; }
+  .appearance-palette > span:last-child { flex: 1 1 80px; }
+  .appearance-palette .appearance-swatch {
+    display: block; width: 28px; height: 28px; flex: 0 0 28px;
+    border: 1px solid #768b8159; border-radius: 50%;
+    background: linear-gradient(135deg, var(--swatch-1), var(--swatch-2));
+  }
+  .appearance-slider { margin: 0 0 22px; min-width: 0; }
+  .appearance-slider-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; font-size: 13px; }
+  .appearance-slider-heading label { font-weight: 500; line-height: 1.6; }
+  .appearance-slider output { white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.6; }
+  :root[data-theme] .appearance-slider input[type="range"] {
+    display: block; appearance: auto; width: 100%; min-height: 44px; height: 44px; padding: 0;
+    border: 0; background: transparent; box-shadow: none; accent-color: var(--sage); cursor: pointer; margin: 3px 0;
+  }
+  .appearance-slider .hint { margin: 0; line-height: 1.8; }
+  .appearance-colors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  :root[data-theme] .appearance-colors input[type="color"] { min-height: 48px; height: 48px; width: 100%; padding: 5px; cursor: pointer; background: var(--surface); }
+  .appearance-colors + .hint { margin: 0 0 22px; line-height: 1.8; }
+  .appearance-advanced { margin-bottom: 20px; }
+  .appearance-advanced summary { min-height: 44px; padding: 10px 0; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .appearance-advanced .appearance-slider { margin-top: 15px; }
+  .appearance-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; border-top: 1px solid var(--border); margin-top: 12px; padding-top: 20px; }
+  .appearance-footer p { flex: 1 1 220px; margin: 0; line-height: 1.8; }
+  .appearance-footer button { white-space: normal; }
+  @media (max-width: 1100px) { .appearance-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+  @media (max-width: 400px) {
+    .appearance-palette { padding: 10px; gap: 6px; }
+    .appearance-palette .appearance-swatch { width: 24px; height: 24px; flex-basis: 24px; }
+    .appearance-palette > span:last-child { flex-basis: 100%; }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    :root[data-theme] :is(.card, .stat-card, .welcome-card, .week-grid) { background: rgb(var(--panel-rgb)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    :root[data-theme] :is(.sidebar, .topbar, .sync-bar) { background: rgb(var(--menu-rgb)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+    :root[data-theme] :is(.hero-card, .preparation-card) { background: rgb(var(--feature-rgb)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+  @media (forced-colors: active) {
+    .app-aurora { display: none; }
+    .appearance-palette.is-selected { outline: 2px solid Highlight; }
+  }
+}
+@media print { .app-aurora, .appearance-settings { display: none !important; } }

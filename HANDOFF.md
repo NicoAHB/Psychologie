@@ -1,10 +1,25 @@
 # Weiterarbeit am Tablet
 
+## Neue Darstellung: Pastell und Milchglas
+
+Die tatsächliche App enthält jetzt **Einstellungen → Darstellung** mit vier
+Pastellverläufen, eigenen Farben, einer Option ohne Verlauf sowie separaten Reglern
+für Karten- und Menütransparenz (0–30 %), Glas-Weichzeichnung und Hintergrundstärke.
+Die Änderungen erscheinen sofort, auch in Hell/Dunkel, und werden gerätelokal
+unabhängig vom Tresor gespeichert. Nach einem App-Update gegebenenfalls den
+vorhandenen Hinweis **Jetzt aktualisieren** verwenden, dann die Einstellungen öffnen.
+Es ist kein CSS-Import und keine Supabase-Migration erforderlich.
+
+Dateien, sichere Farbgrenzen, Fallbacks, technische Hinweise für Claude und Tests:
+[`docs/darstellung.md`](docs/darstellung.md). Das bisherige Beispiel unter `examples/`
+bleibt separat; der neue Einstellungsbereich steuert die echte Praxisoberfläche.
+Texte und Formulare bleiben deckend; Druck/PDF behalten ihre bisherigen Farben.
+
 ## Wo liegt der Stand?
 
 - Repository in dieser Cloud-Aufgabe: `/workspace/Psychologie`
-- Lokaler Entwicklungsbranch: `codex/praxisraum-foundation`
-- **Aktueller GitHub-Stand:** `main` enthält die veröffentlichte App und ist die Grundlage für die Weiterarbeit auf einem anderen Gerät. Der lokale Entwicklungsbranch heißt `codex/praxisraum-foundation`.
+- Lokaler Entwicklungsbranch für die neue Darstellung: `codex/appearance`
+- **Aktueller GitHub-Stand:** `main` enthält die veröffentlichte App und ist die Grundlage für die Weiterarbeit auf einem anderen Gerät.
 - Programmcode und Tests werden lokal committed. Ein Projekt-ZIP und ein selbstständiges Git-Bundle werden zusätzlich unter `/workspace` erzeugt. Sie enthalten keine echten Praxisdaten oder Zugangsdaten.
 
 Öffne diesen Chat auf dem Tablet, um die bestehende Aufgabe fortzusetzen. Für eine unabhängige neue Aufgabe oder Codespaces den aktuellen GitHub-Stand oder das Projektarchiv verwenden. Eine langfristige Wiederherstellung lokaler Commits allein aus einem neuen Cloud-Task ist nicht zugesichert.

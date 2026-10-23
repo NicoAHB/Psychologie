@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: **Pastell-Hintergründe und einstellbares Milchglas direkt in der App** unter **Einstellungen → Darstellung**. Vier Farbverläufe, eigene Pastellfarben, getrennte Transparenzregler für Inhaltskarten und Menüs sowie Glas-Weichzeichnung. Die Auswahl wird sofort angewendet und auf diesem Gerät gespeichert. [Bedienung und technische Übergabe](docs/darstellung.md).
+
 Neu: **Newsletter**, **Vorlagen-Verwaltung** und optionale **Marketing-Kampagnen** (Geburtstag, Willkommen, fester Termin), mit separater Kanal-Freigabe, DE/UA-Texten, verschlüsseltem Archiv und Abmeldung. [Bedienung, SQL und Einrichtung](docs/marketing.md). Automatik läuft derzeit bei geöffnetem, entsperrtem Tresor; ein echter Versanddienst muss eingerichtet werden. Eigenständiges [Aurora-/Glas-Beispiel in HTML und CSS](examples/README.md).
 
 Neu: pausierbare und wieder aktivierbare Klientenakten mit Statusverlauf/Wiedervorlage, verschlüsselte Sitzungsentwürfe inklusive beendeter Aufnahmen, Aufgabenübersicht, lokale Sicherungsprüfung, Memo-Favoriten und optionale verschlüsselte Dokument-Links. Einrichtung und technische Übergabe an Claude: [Änderungen vom 23. Oktober 2026](docs/claude-uebergabe-2026-10-23.md). Für Dokument-Links ist die zusätzliche Migration [`supabase/document-shares.sql`](supabase/document-shares.sql) erforderlich. [iPad-Abnahmeplan](docs/ipad-abnahme.md).
