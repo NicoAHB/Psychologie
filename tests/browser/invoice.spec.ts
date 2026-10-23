@@ -43,7 +43,8 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   const pdf = await page.pdf({ format: 'A4' }); if (process.env.SAVE_PDF) await (await import('node:fs/promises')).writeFile(process.env.SAVE_PDF, pdf); expect(pdf.subarray(0, 5).toString()).toBe('%PDF-'); expect(pdf.length).toBeGreaterThan(5000);
   await page.emulateMedia({ media: 'screen' });
   await dialog.getByRole('button', { name: 'Schließen' }).first().click(); await expect(dialog).not.toBeVisible();
-  await expect(page.getByRole('button', { name: /^\d{4}-001$/ }).first()).toBeVisible();
+  await expect(page.locator('.invoice-list').getByRole('button', { name: /^Rechnung öffnen \d{4}-001$/ })).toBeVisible();
+  await page.locator('.finance-history > summary').click();
 
   await page.getByRole('button', { name: 'Einnahmen als CSV (Steuerberatung)' }).click();
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: /Einnahmen als CSV.*\d{4}/ }).click();

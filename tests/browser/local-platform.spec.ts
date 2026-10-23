@@ -13,7 +13,7 @@ test('real workers encrypt notes and generate a PDF without fetching fonts on th
   await page.getByRole('tab', { name: 'Besprochen' }).click(); await page.getByRole('button', { name: 'Termin bearbeiten' }).first().click();
   const dialog = page.getByRole('dialog'); await dialog.getByLabel('Terminnotiz (optional)').fill('Worker-geschützte Notiz'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   expect((await read()).sessions.some(s => s.notes === 'Worker-geschützte Notiz')).toBe(true);
-  await nav(page, 'Zahlungen'); await page.getByRole('button', { name: `Rechnung öffnen ${invoice.number}`, exact: true }).click();
+  await nav(page, 'Zahlungen'); await page.locator('.invoice-list').getByRole('button', { name: `Rechnung öffnen ${invoice.number}`, exact: true }).click();
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: 'PDF herunterladen', exact: true }).click(); await download;
   expect(workers.some(url => /secure\.worker-/.test(url))).toBe(true); await expect(dialog.getByRole('alert')).toHaveCount(0);
 });
