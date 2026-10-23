@@ -1,5 +1,9 @@
 import type { EncryptedBlob, VaultEnvelope } from './types';
 let pending: Promise<IDBDatabase> | undefined;
+/** Finish once every request has been queued. Safari can postpone implicit
+ * completion while media/dialogs are active; never commit before a read handler
+ * has enqueued its dependent writes. Older browsers keep automatic completion. */
+export function commitTransaction(tx: IDBTransaction) { if (typeof tx.commit === 'function') tx.commit(); }
 export function database(): Promise<IDBDatabase> {
   return pending ??= new Promise((resolve, reject) => {
     const request = indexedDB.open('praxisraum', 1);
@@ -19,6 +23,7 @@ async function operation<T>(store: string, mode: IDBTransactionMode, action: (s:
     tx.oncomplete = () => resolve(request.result as T);
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error ?? new Error('storageError'));
+    commitTransaction(tx);
   });
 }
 export const readVault = () => operation<VaultEnvelope | undefined>('vault', 'readonly', s => s.get('primary'));
@@ -46,7 +51,7 @@ export async function updateMetaSet(key: string, add: readonly string[] = [], re
   const db = await database(), removed = new Set(remove);
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction('meta', 'readwrite'), store = tx.objectStore('meta'), request = store.get(key);
-    request.onsuccess = () => store.put([...new Set([...(request.result ?? []) as string[], ...add])].filter(id => !removed.has(id)), key);
+    request.onsuccess = () => { store.put([...new Set([...(request.result ?? []) as string[], ...add])].filter(id => !removed.has(id)), key); commitTransaction(tx); };
     tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storageError'));
   });
 }
@@ -59,7 +64,7 @@ export async function queueBlobCleanup(vault: string, ids: string[]) {
   const db = await database();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction('meta', 'readwrite'), store = tx.objectStore('meta'), request = store.get(cleanupKey(vault));
-    request.onsuccess = () => store.put([...new Set([...(request.result ?? []) as string[], ...ids])], cleanupKey(vault));
+    request.onsuccess = () => { store.put([...new Set([...(request.result ?? []) as string[], ...ids])], cleanupKey(vault)); commitTransaction(tx); };
     tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storageError'));
   });
 }
@@ -68,7 +73,7 @@ export async function finishBlobCleanup(vault: string, ids: string[]) {
   const done = new Set(ids), db = await database();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction('meta', 'readwrite'), store = tx.objectStore('meta'), request = store.get(cleanupKey(vault));
-    request.onsuccess = () => store.put(((request.result ?? []) as string[]).filter(id => !done.has(id)), cleanupKey(vault));
+    request.onsuccess = () => { store.put(((request.result ?? []) as string[]).filter(id => !done.has(id)), cleanupKey(vault)); commitTransaction(tx); };
     tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storageError'));
   });
 }

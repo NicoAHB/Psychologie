@@ -64,16 +64,24 @@ function MemoRecorderDialog({ onSave, onClose, vault, checkpoint = false, onDisc
   const [saving, setSaving] = useState(false), recorder = useRef<MemoRecorder | undefined>(undefined), alive = useRef(true);
   const close = useRef(onClose); close.current = onClose;
   const memoId = useRef(uid()), checkpointQueue = useRef(Promise.resolve()), checkpointTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const savedCheckpoint = useRef<{ id: string; label: string; summary: string } | undefined>(undefined);
   const latest = useRef({ onSave, recording, label, summary }); latest.current = { onSave, recording, label, summary };
   function checkpointNow(value = latest.current.recording) {
     clearTimeout(checkpointTimer.current);
     if (!checkpoint || !value) return checkpointQueue.current;
-    const item = { ...value, id: memoId.current, label: latest.current.label.trim(), summary: latest.current.summary.trim() };
+    const id = memoId.current;
     setSaving(true);
-    const pending = checkpointQueue.current.catch(() => {}).then(() => latest.current.onSave(item));
-    checkpointQueue.current = pending.then(() => {});
-    void pending.then(() => { if (alive.current) setSaving(false); }, () => { if (alive.current) { setSaving(false); setMessage('storageError'); } });
-    return checkpointQueue.current;
+    const pending = checkpointQueue.current.catch(() => {}).then(async () => {
+      // Queued metadata uses the most recent text, rather than writing every
+      // superseded intermediate label/summary before the final version.
+      const item = { ...value, id, label: latest.current.label.trim(), summary: latest.current.summary.trim() };
+      const saved = savedCheckpoint.current;
+      if (saved?.id === id && saved.label === item.label && saved.summary === item.summary) return;
+      await latest.current.onSave(item); savedCheckpoint.current = { id, label: item.label, summary: item.summary };
+    });
+    checkpointQueue.current = pending;
+    void pending.then(() => { if (alive.current && checkpointQueue.current === pending) setSaving(false); }, () => { if (alive.current && checkpointQueue.current === pending) { setSaving(false); setMessage('storageError'); } });
+    return pending;
   }
   useEffect(() => {
     if (!checkpoint || !recording) return;

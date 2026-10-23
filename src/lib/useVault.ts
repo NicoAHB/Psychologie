@@ -256,7 +256,7 @@ export function useVault() {
     ids.forEach(id => unattachedFiles.current.delete(id));
   };
   const purgeUnused = async (before: string[]) => {
-    if (!current.current) return;
+    if (!current.current || !before.length) return;
     const kept = info.current && !demoRef.current ? await historyBlobIds(info.current.vaultId) : new Set<string>();
     await purge(orphanedBlobs(before, current.current).filter(id => !kept.has(id)));
   };
@@ -264,6 +264,7 @@ export function useVault() {
     const ids = await pendingBlobCleanup(vaultId);
     // Files written for an open form are still needed until it is saved/discarded.
     const ready = ids.filter(id => !unattachedFiles.current.has(id));
+    if (!ready.length) return;
     await purgeUnused(ready);
     // Preserve pending form files across a crash; live references are checked again on unlock.
     await completeBlobCleanup(vaultId, ready);

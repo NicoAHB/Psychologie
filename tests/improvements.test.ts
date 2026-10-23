@@ -59,6 +59,27 @@ test('local encrypted checkpoints commit with the live vault, retain deletions a
   assert.equal((await listSnapshots(id)).length, SNAPSHOT_LIMIT); assert.ok(discarded.includes('shared-image')); assert.equal((await historyBlobIds(id)).size, 0);
 });
 
+test('an aborted checkpoint preserves the prior ciphertext and history; browsers without explicit commit remain compatible', async () => {
+  const salt = randomSalt(), key = await deriveKey('a very strong test passphrase', salt), id = uid(), data = emptyVault();
+  data.settings.practice.name = 'Before'; const before = await encryptVault(key, data, id, salt);
+  await commitVaultSnapshot(before, ['before-file'], 20000000); const snapshots = await listSnapshots(id);
+  data.settings.practice.name = 'After'; const after = await encryptVault(key, data, id, salt);
+  const descriptor = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, 'commit')!;
+  try {
+    Object.defineProperty(IDBTransaction.prototype, 'commit', { ...descriptor, value: function(this: IDBTransaction) {
+      if (this.mode === 'readwrite' && this.objectStoreNames.contains('vault')) this.abort();
+      else descriptor.value.call(this);
+    } });
+    await assert.rejects(() => commitVaultSnapshot(after, ['after-file'], 20000001));
+    assert.deepEqual(await readVault(), before); assert.deepEqual(await listSnapshots(id), snapshots);
+    assert.deepEqual(await readSnapshot(id, snapshots[0].at), before);
+    Object.defineProperty(IDBTransaction.prototype, 'commit', { ...descriptor, value: undefined });
+    await commitVaultSnapshot(after, ['after-file'], 20000002);
+    assert.deepEqual(await readVault(), after); assert.equal((await listSnapshots(id))[0].at, 20000002);
+    assert.equal((await decryptVault(key, (await readVault())!)).settings.practice.name, 'After');
+  } finally { Object.defineProperty(IDBTransaction.prototype, 'commit', descriptor); }
+});
+
 test('NBU uses a dated IndexedDB fallback, caches successful public rates and fails clearly when no rate exists', async () => {
   await metaDelete('public:nbu:EUR-UAH:v1');
   const offline = (async () => { throw new Error('offline'); }) as typeof fetch;

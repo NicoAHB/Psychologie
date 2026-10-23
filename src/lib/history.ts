@@ -1,6 +1,6 @@
 // Version history: encrypted vault snapshots kept next to the live copy, so a deletion or bad edit can be undone.
 // Snapshots hold the same ciphertext as the vault itself (no plaintext, images stay shared), at most one per window.
-import { database, metaDelete, metaGet, metaPut } from './db';
+import { commitTransaction, database, metaDelete, metaGet, metaPut } from './db';
 import type { VaultEnvelope } from './types';
 
 export const SNAPSHOT_WINDOW_MS = 10 * 60 * 1000;
@@ -40,6 +40,7 @@ export async function commitVaultSnapshot(envelope: VaultEnvelope, blobIds: stri
       for (const entry of removed) meta.delete(itemKey(envelope.vaultId, entry.at));
       meta.put(envelope, itemKey(envelope.vaultId, at)); meta.put(keep, indexKey(envelope.vaultId));
       tx.objectStore('vault').put(envelope, 'primary');
+      commitTransaction(tx);
     };
     tx.oncomplete = () => resolve(discarded);
     tx.onerror = () => reject(tx.error ?? new Error('storageError'));
@@ -71,6 +72,7 @@ export async function rewriteSnapshots(vault: string, transform: (envelope: Vaul
         store.put(replacement.envelope, itemKey(vault, entry.at)); entry.blobIds = replacement.blobIds;
       }
       store.put(entries, indexKey(vault));
+      commitTransaction(tx);
     };
     tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error ?? new Error('storageError'));
   });
