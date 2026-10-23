@@ -50,7 +50,7 @@ test.afterEach(async ({ page }, info) => {
     buttons: [...document.querySelectorAll<HTMLButtonElement>('.memo-labels-card button, .settings-card button')].filter(b => /Sicherung|Vorschlag/.test(b.ariaLabel ?? b.textContent ?? '')).slice(0, 10).map(b => ({ name: b.ariaLabel ?? b.textContent, disabled: b.disabled, rect: b.getBoundingClientRect().toJSON() })),
     text: document.body.innerText.slice(-900),
   })), new Promise(resolve => setTimeout(() => resolve('Page did not respond within five seconds'), 5000))]);
-  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify({ frames: { before, afterPointer, afterCapture }, captureError, state })}`);
+  throw new Error(`Safari diagnostic (synthetic test data): ${JSON.stringify({ phase: info.annotations.filter(a => a.type === 'phase').at(-1)?.description, frames: { before, afterPointer, afterCapture }, captureError, state })}`);
 });
 
 test('pause, completion and reactivation keep the full client record; filters and due follow-ups work', async ({ page }) => {
@@ -71,8 +71,11 @@ test('pause, completion and reactivation keep the full client record; filters an
 });
 
 test('encrypted session drafts recover text and a stopped memo after reload, lock and offline work without creating charges', async ({ page }, info) => {
-  test.setTimeout(90000); if (!/mobile|iphone/.test(info.project.name)) await page.setViewportSize({ width: 820, height: 1180 }); await fakeMemoCapture(page, 'mp4');
+  // Several durable crypto writes, two reload/unlock cycles and an offline lock
+  // are one scenario; individual operation deadlines remain bounded below.
+  test.setTimeout(120000); if (!/mobile|iphone/.test(info.project.name)) await page.setViewportSize({ width: 820, height: 1180 }); await fakeMemoCapture(page, 'mp4');
   const { data } = workflowData(); data.clients[0].currency = 'EUR'; const read = await seedWorkflow(page, data);
+  test.info().annotations.push({ type: 'phase', description: 'draft:record' });
   await nav(page, 'Klienten'); await page.locator('.directory-list button').first().click(); await page.getByRole('button', { name: 'Sitzung erfassen', exact: true }).first().click();
   const session = page.getByRole('dialog', { name: 'Sitzung erfassen', exact: true }); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Entwurf bleibt nach Safari-Neustart');
   await session.getByRole('button', { name: 'Sprach-Memo aufnehmen', exact: true }).click(); const recorder = page.getByRole('dialog', { name: 'Sprach-Memo aufnehmen', exact: true });
@@ -83,15 +86,19 @@ test('encrypted session drafts recover text and a stopped memo after reload, loc
   await expect.poll(async () => (await read()).sessionDrafts[0]?.payload.memos[0]?.summary, { timeout: 30000 }).toBe('Manuelle Kurzfassung im Entwurf');
   expect((await read()).sessions).toHaveLength(data.sessions.length); expect((await read()).audioMemos).toHaveLength(0);
   // Do not press "Memo übernehmen": stopping and the metadata pause already checkpointed the audio.
+  test.info().annotations.push({ type: 'phase', description: 'draft:reload' });
   await page.reload(); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click();
   await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Entwurf bleibt nach Safari-Neustart'); await expect(session.locator('.memo-open')).toContainText('Noch nicht abgeschlossene Sitzung');
   await session.locator('.memo-open').click(); const memo = page.getByRole('dialog', { name: 'Noch nicht abgeschlossene Sitzung', exact: true }); await expect(memo.locator('audio')).toHaveAttribute('src', /^blob:/); await expect(memo).toContainText('Manuelle Kurzfassung im Entwurf'); await memo.getByRole('button', { name: 'Schließen', exact: true }).click();
+  test.info().annotations.push({ type: 'phase', description: 'draft:offline-lock' });
   await page.context().setOffline(true); await session.getByLabel('Sitzungsnotiz (optional)', { exact: true }).fill('Auch offline fortgesetzt');
   // A lock must flush the pending debounce immediately. Allow the durable
   // crypto/IDB round-trip on software-rendered Safari, as for finalizing below.
   await page.evaluate(() => (document.querySelector('.header-actions button[title="Sperren"]') as HTMLButtonElement).click()); await expect(page.locator('.welcome-page')).toBeVisible({ timeout: 15000 });
+  test.info().annotations.push({ type: 'phase', description: 'draft:reopen' });
   await page.context().setOffline(false); await unlock(page); await page.getByRole('button', { name: /^Entwurf fortsetzen:/ }).click(); await expect(session.getByLabel('Sitzungsnotiz (optional)', { exact: true })).toHaveValue('Auch offline fortgesetzt');
   // Finalizing also redacts superseded encrypted drafts from recovery history.
+  test.info().annotations.push({ type: 'phase', description: 'draft:finalize' });
   await session.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(session).not.toBeVisible({ timeout: 15000 });
   await expect.poll(async () => (await read()).sessionDrafts.length).toBe(0); const saved = await read(); expect(saved.audioMemos).toHaveLength(1); expect(saved.sessions).toHaveLength(data.sessions.length + 1); expect(saved.sessions.at(-1)?.notes).toBe('Auch offline fortgesetzt');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

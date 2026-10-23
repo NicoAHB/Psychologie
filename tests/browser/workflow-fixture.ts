@@ -11,7 +11,11 @@ export function workflowData() {
   data.invoices.push(invoice); for (const s of data.sessions) { s.invoiceId = invoice.id; s.billing = { currency: 'UAH', amountCents: 409100, rate: data.settings.exchangeRate }; } return { data, client, invoice };
 }
 export async function nav(page: Page, label: string) {
-  const menu = page.getByRole('button', { name: 'Navigation öffnen' }); if (await menu.isVisible()) await menu.click();
+  // Demo entry/unlock completes asynchronously. isVisible() alone can return
+  // false before the mobile menu is mounted and leave navigation off-screen.
+  await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15000 });
+  const menu = page.getByRole('button', { name: 'Navigation öffnen' });
+  if (await menu.isVisible() && !(await page.locator('.sidebar').getAttribute('class'))?.includes('sidebar-open')) await menu.click();
   await page.getByRole('navigation').getByRole('button', { name: label, exact: true }).click();
 }
 export async function seedWorkflow(page: Page, data: VaultData) {

@@ -6,7 +6,9 @@ export default defineConfig({
   testDir: './tests/browser', testMatch: ['practice-workflow.spec.ts', 'marketing.spec.ts', 'appearance.spec.ts'], timeout: 60000, workers: 1,
   // Avoid screencast overhead while measuring rendering and IndexedDB in the
   // virtual display. Keep failure screenshots and the bounded I/O diagnostic.
-  use: { baseURL: `http://127.0.0.1:${port}`, screenshot: 'only-on-failure', trace: 'off' },
+  // The app's reduced-motion CSS removes drawer/chart transitions. Keep glass
+  // and normal click stability checks enabled on the virtual software display.
+  use: { baseURL: `http://127.0.0.1:${port}`, screenshot: 'only-on-failure', trace: 'off', reducedMotion: 'reduce' },
   projects: [
     { name: 'ipad-webkit', use: { ...devices['iPad Pro 11'], browserName: 'webkit', viewport: { width: 820, height: 1180 } } },
     { name: 'iphone-webkit', use: { ...devices['iPhone 13'], browserName: 'webkit' } },

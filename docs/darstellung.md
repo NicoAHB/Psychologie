@@ -82,3 +82,11 @@ nachfolgenden Memo-Vorschlagslöschung). Die Fehlerdiagnose zeigte laufende Fram
 keine verbleibenden Worker-/IDB-Aufträge und kurz darauf bereits abgeschlossene
 Umbenennung/Sperre. Bedingungen und Datenprüfungen bleiben unverändert; Wartezeiten
 der App und Kryptografie wurden nicht geändert.
+
+Die Navigation im gemeinsamen Browser-Fixture wartet nach Demo-Start/Entsperren
+ausdrücklich auf die montierte App, bevor sie die mobile Menüschaltfläche prüft.
+Software-Safari nutzt die vorhandene Option für reduzierte Bewegung; Glasflächen
+und normale Klickprüfungen bleiben aktiv. Das längere Entwurfs-Szenario hat ein
+Gesamtbudget von 120 Sekunden für mehrere einzelne Speicher-/Neuladeaktionen,
+bei unveränderten Grenzen je Aktion und ergänzenden statischen Phasenmarkierungen
+in der Fehlerdiagnose. Keine Aktion wird durch einen erzwungenen Klick ersetzt.
