@@ -6,6 +6,11 @@ import {
   changedMarketingRevocations,
   grantMarketingConsent,
   marketingConsent,
+  clientMarketingChannels,
+  marketingChannels,
+  toggleMarketingChannel,
+  newsletterRecipientCount,
+  marketingRecipientId,
   marketingId,
   marketingPreset,
   messageForLanguage,
@@ -372,4 +377,63 @@ test("encrypted round-trip retains marketing records; readable client ZIP omits 
   assert.ok(!text.includes(grant.token));
   assert.match(text, /Public organization information/);
   assert.ok(Object.keys(exported).some((p) => p.startsWith("newsletter/")));
+});
+
+test("channel selection supports either channel, both or none and always intersects each client opt-in", () => {
+  assert.deepEqual(marketingChannels("none"), []);
+  assert.deepEqual(marketingChannels("both"), ["email", "telegram"]);
+  assert.equal(toggleMarketingChannel("none", "email"), "email");
+  assert.equal(toggleMarketingChannel("email", "telegram"), "both");
+  assert.equal(toggleMarketingChannel("both", "email"), "telegram");
+  assert.equal(toggleMarketingChannel("telegram", "telegram"), "none");
+  const { data, client } = fixture();
+  assert.deepEqual(clientMarketingChannels(client, "both"), []);
+  data.clients[0].marketingConsent = {
+    email: grantMarketingConsent(client, "email"),
+  };
+  assert.deepEqual(clientMarketingChannels(data.clients[0], "both"), ["email"]);
+  data.clients[0].marketingConsent!.telegram = grantMarketingConsent(
+    client,
+    "telegram",
+  );
+  assert.deepEqual(clientMarketingChannels(data.clients[0], "both"), [
+    "email",
+    "telegram",
+  ]);
+  assert.deepEqual(clientMarketingChannels(data.clients[0], "none"), []);
+  assert.equal(
+    campaignOccurrence(
+      { ...campaign(), channel: "both" },
+      data.clients[0],
+      data,
+      new Date("2026-10-23T12:00:00Z"),
+    ),
+    "2026-10-23",
+  );
+  assert.equal(
+    campaignOccurrence(
+      { ...campaign(), channel: "none" },
+      data.clients[0],
+      data,
+      new Date("2026-10-23T12:00:00Z"),
+    ),
+    undefined,
+  );
+});
+test("multichannel counts subjects once and preserves legacy delivery identities", async () => {
+  const row = newsletter("client");
+  const oldId = row.recipients[0].id;
+  row.recipients[0].status = "sent";
+  row.recipients.push({ ...row.recipients[0], id: uid(), channel: "telegram" });
+  assert.equal(newsletterRecipientCount(row), 1);
+  assert.equal(
+    await marketingRecipientId(row, row.id, "client", "email"),
+    oldId,
+  );
+  assert.notEqual(
+    await marketingRecipientId(undefined, row.id, "client", "email"),
+    await marketingRecipientId(undefined, row.id, "client", "telegram"),
+  );
+  row.recipients.push({ ...row.recipients[0], id: uid(), clientId: "another" });
+  assert.equal(newsletterRecipientCount(row), 2);
 });

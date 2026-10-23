@@ -1,6 +1,6 @@
 import { getCloud } from "./cloud";
 import { encryptBytes } from "./workerTasks";
-import { newsletterStatus } from "./marketing";
+import { newsletterStatus, newsletterRecipientCount } from "./marketing";
 import type { VaultData } from "./types";
 
 const fingerprints = new Map<string, string>(); // Hashes only; never retains message plaintext after locking.
@@ -88,10 +88,7 @@ export async function syncMarketingArchive(
               image_url: row.messages[0]?.image
                 ? `private:${row.messages[0].image.blobId}`
                 : null,
-              recipient_count: Math.max(
-                row.recipientCount,
-                row.recipients.length,
-              ),
+              recipient_count: newsletterRecipientCount(row),
               status: newsletterStatus(row),
             });
           saved.push([cacheKey, hash]);

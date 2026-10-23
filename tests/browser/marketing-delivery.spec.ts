@@ -7,11 +7,12 @@ import { uid } from "../../src/lib/types";
 import type { Client, MarketingConsent } from "../../src/lib/types";
 const grantMarketingConsent = (
   client: Client,
-  _channel: "email",
+  channel: "email" | "telegram",
 ): MarketingConsent => ({
   id: uid(),
   token: "A".repeat(43),
-  destination: client.email!.toLowerCase(),
+  destination:
+    channel === "email" ? client.email!.toLowerCase() : client.telegramChatId,
   grantedAt: new Date().toISOString(),
 });
 const de = JSON.parse(
@@ -151,6 +152,7 @@ test("newsletter delivery uses per-client language, encrypted images/archive, du
     (client as Client).language = "de";
     data.clients[0].marketingConsent = {
       email: grantMarketingConsent(client, "email"),
+      telegram: grantMarketingConsent(client, "telegram"),
     };
     const uk: Client = {
       ...client,
@@ -161,8 +163,40 @@ test("newsletter delivery uses per-client language, encrypted images/archive, du
     };
     uk.marketingConsent = { email: grantMarketingConsent(uk, "email") };
     data.clients.push(uk);
+    const telegram: Client = {
+      ...client,
+      id: uid(),
+      name: "Nur Telegram Beispiel",
+      email: "telegram-only@example.com",
+      telegramChatId: "987654321",
+    };
+    telegram.marketingConsent = {
+      telegram: grantMarketingConsent(telegram, "telegram"),
+    };
+    const none: Client = {
+      ...client,
+      id: uid(),
+      name: "Keine Nachricht Beispiel",
+      email: "none@example.com",
+      telegramChatId: "987654322",
+      marketingConsent: undefined,
+    };
+    data.clients.push(telegram, none);
+
     const read = await seedWorkflow(page, data);
     await nav(page, "Newsletter");
+    await page
+      .getByRole("checkbox", { name: de.marketingTelegram, exact: true })
+      .check();
+    await expect(
+      page.getByRole("checkbox", { name: de.marketingEmail, exact: true }),
+    ).toBeChecked();
+    await expect(
+      page.getByRole("checkbox", {
+        name: new RegExp("Keine Nachricht Beispiel"),
+      }),
+    ).toBeDisabled();
+
     await page
       .getByLabel(de.marketingMessageDe, { exact: true })
       .fill("Informationen aus der Praxis.");
@@ -202,6 +236,7 @@ test("newsletter delivery uses per-client language, encrypted images/archive, du
       .getByRole("button", { name: de.marketingSend, exact: true })
       .click();
     const review = page.getByRole("dialog");
+    await expect(review).toContainText("4 einzelne Nachrichten");
     await page.addStyleTag({
       content:
         "*,*::before,*::after{transition:none!important;animation:none!important}",
@@ -231,7 +266,19 @@ test("newsletter delivery uses per-client language, encrypted images/archive, du
     await expect(
       page.getByRole("tab", { name: de.marketingArchive, exact: true }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(deliveries.length).toBe(2);
+    expect(deliveries.length).toBe(4);
+    expect(deliveries.filter((d) => d.to === client.email)).toHaveLength(1);
+    expect(
+      deliveries.filter((d) => d.to === client.telegramChatId),
+    ).toHaveLength(1);
+    expect(
+      deliveries.filter((d) => d.to === telegram.telegramChatId),
+    ).toHaveLength(1);
+    expect(
+      deliveries.some(
+        (d) => d.to === none.email || d.to === none.telegramChatId,
+      ),
+    ).toBe(false);
     const german = deliveries.find((d) => d.to === client.email)!,
       ukrainian = deliveries.find((d) => d.to === uk.email)!;
     expect(german.text).toContain("Informationen aus der Praxis");
@@ -241,6 +288,9 @@ test("newsletter delivery uses per-client language, encrypted images/archive, du
       "Sitzungsnotiz bleibt erhalten",
     );
     const stored = await read();
+    expect(stored.newsletters[0].recipientCount).toBe(3);
+    expect(stored.newsletters[0].channel).toBe("both");
+    expect(stored.newsletters[0].recipients).toHaveLength(4);
     expect(
       stored.newsletters[0].recipients.every((r) => r.status === "sent"),
     ).toBe(true);

@@ -3,8 +3,10 @@ import { metaGet, updateMetaSet } from "./db";
 import { toBase64 } from "./crypto";
 import {
   marketingConsent,
+  marketingChannels,
+  clientMarketingChannels,
   marketingDestination,
-  marketingId,
+  marketingRecipientId,
   messageForLanguage,
   newsletterStatus,
   validateMarketingMessage,
@@ -14,6 +16,7 @@ import type { VaultController } from "./useVault";
 import {
   uid,
   type MarketingChannel,
+  type MarketingChannelSelection,
   type NewsletterMessage,
   type NewsletterRecipient,
 } from "./types";
@@ -34,7 +37,7 @@ export interface MarketingReceipt {
   channel?: MarketingChannel;
 }
 export interface NewsletterInput {
-  channel: MarketingChannel;
+  channel: MarketingChannelSelection;
   message: NewsletterMessage;
   clientIds: string[];
   image?: Blob;
@@ -199,17 +202,27 @@ export async function dispatchNewsletter(
   if (vault.demo) throw new Error("marketingDemo");
   const initial = vault.getData();
   if (!initial || signal.aborted) throw new Error("locked");
+  if (!marketingChannels(input.channel).length)
+    throw new Error("marketingChooseChannel");
   validateMarketingMessage(input.message, input.channel);
   const ids = [...new Set(input.clientIds)];
   if (!ids.length) throw new Error("required");
   for (const id of ids) {
     const client = initial.clients.find((c) => c.id === id);
-    if (!client || !marketingConsent(client, input.channel))
+    if (!client || !clientMarketingChannels(client, input.channel).length)
       throw new Error("marketingConsentMissing");
     messageForLanguage(input.message, client.language);
   }
   const caps = await loadMarketingCapabilities(signal);
-  if (!caps.ready || !caps[input.channel])
+  const usedChannels = new Set(
+    ids.flatMap((id) =>
+      clientMarketingChannels(
+        initial.clients.find((c) => c.id === id)!,
+        input.channel,
+      ),
+    ),
+  );
+  if (!caps.ready || [...usedChannels].some((channel) => !caps[channel]))
     throw new Error("marketingSetupNeeded");
   if (vault.envelope) await flushMarketingRevocations(vault.envelope.vaultId);
   const message = structuredClone(input.message),
@@ -247,15 +260,23 @@ export async function dispatchNewsletter(
   const recipients: NewsletterRecipient[] = [];
   for (const clientId of ids) {
     const client = initial.clients.find((c) => c.id === clientId)!;
-    recipients.push({
-      id: await marketingId(`${newsletterId}:${clientId}`),
-      clientId,
-      consentId: marketingConsent(client, input.channel)!.id,
-      messageId: message.id,
-      channel: input.channel,
-      language: client.language,
-      status: "pending",
-    });
+    for (const channel of clientMarketingChannels(client, input.channel)) {
+      const existing = initial.newsletters.find((n) => n.id === newsletterId);
+      recipients.push({
+        id: await marketingRecipientId(
+          existing,
+          newsletterId,
+          clientId,
+          channel,
+        ),
+        clientId,
+        consentId: marketingConsent(client, channel)!.id,
+        messageId: message.id,
+        channel,
+        language: client.language,
+        status: "pending",
+      });
+    }
   }
   if (signal.aborted) return;
   let image: { content: string; mimeType: string } | undefined;
@@ -290,8 +311,11 @@ export async function dispatchNewsletter(
     const added = recipients.filter(
       (r) => !entry!.recipients.some((old) => old.id === r.id),
     );
+    const knownClients = new Set(entry.recipients.map((r) => r.clientId));
     entry.recipients.push(...added);
-    entry.recipientCount += added.length;
+    entry.recipientCount += new Set(
+      added.filter((r) => !knownClients.has(r.clientId)).map((r) => r.clientId),
+    ).size;
     entry.status = newsletterStatus(entry);
   });
   const update = async (
@@ -336,8 +360,23 @@ export async function dispatchNewsletter(
       return;
     }
     if (!stored || stored.status !== "pending") continue;
+    if (input.campaignId) {
+      const campaign = current?.marketingCampaigns.find(
+        (c) => c.id === input.campaignId,
+      );
+      if (
+        campaign &&
+        !marketingChannels(campaign.channel).includes(recipient.channel)
+      ) {
+        await update(recipient.id, {
+          status: "failed",
+          errorCode: "marketingCampaignStopped",
+        });
+        continue;
+      }
+    }
     const client = current?.clients.find((c) => c.id === recipient.clientId),
-      consent = client && marketingConsent(client, input.channel);
+      consent = client && marketingConsent(client, recipient.channel);
     if (!client || !consent || consent.id !== recipient.consentId) {
       await update(recipient.id, {
         status: "failed",
@@ -363,11 +402,11 @@ export async function dispatchNewsletter(
               id: recipient.id,
               newsletterId,
               messageId: message.id,
-              channel: input.channel,
+              channel: recipient.channel,
               consentId: consent.id,
               grantedAt: consent.grantedAt,
               tokenHash: await tokenHash(consent.token),
-              to: marketingDestination(client, input.channel),
+              to: marketingDestination(client, recipient.channel),
               subject: content.subject,
               text,
               image,

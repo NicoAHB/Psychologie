@@ -4,6 +4,8 @@ import { validDay } from "../lib/invoice";
 import { useI18n, type TextKey } from "../lib/i18n";
 import {
   marketingError,
+  marketingChannels,
+  marketingChannelText,
   templateMessage,
   validateMarketingMessage,
 } from "../lib/marketing";
@@ -11,7 +13,11 @@ import { uid, type MarketingCampaign, type VaultData } from "../lib/types";
 import type { VaultController } from "../lib/useVault";
 import type { MarketingController } from "../lib/useMarketingAutomation";
 import { Empty, Field, Modal, Notice, PageHeading } from "./ui";
-import { MarketingConfirm, MarketingSetup } from "./marketing-ui";
+import {
+  MarketingChannelPicker,
+  MarketingConfirm,
+  MarketingSetup,
+} from "./marketing-ui";
 
 export function validateCampaign(campaign: MarketingCampaign, data: VaultData) {
   const template = data.messageTemplates.find(
@@ -28,6 +34,8 @@ export function validateCampaign(campaign: MarketingCampaign, data: VaultData) {
       (!campaign.targetDate || !validDay(campaign.targetDate)))
   )
     throw new Error("required");
+  if (campaign.isActive && !marketingChannels(campaign.channel).length)
+    throw new Error("marketingChooseChannel");
   if (campaign.isActive)
     validateMarketingMessage(templateMessage(template), campaign.channel);
   if (
@@ -116,12 +124,8 @@ export function MarketingCampaigns({
                     <h2 className="break-words">{campaign.name}</h2>
                     <p className="hint mt-1">
                       {t(`marketingType_${campaign.type}`)} ·{" "}
-                      {t(
-                        campaign.channel === "email"
-                          ? "marketingEmail"
-                          : "marketingTelegram",
-                      )}{" "}
-                      · {campaign.sendAt}
+                      {t(marketingChannelText(campaign.channel))} ·{" "}
+                      {campaign.sendAt}
                     </p>
                     <p className="hint mt-2">
                       {t("marketingTemplate")}:{" "}
@@ -143,7 +147,7 @@ export function MarketingCampaigns({
                         type="checkbox"
                         role="switch"
                         checked={campaign.isActive}
-                        disabled={busy}
+                        disabled={busy || campaign.channel === "none"}
                         aria-label={`${t("marketingCampaignActive")}: ${campaign.name}`}
                         onChange={() => void toggle(campaign)}
                       />
@@ -332,19 +336,16 @@ function CampaignEditor({
               ))}
             </select>
           </Field>
-          <Field label={t("marketingChannel")}>
-            <select
-              value={value.channel}
-              onChange={(e) =>
-                patch({
-                  channel: e.target.value as MarketingCampaign["channel"],
-                })
-              }
-            >
-              <option value="email">{t("marketingEmail")}</option>
-              <option value="telegram">{t("marketingTelegram")}</option>
-            </select>
-          </Field>
+          <MarketingChannelPicker
+            value={value.channel}
+            disabled={busy}
+            onChange={(channel) =>
+              patch({
+                channel,
+                ...(channel === "none" ? { isActive: false } : {}),
+              })
+            }
+          />
           <Field label={t("marketingAudience")}>
             <select
               value={value.language}
@@ -468,6 +469,7 @@ function CampaignEditor({
           <input
             type="checkbox"
             checked={value.isActive}
+            disabled={value.channel === "none"}
             onChange={(e) => patch({ isActive: e.target.checked })}
           />
           <span>{t("marketingCampaignActive")}</span>

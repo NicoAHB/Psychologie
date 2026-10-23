@@ -1,10 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 import { CheckCircle2, CircleAlert, Clock3 } from "lucide-react";
 import { useI18n } from "../lib/i18n";
-import type { NewsletterRecipient, NewsletterStatus } from "../lib/types";
+import type {
+  NewsletterRecipient,
+  NewsletterStatus,
+  MarketingChannelSelection,
+} from "../lib/types";
 import type { MarketingController } from "../lib/useMarketingAutomation";
 import { Modal, Notice } from "./ui";
-import { marketingError } from "../lib/marketing";
+import {
+  marketingError,
+  marketingChannels,
+  marketingChannelText,
+  toggleMarketingChannel,
+} from "../lib/marketing";
 
 export function MarketingStatus({
   status,
@@ -106,5 +115,56 @@ export function MarketingConfirm({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Two independent choices, including an explicit way to clear both. */
+export function MarketingChannelPicker({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: MarketingChannelSelection;
+  onChange: (value: MarketingChannelSelection) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useI18n(),
+    id = useId();
+  return (
+    <fieldset
+      className="marketing-channel mb-5"
+      aria-describedby={`${id}-hint`}
+    >
+      <legend>{t("marketingChannel")}</legend>
+      <div className="button-row flex-wrap">
+        {(["email", "telegram"] as const).map((channel) => (
+          <label key={channel} className="check-label">
+            <input
+              type="checkbox"
+              checked={marketingChannels(value).includes(channel)}
+              disabled={disabled}
+              onChange={() => onChange(toggleMarketingChannel(value, channel))}
+            />
+            <span>{t(marketingChannelText(channel))}</span>
+          </label>
+        ))}
+        <button
+          type="button"
+          className="text-link"
+          disabled={disabled || value === "none"}
+          onClick={() => onChange("none")}
+        >
+          {t("marketingNoMessages")}
+        </button>
+      </div>
+      <p className="hint" id={`${id}-hint`}>
+        {t("marketingChannelHint")}
+      </p>
+      {value === "none" && (
+        <p className="hint mt-2" role="status">
+          {t("marketingNoChannels")}
+        </p>
+      )}
+    </fieldset>
   );
 }

@@ -11,6 +11,7 @@ export interface Billing {
 export interface BankAccount { holder: string; iban: string; bank: string; bic: string }
 export type Route = 'overview' | 'clients' | 'appointments' | 'finances' | 'settings' | 'newsletter' | 'marketingCampaigns' | 'messageTemplates';
 export type MarketingChannel = 'email' | 'telegram';
+export type MarketingChannelSelection = MarketingChannel | 'both' | 'none';
 export interface MarketingConsent { id: string; token: string; destination: string; grantedAt: string; revokedAt?: string }
 // `updatedAt` is display/audit metadata. Causal CRDT registers drive device merging.
 export interface Stamped { updatedAt?: number }
@@ -125,7 +126,7 @@ export interface MessageTemplate extends Stamped {
 }
 export interface MarketingCampaign extends Stamped {
   id: string; name: string; type: 'birthday' | 'welcome' | 'holiday'; templateId: string;
-  channel: MarketingChannel; isActive: boolean; triggerDays: number; targetDate?: string;
+  channel: MarketingChannelSelection; isActive: boolean; triggerDays: number; targetDate?: string;
   welcomeFrom: 'created' | 'firstSession'; repeatYearly: boolean; sendAt: string; createdAt: string;
   language: 'all' | Language;
 }
@@ -140,7 +141,7 @@ export interface NewsletterRecipient {
   acceptedAt?: string; providerId?: string; errorCode?: string;
 }
 export interface Newsletter extends Stamped {
-  id: string; createdAt: string; channel: MarketingChannel; campaignId?: string; occurrenceOn?: string;
+  id: string; createdAt: string; channel: MarketingChannelSelection; campaignId?: string; occurrenceOn?: string;
   messages: NewsletterMessage[]; recipients: NewsletterRecipient[]; recipientCount: number; status: NewsletterStatus;
 }
 export interface PracticeProfile {

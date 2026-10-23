@@ -67,6 +67,7 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
     .click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel(de.marketingConsentEmail, { exact: true }).check();
+  await dialog.getByLabel(de.marketingConsentTelegram, { exact: true }).check();
   await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByLabel(de.marketingSelectAll, { exact: true }).check();
@@ -110,6 +111,43 @@ test("marketing templates, prefill, consent and inactive campaigns persist encry
   expect(stored.clients[0].marketingConsent?.email?.token).toMatch(
     /^[A-Za-z0-9_-]{43}$/,
   );
+
+  expect(stored.clients[0].marketingConsent?.telegram?.token).toMatch(
+    /^[A-Za-z0-9_-]{43}$/,
+  );
+  await nav(page, "Newsletter");
+  await page
+    .getByRole("button", {
+      name: `${de.editClient}: ${client.name}`,
+      exact: true,
+    })
+    .click();
+  dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByLabel(de.marketingConsentEmail, { exact: true }),
+  ).toBeChecked();
+  await expect(
+    dialog.getByLabel(de.marketingConsentTelegram, { exact: true }),
+  ).toBeChecked();
+  await dialog
+    .getByRole("button", { name: de.marketingNoMessages, exact: true })
+    .click();
+  await expect(
+    dialog.getByLabel(de.marketingConsentEmail, { exact: true }),
+  ).not.toBeChecked();
+  await expect(
+    dialog.getByLabel(de.marketingConsentTelegram, { exact: true }),
+  ).not.toBeChecked();
+  await dialog.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByLabel(de.marketingSelectAll, { exact: true }),
+  ).toBeDisabled();
+  const optedOut = await read();
+  expect(optedOut.clients[0].marketingConsent?.email?.revokedAt).toBeTruthy();
+  expect(
+    optedOut.clients[0].marketingConsent?.telegram?.revokedAt,
+  ).toBeTruthy();
   await nav(page, "Kampagnen");
   await page
     .getByRole("switch", {

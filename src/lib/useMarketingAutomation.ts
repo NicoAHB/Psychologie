@@ -3,6 +3,7 @@ import { registerBeforeLock } from "./autoLock";
 import { cloudConfigured } from "./cloud";
 import {
   campaignOccurrence,
+  clientMarketingChannels,
   marketingError,
   marketingId,
   templateMessage,
@@ -106,9 +107,16 @@ export function useMarketingAutomation(
             existing = latest.current
               .getData()
               ?.newsletters.find((n) => n.id === id);
-          const missing = clientIds.filter(
-            (clientId) =>
-              !existing?.recipients.some((r) => r.clientId === clientId),
+          const missing = clientIds.filter((clientId) =>
+            clientMarketingChannels(
+              latest.current.getData()!.clients.find((c) => c.id === clientId)!,
+              campaign.channel,
+            ).some(
+              (channel) =>
+                !existing?.recipients.some(
+                  (r) => r.clientId === clientId && r.channel === channel,
+                ),
+            ),
           );
           if (!missing.length) continue;
           const message = templateMessage(

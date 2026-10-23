@@ -184,3 +184,50 @@ test("the shared free-tier daily budget is enforced before claiming more provide
   assert.equal(r.claimed, false);
   assert.equal(r.errorCode, "marketingDailyLimit");
 });
+
+test("encrypted campaign/newsletter projections accept both channels and an inactive campaign may select neither", async () => {
+  await login(owner);
+  const packet = { iv: "A".repeat(16), ciphertext: "A".repeat(24) };
+  for (const channel of ["both", "none"])
+    await db.query(
+      "insert into marketing_campaigns(owner_id,vault_id,id,name,type,template_id,channel,created_at,encrypted_payload) values($1,$2,$3,$4,'birthday',$5,$6,now(),$4)",
+      [owner, uid(), uid(), packet, uid(), channel],
+    );
+  await db.query(
+    "insert into newsletters(owner_id,vault_id,id,title,content,channel,recipient_count,status,created_at) values($1,$2,$3,$4,$4,'both',1,'sent',now())",
+    [owner, uid(), uid(), packet],
+  );
+  assert.equal(
+    (await db.query("select * from marketing_campaigns")).rows.length,
+    2,
+  );
+});
+
+test("opting out of email leaves the independent Telegram permission active", async () => {
+  await db.exec("reset role");
+  const emailConsent = uid(),
+    telegramConsent = uid();
+  await db.query(
+    "insert into marketing_consents(id,owner_id,channel,token_hash,target_hash) values($1,$3,'email',$4,$5),($2,$3,'telegram',$4,$5)",
+    [emailConsent, telegramConsent, owner, hash, "c".repeat(64)],
+  );
+  await login("", "anon");
+  assert.equal(
+    (
+      await db.query<{ r: boolean }>(
+        "select unsubscribe_marketing($1,$2) as r",
+        [emailConsent, token],
+      )
+    ).rows[0].r,
+    true,
+  );
+  await db.exec("reset role");
+  const rows = (
+    await db.query<{ id: string; revoked_at: string | null }>(
+      "select id,revoked_at from marketing_consents where id in ($1,$2)",
+      [emailConsent, telegramConsent],
+    )
+  ).rows;
+  assert.ok(rows.find((r) => r.id === emailConsent)!.revoked_at);
+  assert.equal(rows.find((r) => r.id === telegramConsent)!.revoked_at, null);
+});

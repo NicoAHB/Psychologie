@@ -1103,5 +1103,12 @@
   "marketingUnsubscribeButton": "Marketing-Nachrichten abbestellen",
   "marketingUnsubscribeDone": "Ihre Abmeldung wurde gespeichert. Sie erhalten über diese Freigabe keine weiteren Marketing-Nachrichten.",
   "marketingUnsubscribeInvalid": "Der Abmeldelink ist ungültig. Bitte wenden Sie sich über den bekannten Kontaktweg an Ihre Praxis.",
-  "marketingUnsubscribeError": "Die Abmeldung konnte nicht gespeichert werden. Bitte die Internetverbindung prüfen und erneut versuchen oder die Praxis kontaktieren."
+  "marketingUnsubscribeError": "Die Abmeldung konnte nicht gespeichert werden. Bitte die Internetverbindung prüfen und erneut versuchen oder die Praxis kontaktieren.",
+  "marketingBothChannels": "E-Mail und Telegram",
+  "marketingNoChannels": "Kein Kanal gewählt",
+  "marketingChooseChannel": "Bitte mindestens einen Versandkanal auswählen.",
+  "marketingChannelHint": "Beide Kanäle sind möglich. Ein Klient erhält Nachrichten nur über seine freigegebenen Kanäle; bei zwei Freigaben erhält er zwei Nachrichten.",
+  "marketingNoMessages": "Keine Marketing-Nachrichten",
+  "marketingPreferencesNone": "Keine Marketing-Freigabe: Dieser Klient wird beim Marketing-Versand ausgelassen.",
+  "marketingDeliveryCount": "{count} einzelne Nachrichten"
 }

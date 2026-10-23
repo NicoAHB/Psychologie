@@ -8,6 +8,7 @@ import {
   type Client,
   type MarketingCampaign,
   type MarketingChannel,
+  type MarketingChannelSelection,
   type MarketingConsent,
   type MessageTemplate,
   type Newsletter,
@@ -15,6 +16,51 @@ import {
   type NewsletterStatus,
   type VaultData,
 } from "./types";
+
+/** The selection describes a message/campaign, while each delivery always has one channel. */
+export const marketingChannels = (
+  selection: MarketingChannelSelection,
+): MarketingChannel[] =>
+  selection === "both"
+    ? ["email", "telegram"]
+    : selection === "none"
+      ? []
+      : [selection];
+export function toggleMarketingChannel(
+  selection: MarketingChannelSelection,
+  channel: MarketingChannel,
+): MarketingChannelSelection {
+  const channels = new Set(marketingChannels(selection));
+  if (channels.has(channel)) channels.delete(channel);
+  else channels.add(channel);
+  return channels.size === 2
+    ? "both"
+    : (channels.values().next().value ?? "none");
+}
+export const marketingChannelText = (
+  selection: MarketingChannelSelection,
+): TextKey =>
+  selection === "both"
+    ? "marketingBothChannels"
+    : selection === "none"
+      ? "marketingNoChannels"
+      : selection === "email"
+        ? "marketingEmail"
+        : "marketingTelegram";
+export const clientMarketingChannels = (
+  client: Client,
+  selection: MarketingChannelSelection,
+) =>
+  marketingChannels(selection).filter((channel) =>
+    marketingConsent(client, channel),
+  );
+export const newsletterRecipientCount = (
+  newsletter: Pick<Newsletter, "recipients" | "recipientCount">,
+) =>
+  Math.max(
+    newsletter.recipientCount,
+    new Set(newsletter.recipients.map((r) => r.clientId)).size,
+  );
 
 export const marketingDestination = (
   client: Client,
@@ -77,8 +123,15 @@ export function changedMarketingRevocations(
       .map((g) => g!.id),
   );
 }
-export const marketingBodyLimit = (channel: MarketingChannel, image = false) =>
-  channel === "email" ? 10000 : image ? 750 : 3500;
+export const marketingBodyLimit = (
+  channel: MarketingChannelSelection,
+  image = false,
+) =>
+  marketingChannels(channel).includes("telegram")
+    ? image
+      ? 750
+      : 3500
+    : 10000;
 export function messageForLanguage(
   message: NewsletterMessage,
   language: Client["language"],
@@ -95,7 +148,7 @@ export function messageForLanguage(
 }
 export function validateMarketingMessage(
   message: NewsletterMessage,
-  channel: MarketingChannel,
+  channel: MarketingChannelSelection,
 ) {
   const limit = marketingBodyLimit(channel, !!message.image);
   if (
@@ -134,6 +187,19 @@ export async function marketingId(value: string) {
   ).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+/** Reuse the pre-multichannel ID so an old accepted message cannot be sent twice. */
+export async function marketingRecipientId(
+  existing: Newsletter | undefined,
+  newsletterId: string,
+  clientId: string,
+  channel: MarketingChannel,
+) {
+  return (
+    existing?.recipients.find(
+      (r) => r.clientId === clientId && r.channel === channel,
+    )?.id ?? (await marketingId(`${newsletterId}:${clientId}:${channel}`))
+  );
+}
 export const templateMessage = (
   template: MessageTemplate,
   id: string = uid(),
@@ -170,7 +236,7 @@ export function campaignOccurrence(
     !campaign.isActive ||
     clientStatus(client) !== "active" ||
     (campaign.language !== "all" && campaign.language !== client.language) ||
-    !marketingConsent(client, campaign.channel) ||
+    !clientMarketingChannels(client, campaign.channel).length ||
     !/^([01]\d|2[0-3]):[0-5]\d$/.test(campaign.sendAt)
   )
     return undefined;
@@ -223,6 +289,7 @@ export function marketingError(error: unknown): TextKey {
       "marketingBirthdayInvalid",
       "marketingCampaignStopped",
       "marketingInterrupted",
+      "marketingChooseChannel",
       "marketingSetupNeeded",
       "marketingConsentMissing",
       "marketingContactMissing",

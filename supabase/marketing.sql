@@ -13,7 +13,7 @@ create table if not exists public.marketing_campaigns (
   vault_id uuid not null, id uuid not null, name jsonb not null,
   type text not null check (type in ('birthday','welcome','holiday')),
   -- No FK: an offline deletion may arrive before the retained inactive campaign.
-  template_id uuid not null, channel text not null check (channel in ('email','telegram')),
+  template_id uuid not null, channel text not null check (channel in ('email','telegram','both','none')),
   is_active boolean not null default false, trigger_days integer not null default 0 check (trigger_days between 0 and 365),
   target_date date, created_at timestamptz not null, encrypted_payload jsonb not null,
   primary key (owner_id, vault_id, id), check(coalesce(jsonb_typeof(name->'iv')='string' and length(name->>'iv')=16 and jsonb_typeof(name->'ciphertext')='string' and length(name->>'ciphertext')>=24 and jsonb_typeof(encrypted_payload->'iv')='string' and length(encrypted_payload->>'iv')=16 and jsonb_typeof(encrypted_payload->'ciphertext')='string' and length(encrypted_payload->>'ciphertext')>=24,false))
@@ -21,7 +21,7 @@ create table if not exists public.marketing_campaigns (
 create table if not exists public.newsletters (
   owner_id uuid not null references auth.users(id) on delete cascade,
   vault_id uuid not null, id uuid not null, title jsonb not null, content jsonb not null,
-  channel text not null check (channel in ('email','telegram')),
+  channel text not null check (channel in ('email','telegram','both')),
   -- Opaque reference to an AES-GCM object in the existing private bucket, never a public image URL.
   image_url text check(image_url is null or image_url ~ '^private:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'), recipient_count integer not null check (recipient_count >= 0),
   status text not null check (status in ('sending','sent','partial','failed','unknown')),
@@ -127,3 +127,9 @@ revoke all on function public.revoke_marketing_consent(uuid) from public,anon,au
 grant execute on function public.revoke_marketing_consent(uuid) to authenticated;
 revoke all on function public.unsubscribe_marketing(uuid,text) from public,anon,authenticated;
 grant execute on function public.unsubscribe_marketing(uuid,text) to anon,authenticated;
+
+-- Upgrade the selection constraints from the earlier single-channel migration.
+alter table public.marketing_campaigns drop constraint if exists marketing_campaigns_channel_check;
+alter table public.marketing_campaigns add constraint marketing_campaigns_channel_check check(channel in ('email','telegram','both','none'));
+alter table public.newsletters drop constraint if exists newsletters_channel_check;
+alter table public.newsletters add constraint newsletters_channel_check check(channel in ('email','telegram','both'));

@@ -11,7 +11,10 @@ import { compressImage } from "../lib/images";
 import { useI18n, type TextKey } from "../lib/i18n";
 import {
   marketingBodyLimit,
-  marketingConsent,
+  clientMarketingChannels,
+  marketingChannels,
+  marketingChannelText,
+  newsletterRecipientCount,
   marketingDestination,
   marketingError,
   newsletterStatus,
@@ -19,6 +22,7 @@ import {
 } from "../lib/marketing";
 import {
   uid,
+  type MarketingChannelSelection,
   type MessageTemplate,
   type Newsletter,
   type NewsletterMessage,
@@ -27,6 +31,7 @@ import type { VaultController } from "../lib/useVault";
 import type { MarketingController } from "../lib/useMarketingAutomation";
 import { Empty, Field, ImageView, Modal, Notice, PageHeading } from "./ui";
 import {
+  MarketingChannelPicker,
   MarketingImagePreview,
   MarketingSetup,
   MarketingStatus,
@@ -56,7 +61,7 @@ export function Newsletter({
     selectAll = useRef<HTMLInputElement>(null),
     alive = useRef(true);
   const [tab, setTab] = useState<"create" | "archive">(initialTab),
-    [channel, setChannel] = useState<"email" | "telegram">("email"),
+    [channel, setChannel] = useState<MarketingChannelSelection>("email"),
     [title, setTitle] = useState(""),
     [titleUk, setTitleUk] = useState(""),
     [content, setContent] = useState(""),
@@ -87,13 +92,13 @@ export function Newsletter({
     [data.clients, active],
   );
   const eligible = useMemo(
-    () => clients.filter((c) => marketingConsent(c, channel)),
+    () => clients.filter((c) => clientMarketingChannels(c, channel).length),
     [clients, channel],
   );
   const found = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
     return clients.filter((c) =>
-      `${c.name} ${marketingDestination(c, channel)}`
+      `${c.name} ${c.email ?? ""} ${c.telegramChatId}`
         .toLocaleLowerCase()
         .includes(q),
     );
@@ -110,7 +115,11 @@ export function Newsletter({
     !marketing.busy &&
     !busyImage &&
     !vault.demo &&
-    !!marketing.capabilities?.[channel];
+    checked.every((c) =>
+      clientMarketingChannels(c, channel).every(
+        (value) => marketing.capabilities?.[value],
+      ),
+    );
   const apply = (template: MessageTemplate) => {
     setTitle(template.title);
     setTitleUk(template.titleUk ?? "");
@@ -344,33 +353,11 @@ export function Newsletter({
                   ))}
                 </select>
               </Field>
-              <fieldset className="marketing-channel mb-5">
-                <legend>{t("marketingChannel")}</legend>
-                <div className="button-row flex-wrap">
-                  {(["email", "telegram"] as const).map((value) => (
-                    <label className="check-label" key={value}>
-                      <input
-                        type="radio"
-                        name={`${id}-channel`}
-                        value={value}
-                        checked={channel === value}
-                        disabled={marketing.busy}
-                        onChange={() => {
-                          setChannel(value);
-                          setSelected([]);
-                        }}
-                      />
-                      <span>
-                        {t(
-                          value === "email"
-                            ? "marketingEmail"
-                            : "marketingTelegram",
-                        )}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              <MarketingChannelPicker
+                value={channel}
+                disabled={marketing.busy}
+                onChange={setChannel}
+              />
               <Field label={t("marketingSubjectOptional")}>
                 <input
                   value={title}
@@ -539,15 +526,24 @@ export function Newsletter({
                 <ul className="marketing-list mt-3">
                   {found.slice(0, limit).map((client) => {
                     const enabled = allowed.has(client.id);
-                    const reason = !validMarketingContact(client, channel)
-                      ? "marketingContactMissing"
-                      : !marketingConsent(client, channel)
-                        ? "marketingConsentMissing"
-                        : client.language === "uk" && !hasUk
-                          ? "marketingTranslationMissing"
-                          : !hasDe
-                            ? "marketingMessageRequired"
-                            : undefined;
+                    const chosen = marketingChannels(channel),
+                      enabledChannels = clientMarketingChannels(
+                        client,
+                        channel,
+                      );
+                    const reason = !chosen.length
+                      ? "marketingChooseChannel"
+                      : !chosen.some((value) =>
+                            validMarketingContact(client, value),
+                          )
+                        ? "marketingContactMissing"
+                        : !enabledChannels.length
+                          ? "marketingConsentMissing"
+                          : client.language === "uk" && !hasUk
+                            ? "marketingTranslationMissing"
+                            : client.language === "de" && !hasDe
+                              ? "marketingMessageRequired"
+                              : undefined;
                     return (
                       <li
                         key={client.id}
@@ -571,8 +567,24 @@ export function Newsletter({
                               {client.name}
                             </strong>
                             <span className="block break-all text-sm text-[var(--marketing-muted)]">
-                              {marketingDestination(client, channel) ||
-                                t("marketingContactMissing")}
+                              {marketingChannels(
+                                channel === "none" ? "both" : channel,
+                              ).map((value) => (
+                                <span className="block" key={value}>
+                                  {t(marketingChannelText(value))}:{" "}
+                                  {marketingDestination(client, value) ||
+                                    t("marketingContactMissing")}
+                                </span>
+                              ))}
+                              {enabledChannels.length > 0 && (
+                                <span className="hint block">
+                                  {enabledChannels
+                                    .map((value) =>
+                                      t(marketingChannelText(value)),
+                                    )
+                                    .join(" + ")}
+                                </span>
+                              )}
                             </span>
                             <span className="hint block">
                               {t(
@@ -664,7 +676,17 @@ export function Newsletter({
               "{count}",
               String(checked.length),
             )}{" "}
-            · {t(channel === "email" ? "marketingEmail" : "marketingTelegram")}
+            · {t(marketingChannelText(channel))} ·{" "}
+            {t("marketingDeliveryCount").replace(
+              "{count}",
+              String(
+                checked.reduce(
+                  (count, c) =>
+                    count + clientMarketingChannels(c, channel).length,
+                  0,
+                ),
+              ),
+            )}
           </p>
           <div className="marketing-template-preview mt-4">
             {hasDe && (
@@ -742,12 +764,8 @@ function NewsletterArchive({ vault }: { vault: VaultController }) {
   const channel = (row: Newsletter) => {
     const values = new Set(row.recipients.map((r) => r.channel));
     return values.size > 1
-      ? t("marketingMixedChannels")
-      : t(
-          (values.values().next().value ?? row.channel) === "email"
-            ? "marketingEmail"
-            : "marketingTelegram",
-        );
+      ? t("marketingBothChannels")
+      : t(marketingChannelText(values.values().next().value ?? row.channel));
   };
   const entry = rows.find((n) => n.id === opened);
   return (
@@ -783,7 +801,7 @@ function NewsletterArchive({ vault }: { vault: VaultController }) {
                   <span>{channel(row)}</span>
                   <strong>{heading(row)}</strong>
                   <span>
-                    {Math.max(row.recipientCount, row.recipients.length)}{" "}
+                    {newsletterRecipientCount(row)}{" "}
                     <span className="md:hidden">
                       {t("marketingRecipients")}
                     </span>
@@ -822,7 +840,7 @@ function NewsletterArchive({ vault }: { vault: VaultController }) {
             </div>
             <div>
               <dt>{t("marketingRecipientCount")}</dt>
-              <dd>{Math.max(entry.recipientCount, entry.recipients.length)}</dd>
+              <dd>{newsletterRecipientCount(entry)}</dd>
             </div>
           </dl>
           <MarketingStatus status={newsletterStatus(entry)} />
@@ -874,6 +892,9 @@ function NewsletterArchive({ vault }: { vault: VaultController }) {
                 <span>
                   {vault.data!.clients.find((c) => c.id === r.clientId)?.name ??
                     t("marketingRemovedClient")}
+                  <small className="hint block">
+                    {t(marketingChannelText(r.channel))}
+                  </small>
                 </span>
                 <div>
                   <MarketingStatus status={r.status} />
