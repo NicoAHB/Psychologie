@@ -52,7 +52,7 @@ export function SecurityCard({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [mode, setMode] = useState<Mode>(); const [notice, setNotice] = useState<TextKey>();
   const wraps = vault.envelope?.wraps; const passkeys = wraps?.passkeys ?? []; const supported = passkeysAvailable();
   if (vault.demo) return null;
-  return <section className="card settings-card"><span className="settings-icon tone-blue"><KeyRound size={24}/></span><h2>{t('securityAccess')}</h2><p>{t('accessText')}</p>
+  return <section id="settings-security" tabIndex={-1} className="card settings-card"><span className="settings-icon tone-blue"><KeyRound size={24}/></span><h2>{t('securityAccess')}</h2><p>{t('accessText')}</p>
     <Field label={t('autoLockTimeout')} hint={t('autoLockHint')}><select value={autoLockMinutes(vault.data!.settings.autoLockMinutes)} onChange={e => { const minutes = Number(e.target.value); void vault.update(d => { d.settings.autoLockMinutes = autoLockMinutes(minutes); }).catch(() => setNotice('storageError')); }}>{AUTO_LOCK_MINUTES.map(minutes => <option key={minutes} value={minutes}>{t('autoLockOption').replace('{minutes}', String(minutes))}</option>)}</select></Field>
     <h3 className="mini-heading">{t('recoveryKey')} · <span className={wraps?.recovery ? 'ok-text' : 'warn-text'}>{t(wraps?.recovery ? 'recoveryOn' : 'recoveryOff')}</span></h3>
     <button className="btn btn-secondary" onClick={() => setMode('recovery')}><ShieldCheck size={16}/>{t(wraps?.recovery ? 'recoveryRenew' : 'recoveryCreate')}</button>

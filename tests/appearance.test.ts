@@ -42,3 +42,10 @@ test('stored palettes and glass controls are restored before first paint exactly
     document: { documentElement: { dataset: {} }, querySelector: () => null }, window: { matchMedia: () => ({ matches: false }) },
   }));
 });
+
+test('font size is bounded, local and consistent in all three device preferences', () => {
+  assert.equal(normalizeAppearance({ fontSize: 'huge' }).fontSize, 'normal');
+  for (const [fontSize, scale] of [['normal', '1'], ['large', '1.125'], ['extraLarge', '1.25']]) {
+    assert.equal(appearanceVariables(normalizeAppearance({ fontSize }))['--text-scale'], scale);
+  }
+});

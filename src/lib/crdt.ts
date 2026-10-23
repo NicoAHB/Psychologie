@@ -36,7 +36,7 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
   const result: Record<string, Json | undefined> = {};
   for (const [k, v] of Object.entries(row)) {
     if (k === 'id' || k === 'updatedAt' || collection === 'settings' && k === 'autoSync') continue;
-    if ('feeCents' in row && ['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].includes(k)) continue;
+    if ('feeCents' in row && ['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId', 'paymentMethod'].includes(k)) continue;
     if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
     else if (collection === 'clients' && k === 'marketingConsent') { for (const [channel, consent] of Object.entries(v as object)) result[`marketingConsent:${channel}`] = consent as Json; }
@@ -45,7 +45,7 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
     else if (['deliveries', 'returns', 'telegramDeliveries', 'statusHistory', 'shares', 'messages', 'recipients'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
     else result[k] = v as Json;
   }
-  if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
+  if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId', 'paymentMethod'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
   if (collection === 'audioMemos') result.$recording = Object.fromEntries(['blobId', 'mimeType', 'size', 'durationMs'].map(k => [k, row[k]])) as Json;
   return result;
 }

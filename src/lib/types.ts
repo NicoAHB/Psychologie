@@ -1,6 +1,7 @@
 import type { CrdtState } from './crdt';
 export type Language = 'de' | 'uk';
 export type Currency = 'EUR' | 'UAH';
+export type PaymentMethod = 'cash' | 'transfer';
 export type ClientStatus = 'active' | 'paused' | 'closed';
 /** Hrywnja per euro, stored with six decimal places as an integer. Never a patient-data request. */
 export interface ExchangeRate { micros: number; date: string; source: 'nbu' | 'manual' }
@@ -49,6 +50,8 @@ export interface CalendarAbsence extends Stamped {
 export interface Session extends Stamped {
   id: string; clientId: string; date: string; time: string; feeCents: number;
   paidAt: string | null; notes: string; tags: string[]; appointmentId?: string;
+  /** Missing on legacy payments means unspecified, never an assumed payment method. */
+  paymentMethod?: PaymentMethod;
   invoiceId?: string;
   billing?: Billing; originalFeeCents?: number;
   /** What the client was asked to do or observe until the next session, and whether it was reviewed. */
@@ -68,6 +71,7 @@ export interface AudioMemo extends Stamped {
 export interface SessionDraftValues {
   date: string; time: string; fee: string; inputCurrency: Currency; rate?: ExchangeRate;
   paid: boolean; paymentDate: string; notes: string; tags: string; homework: string; homeworkDone: boolean;
+  paymentMethod?: PaymentMethod;
   nextTopics: string; nextTouched: boolean; reviewPrevious: boolean; pricingChanged: boolean;
   photos: DocumentFile[]; removedPhotos: string[]; memos: AudioMemo[]; removedMemos: string[];
   editedMemos: Record<string, { label: string; summary: string }>;
@@ -158,6 +162,8 @@ export interface Settings {
   memoLabelFavorites?: string[];
   marketingUsed?: boolean;
   referralProgram?: { rateBps: number; months: number };
+  skipCloudSetup?: boolean;
+  skipReminderSetup?: boolean;
 }
 /** All relationships and financial information stay inside the encrypted vault. */
 export interface ReferralCode extends Stamped {

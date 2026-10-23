@@ -39,6 +39,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     for (const [name, value] of Object.entries(appearanceVariables(appearance))) root.style.setProperty(name, value);
     root.dataset.backgroundPalette = appearance.palette;
+    root.dataset.fontSize = appearance.fontSize;
     try { localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance)); } catch { /* Live controls also work without storage. */ }
   }, [appearance]);
   return <Context.Provider value={{ preference, dark, setPreference, appearance, setAppearance: value => updateAppearance(normalizeAppearance(value)) }}>

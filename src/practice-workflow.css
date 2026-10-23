@@ -29,5 +29,5 @@
 
 /* Keep iOS focus from auto-zooming small controls, without disabling user zoom. */
 @media (hover: none) and (pointer: coarse) {
-  :root input:not([type="checkbox"]):not([type="range"]), :root textarea, :root select { font-size: 16px; }
+  :root input:not([type="checkbox"]):not([type="range"]), :root textarea, :root select { font-size:calc(16px * var(--text-scale,1)); }
 }

@@ -1,3 +1,5 @@
+import { PaymentMethodField } from './PaymentMethodField';
+import { completedSessionId } from '../lib/practiceFlow';
 import { useSessionDraft } from '../lib/useSessionDraft';
 import { deleteSessionDraft } from '../lib/sessionDrafts';
 import { changeClientStatus, clientStatus } from '../lib/clientStatus';
@@ -7,7 +9,7 @@ import { isSessionVoided } from '../lib/invoice';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Camera, Check, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
-import { uid, type Appointment, type AudioMemo, type Client, type Currency, type ExchangeRate, type Session, type ClientStatus, type SessionDraft, type SessionDraftValues, type DocumentFile } from '../lib/types';
+import { uid, type PaymentMethod, type Appointment, type AudioMemo, type Client, type Currency, type ExchangeRate, type Session, type ClientStatus, type SessionDraft, type SessionDraftValues, type DocumentFile } from '../lib/types';
 import { addDays, addMonths, appointmentInstant, clientZone, dateLabel, daysBetween, parseMoney, tagsFrom, today } from '../lib/dates';
 import { ZoneSelect } from './ZoneSelect';
 import { isValidZone, utcOffset, zonePlace } from '../lib/zones';
@@ -197,7 +199,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
   const { t, language } = useI18n(); const data = vault.data!;
   const initial = restored?.payload;
   const [draftId] = useState(() => restored?.id ?? uid());
-  const [sessionId] = useState(() => restored?.sessionId ?? session?.id ?? uid());
+  const [sessionId] = useState(() => restored?.sessionId ?? session?.id ?? (appointment ? completedSessionId(appointment.id) : uid()));
   const [memoDrafts, setMemoDrafts] = useState<AudioMemo[]>(initial?.memos ?? []), [removedMemos, setRemovedMemos] = useState<string[]>(initial?.removedMemos ?? []);
   const [editedMemos, setEditedMemos] = useState<Record<string, MemoMetadata>>(initial?.editedMemos ?? {});
   const memos = useMemo(() => [...data.audioMemos.filter(m => m.sessionId === sessionId && !removedMemos.includes(m.id)).map(m => ({ ...m, ...editedMemos[m.id] })), ...memoDrafts], [data.audioMemos, sessionId, removedMemos, editedMemos, memoDrafts]);
@@ -213,6 +215,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
   const [pricingChanged, setPricingChanged] = useState(initial?.pricingChanged ?? false);
   const completing = !!appointment && !session;
   const [paid, setPaid] = useState(completing ? false : initial?.paid ?? !!session?.paidAt); const [paymentDate, setPaymentDate] = useState(initial?.paymentDate ?? session?.paidAt ?? today());
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | undefined>(initial?.paymentMethod ?? session?.paymentMethod);
   const templates = useTemplates(data); const [notes, setNotes] = useState(initial?.notes ?? session?.notes ?? ''); const [tags, setTags] = useState(initial?.tags ?? session?.tags.map(tag => `#${tag}`).join(', ') ?? '');
   const [homework, setHomework] = useState(initial?.homework ?? session?.homework ?? ''); const [homeworkDone, setHomeworkDone] = useState(initial?.homeworkDone ?? !!session?.homeworkDone);
   const client = data.clients.find(c => c.id === selected);
@@ -222,7 +225,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
   const previous = selected ? pendingHomework(data, selected, session?.id) : undefined;
   const attached = session ? data.notes.filter(n => n.sessionId === session.id && !removedPhotos.includes(n.id)) : [];
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
-  const payload = useMemo<SessionDraftValues>(() => ({ date, time, fee, inputCurrency, rate, paid, paymentDate, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, photos: files, removedPhotos, memos: memoDrafts, removedMemos, editedMemos }), [date, time, fee, inputCurrency, rate, paid, paymentDate, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, files, removedPhotos, memoDrafts, removedMemos, editedMemos]);
+  const payload = useMemo<SessionDraftValues>(() => ({ date, time, fee, inputCurrency, rate, paid, paymentDate, paymentMethod, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, photos: files, removedPhotos, memos: memoDrafts, removedMemos, editedMemos }), [date, time, fee, inputCurrency, rate, paid, paymentDate, paymentMethod, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, files, removedPhotos, memoDrafts, removedMemos, editedMemos]);
   const draft = useSessionDraft(vault, { id: draftId, clientId: selected, sessionId, originalSessionId: session?.id, appointmentId: appointment?.id }, payload);
   async function closeDraft() { if (busy) return; try { await draft.flush(); onClose(); } catch { setError('storageError'); } }
   async function discardDraft() { if (!window.confirm(t('draftDiscardConfirm'))) return; setBusy(true); try { draft.stop(); await vault.update(d => deleteSessionDraft(d, draftId)); await vault.purgeUnused([...files.map(f => f.blobId), ...memoDrafts.map(m => m.blobId)]); onClose(); } catch { draft.resume(); setError('storageError'); setBusy(false); } }
@@ -255,7 +258,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
       const pricing = lockedPricing && session ? { feeCents: session.feeCents, billing: session.billing ?? { currency: 'EUR' as const, amountCents: session.feeCents } } : !pricingChanged && originalBilling && (session?.clientId ?? appointment?.clientId) === selected && originalBilling.currency === currencyOf(client)
         ? { feeCents: session?.feeCents ?? appointment!.feeCents, billing: originalBilling } : billAmount(parseMoney(fee), inputCurrency, currencyOf(client), rate);
       const originalFeeCents = session?.originalFeeCents ?? appointment?.originalFeeCents;
-      const result: Session = { id: sessionId, clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
+      const result: Session = { id: sessionId, clientId: selected, date, time, ...pricing, paidAt: paid ? paymentDate : null, ...(paid && paymentMethod && { paymentMethod }), notes: notes.trim(), tags: tagsFrom(tags), appointmentId: session?.appointmentId ?? appointment?.id,
         ...(originalFeeCents !== undefined && { originalFeeCents }),
         ...session?.invoiceId && { invoiceId: session.invoiceId }, ...text && { homework: text, homeworkDone } };
       const photoIds = files.map(f => f.blobId); const savedMemos: AudioMemo[] = [];
@@ -320,6 +323,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
       <Field label={t('nextTopicsField')} hint={t('nextTopicsHint')}><textarea rows={3} value={nextTopics} maxLength={30000} onChange={e => { setNextTopics(e.target.value); setNextTouched(true); }}/></Field></div>
     <div className="form-section">{lockedPricing ? <Notice>{t('invoiceSessionPricingLocked')}</Notice> : <FeeInput value={fee} onChange={value => { setFee(value); setFeeTouched(true); setPricingChanged(true); }} inputCurrency={inputCurrency} onCurrency={value => { setInputCurrency(value); setPricingChanged(true); }} currency={currencyOf(client)} rate={rate} onRate={value => { setRate(value); setPricingChanged(true); }} auto={!originalBilling}/>}
       {completing ? <Notice>{t('completionPaymentHint')}</Notice> : <><label className="check-label"><input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/><span>{t('paid')}</span></label>
+      {paid && <PaymentMethodField value={paymentMethod} onChange={setPaymentMethod}/>}
       {paid && <Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" value={paymentDate} max={today()} onChange={e => setPaymentDate(e.target.value)}/></Field>}</>}</div>
     {error && <Notice error>{t(error)}</Notice>}<p className="hint">{t('draftCloseHint')}</p><button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void discardDraft()}>{t('draftDiscard')}</button><Actions busy={busy} label={completing ? t('completeAppointment') : undefined} onClose={() => void closeDraft()} onDelete={session ? () => void remove() : undefined} deleteLabel={t('deleteSession')}/>
   </form></Modal>;
@@ -344,9 +348,9 @@ export function NoteForm({ vault, clientId, onClose }: { vault: VaultController;
   </form></Modal>;
 }
 export function PaymentForm({ vault, session, onClose }: { vault: VaultController; session: Session; onClose: () => void }) {
-  const { t } = useI18n(); const [date, setDate] = useState(today()); const [busy, setBusy] = useState(false); const [error, setError] = useState(false);
+  const { t } = useI18n(); const [method, setMethod] = useState<PaymentMethod | undefined>(session.paymentMethod); const [date, setDate] = useState(today()); const [busy, setBusy] = useState(false); const [error, setError] = useState(false);
   return <Modal title={t('paymentInfo')} onClose={onClose}><form onSubmit={async e => {
     e.preventDefault(); if (!date || date > today()) { setError(true); return; } setBusy(true);
-    try { await vault.update(d => { d.sessions.find(s => s.id === session.id)!.paidAt = date; }); onClose(); } catch { setError(true); } finally { setBusy(false); }
-  }} noValidate><Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" max={today()} value={date} onChange={e => setDate(e.target.value)}/></Field>{error && <Notice error>{t('required')}</Notice>}<Actions busy={busy} onClose={onClose} label={t('paymentSave')}/></form></Modal>;
+    try { await vault.update(d => { const row = d.sessions.find(s => s.id === session.id); if (!row) throw new Error('required'); row.paidAt = date; if (method) row.paymentMethod = method; else delete row.paymentMethod; }); onClose(); } catch { setError(true); } finally { setBusy(false); }
+  }} noValidate><PaymentMethodField value={method} onChange={setMethod}/><Field label={t('paymentDate')} hint={t('paymentDateHint')}><input type="date" max={today()} value={date} onChange={e => setDate(e.target.value)}/></Field>{error && <Notice error>{t('required')}</Notice>}<Actions busy={busy} onClose={onClose} label={t('paymentSave')}/></form></Modal>;
 }

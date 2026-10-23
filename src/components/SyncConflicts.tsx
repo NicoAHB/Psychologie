@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { syncConflicts, resolveConflict, type SyncConflict } from '../lib/crdt';
 import { useI18n, type TextKey } from '../lib/i18n';
 import type { VaultController } from '../lib/useVault';
-import type { Invoice, SessionDraftValues, MarketingConsent } from '../lib/types';
+import type { Invoice, SessionDraftValues, MarketingConsent, PaymentMethod } from '../lib/types';
 import { dateLabel, money } from '../lib/dates';
 import { ImageView, Modal, Notice } from './ui';
 import { InvoiceSheet } from './invoices';
@@ -26,12 +26,12 @@ function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict:
   return <section className="sync-conflict"><h3>{title} · {t(fieldLabels[conflict.field] ?? collectionLabels[conflict.collection])}</h3><p className="hint">{t('syncConflictVariants')}</p>
     {conflict.variants.map((v, i) => {
       const consent = conflict.field.startsWith('marketingConsent:') && v.value ? v.value as unknown as MarketingConsent : undefined;
-      const amount = conflict.field === '$amount' ? v.value as unknown as { feeCents: number; billing?: { currency: 'EUR' | 'UAH'; amountCents: number; rate?: { micros: number; date: string } }; paidAt?: string | null } : undefined;
+      const amount = conflict.field === '$amount' ? v.value as unknown as { feeCents: number; billing?: { currency: 'EUR' | 'UAH'; amountCents: number; rate?: { micros: number; date: string } }; paidAt?: string | null; paymentMethod?: PaymentMethod } : undefined;
       const draft = conflict.collection === 'sessionDrafts' && conflict.field === 'payload' ? v.value as unknown as SessionDraftValues : undefined;
       return <div className="conflict-variant" key={`${v.actor}:${v.sequence}`}>
         {consent ? <div><p>{consent.destination}</p><p>{t('date')}: {consent.grantedAt}</p>{consent.revokedAt&&<p>{t('marketingConsentMissing')} · {consent.revokedAt}</p>}</div> : draft ? <div><p><strong>{draft.date} · {draft.time}</strong></p><h4>{t('sessionNotes')}</h4><p className="pre-line">{draft.notes}</p><h4>{t('homework')}</h4><p className="pre-line">{draft.homework}</p><h4>{t('preparation')}</h4><p className="pre-line">{draft.nextTopics}</p><p>{t('photosAttached')}: {draft.photos.length} · {t('memoSection')}: {draft.memos.length}</p><ul>{draft.memos.map(memo => <li key={memo.id}>{memo.label || t('memoDefaultTitle')}: {memo.summary}</li>)}</ul></div>
           : conflict.field === '$snapshot' && conflict.collection === 'invoices' ? <div className="table-scroll"><InvoiceSheet invoice={{ ...v.value as unknown as Invoice, id: conflict.id }} paid={null}/></div>
-          : amount ? <div><p><strong>{money(amount.feeCents, language)}</strong>{amount.billing?.currency === 'UAH' ? ` · ${money(amount.billing.amountCents, language, 'UAH')}` : ''}</p><p>{t('paymentStatus')}: {amount.paidAt ? `${t('paid')} · ${dateLabel(amount.paidAt, language, { dateStyle: 'short' })}` : t('unpaid')}</p>{amount.billing?.rate && <p>{t('exchangeRate')}: {(amount.billing.rate.micros / 1e6).toLocaleString(language === 'uk' ? 'uk-UA' : 'de-DE', { maximumFractionDigits: 6 })} · {amount.billing.rate.date}</p>}</div>
+          : amount ? <div><p><strong>{money(amount.feeCents, language)}</strong>{amount.billing?.currency === 'UAH' ? ` · ${money(amount.billing.amountCents, language, 'UAH')}` : ''}</p><p>{t('paymentStatus')}: {amount.paidAt ? `${t('paid')} · ${dateLabel(amount.paidAt, language, { dateStyle: 'short' })}` : t('unpaid')}</p>{amount.paidAt && <p>{t('paymentMethod')}: {t(amount.paymentMethod === 'cash' ? 'paymentCash' : amount.paymentMethod === 'transfer' ? 'paymentTransfer' : 'paymentUnspecified')}</p>}{amount.billing?.rate && <p>{t('exchangeRate')}: {(amount.billing.rate.micros / 1e6).toLocaleString(language === 'uk' ? 'uk-UA' : 'de-DE', { maximumFractionDigits: 6 })} · {amount.billing.rate.date}</p>}</div>
             : conflict.field === 'avatarId' && typeof v.value === 'string' ? <ImageView id={v.value} vault={vault} alt={t('syncConflictAvatar')} className="conflict-avatar"/>
               : <pre>{conflict.field === '$exists' ? t(v.value ? 'syncConflictRestore' : 'syncConflictKeepDeleted') : v.value === undefined ? t('syncConflictRemoved') : typeof v.value === 'string' ? v.value : JSON.stringify(v.value, null, 2)}</pre>}
         <button className="btn btn-secondary" disabled={busy} onClick={() => void save(i)}>{t('syncConflictChoose')} {i + 1}</button></div>;

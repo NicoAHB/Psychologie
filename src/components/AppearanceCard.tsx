@@ -24,12 +24,15 @@ function AppearanceSlider({ label, hint, value, max, unit, onChange }: {
 export function AppearanceCard() {
   const { t } = useI18n(); const { preference, setPreference, appearance, setAppearance } = useTheme();
   const update = (patch: Partial<AppearancePreferences>) => setAppearance({ ...appearance, ...patch });
-  return <section className="card settings-card settings-wide appearance-settings" aria-labelledby="appearance-title">
+  return <section className="card settings-card settings-wide appearance-settings" aria-labelledby="appearance-title" id="settings-appearance" tabIndex={-1}>
     <span className="settings-icon tone-blue"><Palette size={24}/></span>
     <h2 id="appearance-title">{t('appearance')}</h2><p>{t('pastelAppearanceHint')}</p>
     <div className="appearance-layout"><div className="appearance-controls">
       <Field label={t('colorScheme')}><select value={preference} onChange={e => setPreference(e.target.value as ThemePreference)}>
         <option value="system">{t('themeSystem')}</option><option value="light">{t('themeLight')}</option><option value="dark">{t('themeDark')}</option>
+      </select></Field>
+      <Field label={t('fontSize')} hint={t('fontSizeHint')}><select value={appearance.fontSize} onChange={e => update({ fontSize: e.target.value as AppearancePreferences['fontSize'] })}>
+        <option value="normal">{t('fontNormal')}</option><option value="large">{t('fontLarge')}</option><option value="extraLarge">{t('fontExtraLarge')}</option>
       </select></Field>
       <fieldset className="appearance-palettes"><legend>{t('pastelBackground')}</legend><div className="appearance-palette-grid">
         {Object.entries(PASTEL_PALETTES).map(([name, colors]) => <label key={name} className={`appearance-palette${appearance.palette === name ? ' is-selected' : ''}`}>

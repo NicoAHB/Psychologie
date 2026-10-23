@@ -1,3 +1,9 @@
+import { SetupChecklist } from './SetupChecklist';
+import { HelpButton } from './HelpButton';
+import { PaymentMethodField } from './PaymentMethodField';
+import type { SettingsSection } from '../lib/practiceFlow';
+import type { BackupState } from '../lib/backupState';
+import type { PaymentMethod } from '../lib/types';
 import { ArrowRight, CalendarDays, Check, CircleDollarSign, Plus, TrendingUp, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { dateLabel, money, monthlyIncome, byStart } from '../lib/dates';
@@ -16,6 +22,8 @@ import { Avatar, PageHeading, TextLink } from './ui';
 
 type Props = {
   vault: VaultController;
+  backup?: BackupState | null; onSetup: (section: SettingsSection) => void;
+  quickMethod: PaymentMethod; onMethod: (method: PaymentMethod) => void; onQuickComplete: (a: Appointment) => void; quickBusy: boolean;
   onNewAppointment: () => void;
   onNewClient: () => void;
   onClient: (id: string) => void;
@@ -28,7 +36,7 @@ type Props = {
   onWork: (item: WorkItem) => void;
 };
 
-export function Today({ vault, onNewAppointment, onNewClient, onClient, onClients, onAppointments, onComplete, onPayments, onInvoice, onDocument, onWork }: Props) {
+export function Today({ vault, backup, onSetup, quickMethod, onMethod, onQuickComplete, quickBusy, onNewAppointment, onNewClient, onClient, onClients, onAppointments, onComplete, onPayments, onInvoice, onDocument, onWork }: Props) {
   const { t, language } = useI18n(); const data = vault.data!;
   const day = practiceToday(data.settings);
   const activeClients = data.clients.filter(c => clientStatus(c) === 'active');
@@ -40,13 +48,15 @@ export function Today({ vault, onNewAppointment, onNewClient, onClient, onClient
   // Keep the existing payment-month calculation identical to the payments page.
   const now = new Date(); const income = monthlyIncome(data.sessions, now.getFullYear())[now.getMonth()];
   const row = (a: Appointment) => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={a.status === 'scheduled'
-    ? <button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button>
+    ? <div className="appointment-row-actions"><button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button><button className="btn btn-secondary btn-small" disabled={quickBusy} onClick={() => onQuickComplete(a)}>{t('quickCompletePaid')}</button></div>
     : <span className="tag-chip">{t(a.status)}</span>}/>;
   return <>
     <PageHeading title={t('overview')} subtitle={t('overviewSubtitle')}/>
+    <SetupChecklist vault={vault} backup={backup} onOpen={onSetup}/>
     <div className="today-blocks">
       <section className="card today-appointments" aria-labelledby="today-appointments-title">
         <div className="section-heading"><div><h2 id="today-appointments-title"><CalendarDays size={21}/>{t('appointments')}</h2><p>{t('todayAppointmentsHint')}</p></div><button className="btn btn-primary" onClick={onNewAppointment}><Plus size={18}/>{t('newAppointment')}</button></div>
+        <div className="quick-payment-controls"><PaymentMethodField quick value={quickMethod} onChange={method => onMethod(method ?? 'transfer')}/><HelpButton topic="appointments" text="helpAppointments"/></div>
         <div className="today-links"><TextLink onClick={onAppointments}><CalendarDays size={17}/>{t('goToAppointments')} ({todayAppointments.filter(a => a.status === 'scheduled').length + next.length})</TextLink><TextLink onClick={onClients}><Users size={17}/>{t('goToClients')} ({activeClients.length})</TextLink></div>
         <h3 className="today-subheading">{t('today')} · {dateLabel(day, language, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
         {todayAppointments.length ? <div className="appointment-list">{todayAppointments.slice(0, 8).map(row)}</div> : <p className="hint">{t('todayNoAppointments')}</p>}
@@ -56,6 +66,7 @@ export function Today({ vault, onNewAppointment, onNewClient, onClient, onClient
       </section>
       <section className="card today-payments" aria-labelledby="today-payments-title">
         <div className="section-heading"><div><h2 id="today-payments-title"><CircleDollarSign size={21}/>{t('finances')}</h2><p>{t('todayPaymentsHint')}</p></div><button className="btn btn-primary" onClick={() => onPayments('unpaid')}>{t('goToPayments')}<ArrowRight size={18}/></button></div>
+        <HelpButton topic="finances" text="helpPayments"/>
         <div className="today-money-grid">
           <button className="stat-card stat-link" onClick={() => onPayments('unpaid')} aria-label={`${t('openAmount')}: ${money(open, language)}. ${t('goToUnpaid')}`}><span className="stat-icon tone-rose"><CircleDollarSign size={20}/></span><span>{t('openAmount')}</span><strong>{money(open, language)}</strong></button>
           <button className="stat-card stat-link" onClick={() => onPayments('monthIncome')} aria-label={`${t('receivedMonth')}: ${money(income, language)}. ${t('goToMonthIncome')}`}><span className="stat-icon tone-blue"><TrendingUp size={20}/></span><span>{t('receivedMonth')}</span><strong>{money(income, language)}</strong></button>

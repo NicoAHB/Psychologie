@@ -1,3 +1,4 @@
+import { HelpButton } from './HelpButton';
 import { useEffect, useState } from 'react';
 import { Download, HardDriveDownload, History, Share2, ShieldCheck } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
@@ -30,7 +31,7 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
     try { if (await saveBackupCopy(vault, share)) setMessage('backupSuccess'); } catch (err) { if ((err as Error).name !== 'AbortError') setMessage('imageError'); } finally { setBusy(false); }
   };
   const time = (at: number) => new Date(at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA');
-  return <section className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><p>{t('securityText')}</p>
+  return <section id="settings-backup" tabIndex={-1} className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><HelpButton topic="securityTitle" text="helpBackup"/><p>{t('securityText')}</p>
     <div className="button-row"><button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(false)}><Download size={17}/>{t(busy ? 'working' : 'exportBackup')}</button>
       {canShare && <button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(true)}><Share2 size={17}/>{t('shareBackup')}</button>}</div>
     <p className="hint">{t('backupHelp')}</p><p className="hint">{t('backupExternalHint')}</p><button className="btn btn-secondary" disabled={vault.demo} onClick={() => setVerifying(true)}>{t('backupVerify')}</button>{verifying && <BackupVerifyDialog onClose={() => setVerifying(false)}/>}{message && <Notice>{t(message)}</Notice>}

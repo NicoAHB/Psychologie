@@ -1,3 +1,6 @@
+import { HelpButton } from './HelpButton';
+import { PaymentMethodField } from './PaymentMethodField';
+import type { PaymentMethod } from '../lib/types';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ArrowRight, CalendarDays, CalendarOff, CalendarPlus, ChevronLeft, ChevronRight, Check, Copy, List, Pencil, Plus, X } from 'lucide-react';
 import { translate, useI18n } from '../lib/i18n';
@@ -62,7 +65,7 @@ function useNarrow() {
   return narrow;
 }
 
-export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplete, onEdit }: { vault: VaultController; onNew: () => void; onBackfill: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
+export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplete, onEdit, quickMethod, onMethod, onQuickComplete, quickBusy }: { quickMethod: PaymentMethod; onMethod: (method: PaymentMethod) => void; onQuickComplete: (a: Appointment) => void; quickBusy: boolean; vault: VaultController; onNew: () => void; onBackfill: () => void; onClient: (id: string) => void; onComplete: (a: Appointment) => void; onEdit: (a: Appointment) => void }) {
   const { t } = useI18n(); const data = vault.data!;
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming'); const [mode, setMode] = useState<'list' | 'week'>('list');
   const [absenceForm, setAbsenceForm] = useState<CalendarAbsence | 'new'>(); const [weekFocusDate, setWeekFocusDate] = useState<string>();
@@ -95,11 +98,13 @@ export function AppointmentsPage({ vault, onNew, onBackfill, onClient, onComplet
   }
   return <><PageHeading title={t('appointments')} subtitle={t('appointmentsSubtitle')} action={<div className="button-row calendar-actions"><button className="btn btn-secondary" onClick={() => setAbsenceForm('new')}><CalendarOff size={17}/>{t('availabilityNew')}</button><button className="btn btn-secondary" onClick={() => setExporting(true)}><CalendarPlus size={17}/>{t('exportCalendar')}</button><button className="btn btn-primary" onClick={onNew}><Plus size={17}/>{t('newAppointment')}</button></div>}/>
     {message && <Notice>{message}</Notice>}
+    <div className="quick-payment-controls"><PaymentMethodField quick value={quickMethod} onChange={method => onMethod(method ?? 'transfer')}/><HelpButton topic="appointments" text="helpAppointments"/></div>
     <div className="appointment-backfill"><button className="btn btn-secondary" onClick={onBackfill}><Plus size={17}/>{t('addSession')}</button><p className="hint">{t('backfillHint')}</p></div>
     <div className="toolbar-row">{mode === 'list' ? <div className="segmented-tabs" role="group" aria-label={t('appointmentFilters')}>{(['upcoming', 'past', 'all'] as const).map(f => <button key={f} className={filter === f ? 'active' : ''} aria-pressed={filter === f} onClick={() => setFilter(f)}>{t(f)}</button>)}</div> : <span/>}
       <div className="segmented-tabs small-tabs" role="group"><button className={mode === 'list' ? 'active' : ''} aria-pressed={mode === 'list'} onClick={() => setMode('list')}><List size={15}/> {t('listView')}</button><button className={mode === 'week' ? 'active' : ''} aria-pressed={mode === 'week'} onClick={() => setMode('week')}><CalendarDays size={15}/> {t('weekView')}</button></div></div>
     {mode === 'week' ? <WeekView vault={vault} onEdit={onEdit} focusDate={weekFocusDate} onEditAbsence={setAbsenceForm}/> : <section className="card appointments-card">{appointments.length ? appointments.map(a => <AppointmentRow key={a.id} appointment={a} vault={vault} onClient={onClient} actions={<div className="appointment-row-actions">{a.status === 'scheduled' ? <>
       <button className="btn btn-secondary btn-small" onClick={() => onComplete(a)}><Check size={16}/>{t('completeAppointment')}</button>
+      <button className="btn btn-secondary btn-small" disabled={quickBusy} onClick={() => onQuickComplete(a)}>{t('quickCompletePaid')}</button>
       <button className="icon-btn" title={t('editAppointment')} aria-label={t('editAppointment')} onClick={() => onEdit(a)}><Pencil size={17}/></button>
       <button className="icon-btn" title={t('copyConfirmation')} aria-label={t('copyConfirmation')} onClick={() => void copy(a)}><Copy size={17}/></button>
       <button className="icon-btn" title={t('addToCalendar')} aria-label={t('addToCalendar')} onClick={() => ics(a)}><CalendarPlus size={17}/></button>

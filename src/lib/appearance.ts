@@ -9,6 +9,7 @@ export const PASTEL_PALETTES = {
 export type BackgroundPalette = keyof typeof PASTEL_PALETTES | 'custom' | 'none';
 export interface AppearancePreferences {
   version: 1;
+  fontSize: 'normal' | 'large' | 'extraLarge';
   palette: BackgroundPalette;
   color1: string;
   color2: string;
@@ -19,7 +20,7 @@ export interface AppearancePreferences {
   glassBlur: number;
 }
 export const DEFAULT_APPEARANCE: Readonly<AppearancePreferences> = Object.freeze({
-  version: 1, palette: 'sageBlue', color1: '#d3e5d9', color2: '#d7e5f7',
+  version: 1, fontSize: 'normal', palette: 'sageBlue', color1: '#d3e5d9', color2: '#d7e5f7',
   intensity: 75, backgroundBlur: 64, cardTransparency: 12, menuTransparency: 12, glassBlur: 16,
 });
 const bounded = (value: unknown, fallback: number, min: number, max: number) =>
@@ -42,7 +43,7 @@ export function normalizeAppearance(value: unknown): AppearancePreferences {
   const colors = palette === 'custom' ? [pastelColor(v.color1, d.color1), pastelColor(v.color2, d.color2)]
     : palette === 'none' ? [d.color1, d.color2] : PASTEL_PALETTES[palette];
   return {
-    version: 1, palette, color1: colors[0], color2: colors[1],
+    version: 1, fontSize: v.fontSize === 'large' || v.fontSize === 'extraLarge' ? v.fontSize : 'normal', palette, color1: colors[0], color2: colors[1],
     intensity: bounded(v.intensity, d.intensity, 0, 100),
     backgroundBlur: bounded(v.backgroundBlur, d.backgroundBlur, 0, 100),
     cardTransparency: bounded(v.cardTransparency, d.cardTransparency, 0, 30),
@@ -57,6 +58,7 @@ export function parseAppearance(value: string | null): AppearancePreferences {
 export function appearanceVariables(value: AppearancePreferences): Record<string, string> {
   const p = normalizeAppearance(value);
   return {
+    '--text-scale': p.fontSize === 'large' ? '1.125' : p.fontSize === 'extraLarge' ? '1.25' : '1',
     '--aurora-color-1': p.color1, '--aurora-color-2': p.color2,
     '--aurora-strength': String(p.palette === 'none' ? 0 : p.intensity / 100),
     '--aurora-blur': `${p.backgroundBlur}px`,

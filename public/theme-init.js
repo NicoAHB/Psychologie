@@ -28,6 +28,7 @@
     const colors = palette === 'custom' ? [pastel(saved.color1, '#d3e5d9'), pastel(saved.color2, '#d7e5f7')] : palettes[palette] || palettes.sageBlue;
     const bounded = (value, fallback, max) => typeof value === 'number' && Number.isFinite(value) ? Math.round(Math.max(0, Math.min(max, value))) : fallback;
     const variables = {
+      '--text-scale': saved.fontSize === 'large' ? '1.125' : saved.fontSize === 'extraLarge' ? '1.25' : '1',
       '--aurora-color-1': colors[0], '--aurora-color-2': colors[1],
       '--aurora-strength': String(palette === 'none' ? 0 : bounded(saved.intensity, 75, 100) / 100),
       '--aurora-blur': `${bounded(saved.backgroundBlur, 64, 100)}px`,
@@ -37,5 +38,6 @@
     };
     for (const [name, value] of Object.entries(variables)) document.documentElement.style.setProperty(name, value);
     document.documentElement.dataset.backgroundPalette = palette;
+    document.documentElement.dataset.fontSize = saved.fontSize === 'large' || saved.fontSize === 'extraLarge' ? saved.fontSize : 'normal';
   } catch { /* CSS defaults apply when storage is blocked or malformed. */ }
 })();
