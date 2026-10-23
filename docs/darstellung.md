@@ -63,6 +63,11 @@ ersten Zeichnen. `tests/browser/appearance.spec.ts` prüft echte Reglerbedienung
 getrennte Flächentransparenz, DE/UA-Wechsel, Sperren/Neuladen, eigene Farben,
 Zurücksetzen, reduzierte Transparenz, Druck und axe-Kontraste bei maximaler
 Transparenz. Der Safari-Workflow bezieht die Ansichten auf iPad-/iPhone-Größen ein.
+Zusätzlich berechnet `tests/browser/appearance-contrast.ts` den Kontrast von Texten,
+die direkt über der Aurora-Ebene stehen, gegen die ungünstigsten zulässigen Farben.
+Das ergänzt axe: Ein Hintergrundverlauf auf einer separaten Ebene lässt sich dort
+nicht zuverlässig einem transparenten Textbereich zuordnen. Kleine Beschriftungen,
+Reiter und Fußzeilen im Hellmodus verwenden deshalb dunklere Schrift.
 Die bestehende vollständige axe-Prüfung deckt die Standardgestaltung in allen
 Hauptansichten und Dialogen ab. Konkrete Prüfergebnisse stehen in `HANDOFF.md`.
 

@@ -39,6 +39,11 @@
   }
   :root[data-theme] { background: var(--app-canvas); }
   :root[data-theme] :is(body, .app-shell, .welcome-page) { background: transparent; }
+  /* These labels sit directly over the aurora, outside the glass panels.
+     Their darker ink also passes on the darkest allowed pastel (#d2d2d2). */
+  :root[data-theme="light"] { --muted: #495a50; }
+  :root[data-theme="light"] :is(.page-heading p, .profile-heading p, .page-footer, .security-line, .welcome-description, .welcome-footer, .welcome-intro > .eyebrow, .hint, .profile-tabs button) { color: #495a50; }
+  :root[data-theme="light"] .profile-tabs button:is(.active, :hover) { color: #345c53; }
   #root { isolation: isolate; min-height: 100dvh; }
   .app-aurora {
     position: fixed; inset: 0; z-index: -1; overflow: hidden;

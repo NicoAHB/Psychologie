@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type Page } from './fixtures';
 import { nav } from './workflow-fixture';
+import { auroraContrastIssues } from './appearance-contrast';
 
 async function demo(page: Page) {
   await page.goto('/');
@@ -56,12 +57,18 @@ for (const theme of ['light', 'dark']) test(`maximum transparency keeps settings
     localStorage.setItem('praxisraum-theme', theme);
     localStorage.setItem('praxisraum-appearance', JSON.stringify({ version: 1, palette: 'custom', color1: '#000000', color2: '#ff0000', intensity: 100, cardTransparency: 30, menuTransparency: 30, glassBlur: 28 }));
   }, theme);
-  await demo(page);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Mit Beispieldaten entdecken', exact: true })).toBeVisible();
+  expect(await auroraContrastIssues(page, theme)).toEqual([]);
+  await page.getByRole('button', { name: 'Mit Beispieldaten entdecken', exact: true }).click();
+  await nav(page, 'Einstellungen');
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
   const found: Record<string, string[]> = {};
-  for (const route of ['Einstellungen', 'Übersicht', 'Finanzen']) {
+  for (const route of ['Einstellungen', 'Übersicht', 'Klienten', 'Finanzen', 'Newsletter']) {
     if (route !== 'Einstellungen') await nav(page, route);
+    if (route === 'Klienten') await page.locator('.directory-list button').first().click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await auroraContrastIssues(page, theme), route).toEqual([]);
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     if (result.violations.length) found[route] = result.violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(' | ')}`);
     await page.bringToFront();
