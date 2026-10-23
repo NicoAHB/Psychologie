@@ -81,7 +81,8 @@ VITE_BASE_PATH=/Psychologie/ PLAYWRIGHT_PORT=4256 npx playwright test tests/brow
 Die Browser-Tests verwenden ausschließlich erfundene Daten. Die neue Ablaufprüfung
 kontrolliert beide Sprachen, alle Mehr-Ziele, 820-px-/Telefonlayout, getrennte
 Startseitenblöcke, Abschluss → offene Zahlung → Zahlungseingang → Neuladen sowie
-manuelles Nachtragen. Axe prüft die neuen Ansichten und den Abschlussdialog in
+manuelles Nachtragen. Ein eigener Fall prüft den Tageswechsel zwischen UTC und
+der Praxis-Zeitzone Berlin. Axe prüft die neuen Ansichten und den Abschlussdialog in
 beiden Farbschemata. Bestehende Zahlungs-, Rechnungs-, Sicherungs- und Memo-Tests
 wurden auf die neuen Beschriftungen und Navigation über Mehr umgestellt.
 WebKit unter Linux ersetzt keinen Gerätetest auf einem echten iPad.

@@ -33,8 +33,10 @@ test('five main destinations and More remain reachable in both languages on port
 test('appointment completion creates an open payment, payment is separate, and backfill stays available', async ({ page }) => {
   test.setTimeout(90000);
   const { data, client, invoice } = workflowData(); (client as Client).currency = 'EUR';
-  const appointment = { id: uid(), clientId: client.id, date: today(), time: '09:00', duration: 50, feeCents: 8500, timeZone: data.settings.timeZone, reminderId: uid(), status: 'scheduled' as const };
-  data.appointments.push(appointment, { ...appointment, id: uid(), date: addDays(today(), 2), reminderId: uid() });
+  // The practice can already be on the next day while the CI/device is still on UTC's prior day.
+  const practiceDay = new Intl.DateTimeFormat('sv-SE', { timeZone: data.settings.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const appointment = { id: uid(), clientId: client.id, date: practiceDay, time: '09:00', duration: 50, feeCents: 8500, timeZone: data.settings.timeZone, reminderId: uid(), status: 'scheduled' as const };
+  data.appointments.push(appointment, { ...appointment, id: uid(), date: addDays(practiceDay, 2), reminderId: uid() });
   const read = await seedWorkflow(page, data);
   await expect(page.locator('.today-appointments .appointment-row')).toHaveCount(2);
   await expect(page.locator('.today-payments .follow-up-invoices')).toContainText(invoice.number);
@@ -74,4 +76,18 @@ test('appointment completion creates an open payment, payment is separate, and b
   await expect(backfill).toHaveCount(0, { timeout: 15000 });
   const after = await read(); expect(after.sessions).toHaveLength(data.sessions.length + 2);
   expect(after.sessions.at(-1)?.paidAt).toBeNull(); expect(after.sessions.at(-1)?.appointmentId).toBeUndefined();
+});
+
+test('Today groups midnight appointments by the practice day rather than the device day', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-23T23:30:00Z') });
+  const { data, client } = workflowData(); data.settings.timeZone = 'Europe/Berlin';
+  const appointment = { id: uid(), clientId: client.id, date: '2026-10-23', time: '23:45', duration: 50, feeCents: 8500, timeZone: 'UTC', reminderId: uid(), status: 'scheduled' as const };
+  data.appointments.push(appointment, { ...appointment, id: uid(), date: '2026-10-24', time: '23:30', reminderId: uid() });
+  await seedWorkflow(page, data);
+  const appointments = page.locator('.today-appointments');
+  await expect(appointments.locator('.today-subheading').first()).toContainText('24. Oktober');
+  await expect(appointments.locator('.appointment-list').first().locator('.appointment-row')).toHaveCount(1);
+  await expect(appointments.locator('.appointment-list').first().locator('.time-pair strong').first()).toHaveText('01:45');
+  await expect(appointments.getByRole('button', { name: de.completeAppointment, exact: true })).toHaveCount(1);
+  await expect(appointments.locator('.appointment-list').nth(1).locator('.time-pair strong').first()).toHaveText('01:30');
 });
