@@ -45,3 +45,10 @@ html[data-font-size='extraLarge'] .appointment-row-actions { flex-basis: 100%; }
 .backup-instructions { padding-inline-start: 22px; }
 .backup-instructions li { margin: 12px 0; line-height: 1.7; }
 .tax-overview summary:focus-visible, .tax-overview [tabindex='0']:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+/* Safari's native date controls and fieldsets have intrinsic minimum widths.
+   Let enlarged text reflow rather than expanding the whole page. */
+:root .field, :root .form-grid > * { min-inline-size: 0; }
+:root input:not([type='checkbox']), :root select, :root textarea { min-inline-size: 0; }
+:root .bank-account { min-inline-size: 0; max-inline-size: 100%; }
+:root .bank-account legend { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+html[data-font-size='extraLarge'] .form-grid { grid-template-columns: minmax(0, 1fr); }

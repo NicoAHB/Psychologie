@@ -27,3 +27,8 @@ test('backup assistant cannot advance without both explicit secret confirmations
  for(const hasKey of [false,true])for(const pass of [false,true])for(const recovery of [false,true])assert.equal(backupSecretsConfirmed(hasKey,pass,recovery),hasKey&&pass&&recovery);
  assert.equal(backupGuideReady(true,true,false),false);assert.equal(backupGuideReady(false,true,true),false);assert.equal(backupGuideReady(true,false,true),false);assert.equal(backupGuideReady(true,true,true),true);
 });
+
+test('long Ukrainian headings and oversized words stay within PDF margins without losing letters',async()=>{
+ const {wrapTaxText}=await import('../src/lib/taxPdf');const fontkit=(await import('@pdf-lib/fontkit')).default;const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit);const font=await pdf.embedFont(await readFile('src/assets/DejaVuSans-Bold-Base.ttf'));
+ for(const text of ['Для податкового обліку — річний огляд · 2026','Ausfallhonorare und Jahresübersicht 2026','дужеДовгийТекст'.repeat(40)]) {const lines=wrapTaxText(text,21,499,font);assert.ok(lines.length>0);assert.ok(lines.every(line=>font.widthOfTextAtSize(line,21)<=499));assert.equal(lines.join('').replace(/\s/g,''),text.replace(/\s/g,''));}
+});

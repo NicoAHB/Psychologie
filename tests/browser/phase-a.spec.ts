@@ -32,7 +32,9 @@ test('large device-local text remains readable on portrait screens in both theme
     await page.getByLabel(de.fontSize, { exact: true }).selectOption('extraLarge');
     for (const mode of ['light','dark']) {
       await page.getByLabel(de.colorScheme, { exact: true }).selectOption(mode);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const layout = await page.evaluate(() => ({ width:innerWidth, scrollWidth:document.documentElement.scrollWidth, font:document.documentElement.dataset.fontSize, theme:document.documentElement.dataset.theme,
+        overflowing:Array.from(document.querySelectorAll('main *, .topbar *')).filter(node=>{const r=node.getBoundingClientRect();return r.width>0 && r.right>innerWidth+1;}).slice(0,12).map(node=>({html:node.outerHTML.slice(0,180),right:node.getBoundingClientRect().right,width:node.getBoundingClientRect().width})) }));
+      expect(layout.scrollWidth,JSON.stringify(layout)).toBeLessThanOrEqual(layout.width);
       const result = await new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze(); expect(result.violations).toEqual([]);
       await nav(page, de.overview); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true); await nav(page, de.settings);
     }
