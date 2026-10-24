@@ -1,5 +1,7 @@
 # Weiterarbeit am Tablet
 
+Neu: **E-Mail-Versand direkt in der App einrichten** unter **Mehr → Einstellungen → E-Mail-Versand**, mit dauerhaft gespeichertem Absender, geschütztem Anbieter-Schlüssel und freiwilliger Testmail an die eigene Konto-Adresse. Die einmalige Supabase-Freigabe und ein bestätigtes Resend-Absenderkonto bleiben erforderlich. [Einrichtung, Grenzen und technische Übergabe für Claude](docs/email-einrichtung-in-der-app.md).
+
 Neu: **Mehr → Anleitung** bietet einen einfachen Einstieg, 14 aufklappbare Themen, eine deutsch/ukrainische Suche und direkte Verlinkungen zu den passenden Bereichen. Die Anleitung funktioniert auch offline. [Bedienung und technische Übergabe](docs/anleitung.md).
 
 Neu: **Mehrere Wiedervorlagen**, lokale **Dublettenhinweise mit ausdrücklicher Bestätigung vor dem Speichern** bei der Klientenanlage, **Rechnungsprüfung** mit direkter Stammdatenbearbeitung und ein gemeinsamer **Kontaktverlauf** im Klientenprofil. Bestehende Akten und Sicherungen bleiben kompatibel. [Bedienung, Grenzen, Dateiliste und technische Übergabe für Claude](docs/praxisorganisation-und-kontaktverlauf.md).

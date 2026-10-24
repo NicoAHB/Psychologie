@@ -2,7 +2,7 @@ import { today, isIsoDay } from './dates';
 import type { PaymentMethod, Session, Settings, VaultData } from './types';
 import type { BackupState } from './backupState';
 
-export type SettingsSection = 'practice' | 'banks' | 'backup' | 'cloud' | 'reminders' | 'appearance' | 'security';
+export type SettingsSection = 'practice' | 'banks' | 'backup' | 'cloud' | 'reminders' | 'appearance' | 'security' | 'email';
 export const completedSessionId = (appointmentId: string) => `completed-${appointmentId}`;
 
 /** One durable vault mutation. Stable IDs also coalesce simultaneous offline quick-completions. */

@@ -36,6 +36,7 @@ function harness(
     init?: RequestInit,
   ) => Promise<Response> = async () => json({ id: "provider-1" }),
   receipt = true,
+  settings: Record<string, unknown> | null = null,
 ) {
   let calls = 0;
   const claims = new Set<string>(),
@@ -45,6 +46,7 @@ function harness(
     const url = String(input);
     if (url.endsWith("/auth/v1/user")) return json({ id: owner });
     if (url.includes("marketing_delivery_receipts?")) return json([]);
+    if (url.endsWith('/rpc/get_email_provider_settings')) return json(settings);
     if (url.includes("/rpc/")) {
       const body = JSON.parse(String(init?.body));
       rpcBodies.push(body);
@@ -188,4 +190,19 @@ test("a caller cannot impersonate the configured owner or use an unregistered ba
 test('Telegram marketing images use a private WebP attachment with a neutral filename and caption',async()=>{
  const h=harness(async(url,init)=>{assert.match(url,/sendDocument$/);assert.ok(init?.body instanceof FormData);const form=init.body as FormData;assert.equal(form.get('caption'),'A neutral message');const image=form.get('document') as File;assert.equal(image.name,'marketing.webp');assert.equal(image.type,'image/webp');return json({ok:true,result:{message_id:17,chat:{id:123456789,type:'private'}}});});
  const p={...payload(),channel:'telegram',to:'123456789',image:{mimeType:'image/webp',content:btoa('RIFF0000WEBP0000')}};assert.equal((await(await h.handler(request(p))).json()).status,'sent');
+});
+
+test('marketing uses the saved sender/key and a paused provider blocks email before claiming a delivery', async () => {
+  for (const enabled of [true, false]) {
+    const h = harness(async (_url, init) => {
+      assert.equal((init!.headers as Record<string, string>).Authorization, 'Bearer re_saved_synthetic');
+      assert.equal(JSON.parse(String(init!.body)).from, 'Нова практика <new@example.com>');
+      return json({ id: 'synthetic-saved-receipt' });
+    }, true, { apiKey: 're_saved_synthetic', senderEmail: 'new@example.com', senderName: 'Нова практика', enabled });
+    const capabilities = await (await h.handler(request({ action: 'capabilities' }))).json();
+    assert.equal(capabilities.email, enabled); assert.equal(capabilities.telegram, true);
+    assert.equal(JSON.stringify(capabilities).includes('re_saved_synthetic'), false);
+    const response = await h.handler(request(payload())); assert.equal(response.status, enabled ? 200 : 501);
+    assert.equal(h.calls, enabled ? 1 : 0); assert.equal(h.rpcBodies.length, enabled ? 2 : 0);
+  }
 });

@@ -60,6 +60,7 @@ export const guideTopics = [
     { label: 'guideSecurityAction', target: { route: 'settings', section: 'security' } },
   ] },
   { id: 'messages', group: 'extras', title: 'guideMessagesTitle', summary: 'guideMessagesSummary', steps: 'guideMessagesSteps', tip: 'guideMessagesTip', actions: [
+    { label: 'emailSetupOpen', target: { route: 'settings', section: 'email' } },
     { label: 'guideRemindersAction', target: { route: 'settings', section: 'reminders' } },
     { label: 'guideClientsAction', target: { route: 'clients' } },
   ] },

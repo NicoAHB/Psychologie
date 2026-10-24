@@ -1,5 +1,7 @@
 # Dokumente und E-Mail-Versand einrichten
 
+Die aktuelle Einrichtung erfolgt direkt unter **Mehr → Einstellungen → E-Mail-Versand**. Neue Schritt-für-Schritt-Anleitung und einmalige Server-Freigabe: [E-Mail-Einrichtung in der App](email-einrichtung-in-der-app.md). Die folgenden Umgebungs-Secrets bleiben als Alt-Konfiguration unterstützt.
+
 ## Bedienung
 
 1. **Klienten → Profil bearbeiten → E-Mail-Adresse des Klienten** eintragen. Das bisherige Kontaktfeld bleibt für Telefon oder andere Hinweise erhalten.
@@ -13,11 +15,11 @@ Die PDF kann in einem PDF-Programm ausgefüllt und anschließend gespeichert wer
 
 ## Vorbereiteter direkter Versand: Supabase Edge Function + Resend
 
-Der Benutzer hat direkten Versand aus der App mit einem später einzurichtenden Anbieter gewählt. Dafür enthält das Repository die Funktion [`send-client-email`](../supabase/functions/send-client-email/index.ts) mit einem Resend-Adapter. Es ist noch kein Anbieter-Konto verbunden und kein Produktivversand behauptet. Für einen anderen Anbieter wird ausschließlich der serverseitige Adapter ersetzt.
+Der Benutzer hat direkten Versand aus der App mit einem später einzurichtenden Anbieter gewählt. Dafür enthält das Repository die Funktion [`send-client-email`](../supabase/functions/send-client-email/index.ts) mit einem Resend-Adapter. Ein eigenes Anbieter-Konto muss verbunden werden; ohne Einrichtung wird kein Produktivversand behauptet. Für einen anderen Anbieter wird ausschließlich der serverseitige Adapter ersetzt.
 
 Resend bietet ein kostenloses Versandkontingent; aktuelle Limits und Bedingungen vor der Einrichtung im Anbieter-Konto prüfen. Eine verifizierte eigene Absenderdomain ist für den Versand an beliebige Klienten erforderlich; Domainkosten sind nicht Teil des kostenlosen Kontingents. Supabase-Funktionen und Speicher zählen ebenfalls zu den jeweiligen Projektlimits.
 
-### Einmalige Einrichtung
+### Bisherige Einrichtung über Server-Secrets (weiter kompatibel)
 
 1. Das vorhandene private Supabase-Projekt und den vorgesehenen Praxis-Benutzer verwenden. Das Schema [`supabase/schema.sql`](../supabase/schema.sql) erneut anwenden: Der private Bucket erlaubt jetzt 16 MiB je **verschlüsselter JSON-Datei**, damit auch eine 10-MB-Unterlage mit Base64- und Verschlüsselungsaufschlag hineinpasst. Es werden weiterhin ausschließlich verschlüsselte JSON-Objekte synchronisiert, keine öffentlichen Originaldokumente.
 2. In Resend eine Absenderdomain verifizieren und einen API-Schlüssel anlegen. Für den Praxisbetrieb eine passende Vereinbarung mit dem Anbieter und den gewünschten Umgang mit sensiblen Anhängen festlegen.
@@ -32,7 +34,7 @@ Resend bietet ein kostenloses Versandkontingent; aktuelle Limits und Bedingungen
 
    `APP_ORIGIN` enthält nur Ursprung/Host, keinen `/Psychologie/`-Pfad. `SUPABASE_URL` und `SUPABASE_ANON_KEY` stellt die Supabase-Funktionsumgebung bereit. Keine privaten Werte als `VITE_*`, Repository-Variable oder Quellcode hinterlegen.
 4. Funktion mit `supabase functions deploy send-client-email` in dieses Projekt deployen. Die Funktion prüft unabhängig vom Gateway den gültigen Benutzer über Supabase Auth und lässt nur `EMAIL_OWNER_USER_ID` zu. Sie akzeptiert ausschließlich den konfigurierten Browser-Ursprung. Bei Projekten, deren neue JWT-Signierschlüssel eine deaktivierte Gateway-JWT-Prüfung erfordern, bleibt diese eigene Auth-Prüfung zwingend aktiv; keine öffentlichen Versand-Endpunkte einrichten.
-5. Erst nach erfolgreicher Einrichtung die **öffentliche** Build-Einstellung `VITE_EMAIL_ENABLED=true` setzen, neben `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY`. In GitHub unter **Settings → Secrets and variables → Actions → Variables** anlegen; der Pages-Workflow übernimmt sie beim nächsten Build. Das Flag enthält keine Zugangsdaten und ersetzt keine serverseitige Prüfung.
+5. Die öffentlichen Projektwerte `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` wie bisher konfigurieren. Das frühere Flag `VITE_EMAIL_ENABLED` wird nicht mehr benötigt. Für die dauerhafte Einrichtung direkt in der App zusätzlich `supabase/email-settings.sql` ausführen und die aktuellen Funktionen deployen; siehe die neue Anleitung oben.
 6. In der App mit dem freigegebenen Praxis-Benutzer in der Cloud anmelden. Mit einer eigenen Testadresse und einer erfundenen Unterlage prüfen: Anhang erhalten, PDF ausfüllen/speichern, zurücksenden, Rücklauf hinterlegen. Keinen Test an echte Klienten senden.
 
 ### Datenschutz und Nachvollziehbarkeit
@@ -52,7 +54,7 @@ Automatisierte Prüfungen decken echte bearbeitbare DE-/UA-PDF-Felder, lokale Ve
 Für den gesonderten Browser-Test des aktivierten Versands einen ausdrücklich fiktiven Build verwenden. Der Test fängt sämtliche Anfragen an diesen Testhost ab und prüft Fehler, Wiederholung und Erfolgsbeleg; es wird kein Anbieter aufgerufen:
 
 ```sh
-VITE_SUPABASE_URL=https://email-test.supabase.co VITE_SUPABASE_ANON_KEY=public-test-key VITE_EMAIL_ENABLED=true npm run build
+VITE_SUPABASE_URL=https://email-test.supabase.co VITE_SUPABASE_ANON_KEY=public-test-key VITE_EMAIL_ENABLED=false npm run build
 PLAYWRIGHT_EMAIL_TEST=true PLAYWRIGHT_PORT=4190 npx playwright test tests/browser/email.spec.ts
 ```
 

@@ -18,6 +18,7 @@ import { ZoneSelect } from '../components/ZoneSelect';
 import { AppearanceCard } from '../components/AppearanceCard';
 import { SaveButton } from '../components/SaveButton';
 import { useSaveStatus } from '../lib/useSaveStatus';
+import { EmailSetupCard } from '../components/EmailSetupCard';
 
 function TemplatesCard({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [name, setName] = useState(''); const [body, setBody] = useState(''); const list = vault.data!.templates;
@@ -37,6 +38,7 @@ export function SettingsPage({ vault, auto, onSync, syncing, onRestore, focus }:
   const setting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => { void vault.update(d => { d.settings[key] = value; }).catch(() => {}); };
   return <><PageHeading title={t('settingsTitle')} subtitle={t('settingsSubtitle')}/><div className="settings-grid">
     <AppearanceCard/>
+    <EmailSetupCard demo={vault.demo}/>
     <BackupCard vault={vault} auto={auto}/>
     <section id="settings-cloud" tabIndex={-1} className="card settings-card"><span className="settings-icon tone-blue"><Cloud size={24}/></span><h2>{t('cloudTitle')}</h2><p>{t('cloudText')}</p>{vault.demo ? <Notice>{t('demoNotice')}</Notice> : <CloudAuth><label className="check-label"><input type="checkbox" checked={settings.autoSync} onChange={e => setting('autoSync', e.target.checked)}/><span>{t('autoSync')}</span></label><p className="hint">{t('autoSyncHint')}</p><div className="button-row"><button className="btn btn-primary" disabled={syncing} onClick={() => void onSync()}><Cloud size={17}/>{t(syncing ? 'syncing' : 'sync')}</button><button className="btn btn-secondary" disabled={syncing} onClick={() => void onRestore()}>{t('loadCloud')}</button></div><p className="hint">{t('cloudRestoreHint')}</p></CloudAuth>}<p className="hint">{t('freeTierNote')}</p></section>
     <section id="settings-reminders" tabIndex={-1} className="card settings-card"><span className="settings-icon tone-beige"><CalendarDays size={24}/></span><h2>{t('remindersTitle')}</h2><p>{t('remindersText')}</p><label className="check-label"><input type="checkbox" checked={!!settings.autoEmailReminders} disabled={vault.demo} onChange={e => setting('autoEmailReminders',e.target.checked)}/><span>{t('autoEmailReminders')}</span></label><p className="hint">{t('autoEmailRemindersHint')}</p><label className="check-label"><input type="checkbox" disabled={vault.demo} checked={settings.remindersEnabled} onChange={e => setting('remindersEnabled', e.target.checked)}/><span>{t('enableReminders')}</span></label><p className="hint">{t('reminderNeedsSetup')}</p><Field label={t('advisorChatId')} hint={t('chatHelp')}><input value={settings.advisorChatId} inputMode="numeric" placeholder={t('chatPlaceholder')} onChange={e => { if (/^-?\d*$/.test(e.target.value)) setting('advisorChatId', e.target.value); }}/></Field><ZoneSelect label={t('timeZone')} hint={t('timeZoneHint')} value={settings.timeZone} onChange={zone => { if (isValidZone(zone)) setting('timeZone', zone); }}/><Notice>{t('telegramLimit')}</Notice></section>

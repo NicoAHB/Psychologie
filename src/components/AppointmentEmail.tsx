@@ -6,6 +6,7 @@ import type { Appointment, AppointmentEmailDelivery } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { Field, Modal, Notice } from './ui';
+import { EmailSetupButton } from './EmailSetupCard';
 export function AppointmentEmail({ vault, appointment, onClose }: { vault: VaultController; appointment: Appointment; onClose: () => void }) {
   const { t, language } = useI18n(); const [purpose,setPurpose] = useState<AppointmentEmailPurpose>('appointmentConfirmation');
   const [preview,setPreview] = useState<AppointmentEmailDelivery>(), [error,setError] = useState<TextKey>(), [busy,setBusy] = useState(false);
@@ -16,11 +17,12 @@ export function AppointmentEmail({ vault, appointment, onClose }: { vault: Vault
   const send = async () => {
     setBusy(true); setError(undefined);
     try { await dispatchAppointmentEmail(vault,appointment.id,purpose,{ signal:controller.current!.signal }); }
-    catch (err) { if(!controller.current!.signal.aborted) { const code = (err as Error).message; setError(['emailNotConfigured','authError','emailRetryExpired','appointmentEmailConsentMissing','emailRateLimited','appointmentEmailUnknown'].includes(code) ? code as TextKey : 'emailSendError'); } }
+    catch (err) { if(!controller.current!.signal.aborted) { const code = (err as Error).message; setError(['emailNotConfigured','emailSetupRequired','emailProviderKeyInvalid','emailSenderNotVerified','authError','emailRetryExpired','appointmentEmailConsentMissing','emailRateLimited','appointmentEmailUnknown'].includes(code) ? code as TextKey : 'emailSendError'); } }
     finally { if(!controller.current!.signal.aborted)setBusy(false); }
   };
   return <Modal title={t('appointmentEmailTitle')} onClose={() => { if(!busy)onClose(); }}><Field label={t('appointmentEmailType')}><select value={purpose} disabled={busy} onChange={e => setPurpose(e.target.value as AppointmentEmailPurpose)}><option value="appointmentConfirmation">{t('appointmentConfirmation')}</option><option value="appointmentReminder">{t('appointmentReminder')}</option></select></Field>
     <p className="hint">{t('appointmentEmailPrivacy')}</p>{!emailConfigured && <Notice>{t('emailNotConfigured')}</Notice>}
+    <EmailSetupButton demo={vault.demo}/>
     {preview && <div className="email-preview" lang={vault.data!.clients.find(c => c.id === current.clientId)?.language}><p><strong>{preview.recipient}</strong></p><h3>{preview.subject}</h3><p className="whitespace-pre-wrap">{preview.body}</p><p className="hint">{t('appointmentEmailCalendar')}</p>{preview.acceptedAt && <Notice>{t('documentSentOn')} {new Date(preview.acceptedAt).toLocaleString(language === 'de' ? 'de-DE':'uk-UA')}</Notice>}{!preview.acceptedAt && current.emailDeliveries?.some(d=>d.id===preview.id) && <Notice error>{t('appointmentEmailUnknown')}</Notice>}</div>}
     {error && <Notice error>{t(error)}</Notice>}
     {(current.emailDeliveries?.length ?? 0) > 0 && <details><summary>{t('appointmentEmailHistory')}</summary><ul>{[...current.emailDeliveries!].sort((a,b)=>b.requestedAt.localeCompare(a.requestedAt)).slice(0,20).map(d=><li key={d.id}>{t(d.purpose)} · {new Date(d.acceptedAt ?? d.requestedAt).toLocaleString(language === 'de' ? 'de-DE':'uk-UA')} · {t(d.acceptedAt ? 'appointmentEmailAccepted':'appointmentEmailUnknownShort')}</li>)}</ul></details>}

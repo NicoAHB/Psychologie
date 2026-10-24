@@ -26,8 +26,8 @@ export function prepareDelivery(document: ClientDocument, recipient: string, sub
   if (pending && Date.parse(now) - Date.parse(pending.requestedAt) >= 23 * 3600000) throw new Error('emailRetryExpired');
   return pending ?? { id: uid(), recipient, requestedAt: now, subject, body, ...(purpose === 'paymentReminder' && { purpose }) };
 }
-const env: Partial<Record<string, string>> = import.meta.env ?? {};
-export const emailConfigured = cloudConfigured && env.VITE_EMAIL_ENABLED === 'true';
+// Availability is checked by the server; provider changes no longer need a Pages rebuild.
+export const emailConfigured = cloudConfigured;
 export interface EmailReceipt { providerId: string; acceptedAt: string }
 /** Plaintext leaves the encrypted vault only for this explicit, authenticated email request. Never persist it server-side. */
 export async function sendDocumentEmail(delivery: EmailDelivery, file: DocumentFile, blob: Blob, signal?: AbortSignal): Promise<EmailReceipt> {
@@ -39,7 +39,7 @@ export async function sendDocumentEmail(delivery: EmailDelivery, file: DocumentF
   } });
   if (error) {
     let code = ''; try { code = (await error.context?.json())?.error; } catch { /* No response body on network failure. */ }
-    throw new Error(['emailNotConfigured', 'emailRateLimited', 'authError'].includes(code) ? code : 'emailSendError');
+    throw new Error(['emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailRateLimited', 'authError'].includes(code) ? code : 'emailSendError');
   }
   if (!data || typeof data.providerId !== 'string' || !data.providerId || typeof data.acceptedAt !== 'string' || Number.isNaN(Date.parse(data.acceptedAt))) throw new Error('emailSendError');
   return { providerId: data.providerId, acceptedAt: data.acceptedAt };

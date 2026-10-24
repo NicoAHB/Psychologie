@@ -5,6 +5,7 @@ import { Download, FilePlus2, FileText, Mail, Paperclip, Reply } from 'lucide-re
 import { translate, useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, today } from '../lib/dates';
 import { DOCUMENT_ACCEPT, downloadDocument, emailConfigured, inspectDocument, prepareDelivery, sendDocumentEmail, validEmail } from '../lib/documents';
+import { EmailSetupButton } from './EmailSetupCard';
 import { uid, type AssessmentKind, type Client, type ClientDocument, type DocumentFile, type Language } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { canRemindInvoice, cancellationOf, invoiceOutstanding, validDay } from '../lib/invoice';
@@ -15,7 +16,7 @@ import { needsAttention } from '../lib/assessments';
 import type { ImportedQuestionnaire } from '../lib/questionnaireImport';
 import { TelegramComposer } from './telegram';
 
-const errorKey = (error: unknown): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
+const errorKey = (error: unknown): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
 
 function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { vault: VaultController; client: Client; questionnaire: boolean; onClose: () => void; onSaved: (document: ClientDocument, email: boolean) => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [title, setTitle] = useState('');
@@ -83,6 +84,7 @@ export function EmailComposer({ vault, client, documentId, onClose, purpose = 'i
     {inactive && <Notice error>{t('invoiceInactive')}</Notice>}
     {reminderUnavailable && <Notice error>{t('invoiceReminderUnavailable')}</Notice>}
     {(!emailConfigured || vault.demo) && <Notice>{t('emailNotConfigured')}</Notice>}
+    <EmailSetupButton demo={vault.demo}/>
     {sentAt && <Notice>{t('emailAccepted')} {new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'uk-UA', { timeZone: vault.data!.settings.timeZone, dateStyle: 'short', timeStyle: 'short' }).format(new Date(sentAt))}</Notice>}
     {error && <Notice error>{t(error)}</Notice>}
     <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button>{!sentAt && <button className="btn btn-primary" disabled={busy || inactive || reminderUnavailable || !emailConfigured || vault.demo || !validEmail(client.email ?? '') || !subject.trim()}><Mail size={17}/>{t(busy ? 'working' : 'sendEmailNow')}</button>}</div>

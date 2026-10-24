@@ -5,6 +5,37 @@ on:
 permissions:
   contents: read
 jobs:
+  email-setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Deliberately fictional public settings. Every request is intercepted by
+    # Playwright; no repository secrets, provider or live Supabase project.
+    env:
+      VITE_SUPABASE_URL: https://email-test.supabase.co
+      VITE_SUPABASE_ANON_KEY: public-test-key
+      VITE_EMAIL_ENABLED: 'false'
+      PLAYWRIGHT_EMAIL_TEST: 'true'
+      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: bundled
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('node_modules/playwright-core/browsers.json') }}
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- tests/browser/email-setup-connected.spec.ts tests/browser/email.spec.ts --workers=1 --reporter=line,github
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: email-setup-failure-details
+          path: test-results/
+          retention-days: 7
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 60

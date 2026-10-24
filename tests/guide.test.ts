@@ -33,7 +33,7 @@ test('guide shortcuts point to existing areas and settings rather than performin
   const destinations = new Set([...mainNavigation, ...moreNavigation].map(item => item.id));
   for (const topic of guideTopics) for (const action of topic.actions) {
     assert.ok(destinations.has(action.target.route));
-    if (action.target.route === 'settings') assert.ok(['practice', 'banks', 'backup', 'cloud', 'reminders', 'appearance', 'security'].includes(action.target.section));
+    if (action.target.route === 'settings') assert.ok(['practice', 'banks', 'backup', 'cloud', 'reminders', 'appearance', 'security', 'email'].includes(action.target.section));
     if ('waitlist' in action.target) assert.equal(action.target.route, 'appointments');
   }
 });

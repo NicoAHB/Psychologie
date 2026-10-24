@@ -1,3 +1,4 @@
+import { loadEmailProvider } from '../_shared/emailProvider.ts';
 /** Only explicit, consented marketing deliveries. Never log requests, contacts,
  * tokens, messages, images or provider responses. No access to the patient vault. */
 export interface MarketingEnvironment {
@@ -116,6 +117,8 @@ export function createMarketingHandler(
         return reply(400, { error: "invalidRequest" });
       }
       if (data?.action === "capabilities") {
+        let emailReady = false;
+        try { const provider = await loadEmailProvider(env, owner, request); emailReady = !!(provider.apiKey && provider.from); } catch { /* Email unavailable; Telegram remains independent. */ }
         const schema = await request(
           `${env.SUPABASE_URL}/rest/v1/marketing_delivery_receipts?select=id&limit=0`,
           {
@@ -129,7 +132,7 @@ export function createMarketingHandler(
         return schema.ok
           ? reply(200, {
               ready: true,
-              email: !!(env.RESEND_API_KEY && env.EMAIL_FROM),
+              email: emailReady,
               telegram: !!env.TELEGRAM_BOT_TOKEN,
             })
           : reply(501, { error: "marketingSetupNeeded" });
@@ -173,8 +176,12 @@ export function createMarketingHandler(
         /[\r\n]/.test(subject)
       )
         return reply(400, { error: "invalidRequest" });
+      let emailProvider;
+      if (channel === 'email') {
+        try { emailProvider = await loadEmailProvider(env, owner, request); } catch { return reply(501, { error: 'marketingSetupNeeded' }); }
+      }
       if (
-        (channel === "email" && (!env.RESEND_API_KEY || !env.EMAIL_FROM)) ||
+        (channel === "email" && (!emailProvider?.apiKey || !emailProvider?.from)) ||
         (channel === "telegram" && !env.TELEGRAM_BOT_TOKEN)
       )
         return reply(501, { error: "marketingSetupNeeded" });
@@ -249,12 +256,12 @@ export function createMarketingHandler(
             method: "POST",
             signal: AbortSignal.timeout(25000),
             headers: {
-              Authorization: `Bearer ${env.RESEND_API_KEY}`,
+              Authorization: `Bearer ${emailProvider!.apiKey}`,
               "Content-Type": "application/json",
               "Idempotency-Key": `marketing/${owner}/${id}`,
             },
             body: JSON.stringify({
-              from: env.EMAIL_FROM,
+              from: emailProvider!.from,
               to: [to],
               subject,
               text,
