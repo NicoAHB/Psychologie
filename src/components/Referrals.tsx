@@ -9,6 +9,8 @@ import type { Client, Currency, Language } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Empty, Field, Modal, Notice, PageHeading } from './ui';
 import '../referrals.css';
+import { SaveButton } from './SaveButton';
+import { useSaveStatus } from '../lib/useSaveStatus';
 
 export function ReferralCardButton({ vault, client }: { vault: VaultController; client: Client }) {
   const { t } = useI18n(); const [open,setOpen] = useState(false);
@@ -86,15 +88,17 @@ export function Referrals({ vault }: { vault: VaultController }) {
 }
 function ReferralSettings({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const terms=referralTerms(vault.data!);
-  const [rate,setRate]=useState(String(terms.rateBps/100)), [months,setMonths]=useState(String(terms.months)), [busy,setBusy]=useState(false), [error,setError]=useState<TextKey>(), [saved,setSaved]=useState(false);
+  const [rate,setRate]=useState(String(terms.rateBps/100)), [months,setMonths]=useState(String(terms.months)), [error,setError]=useState<TextKey>(); const saveStatus=useSaveStatus();
   async function submit(e: FormEvent) {
-    e.preventDefault(); setError(undefined); setSaved(false); setBusy(true);
-    try { const number=Number(rate.replace(',','.'))*100, rateBps=Math.round(number), duration=Number(months);
-      if (!rate.trim() || Math.abs(rateBps-number)>0.000001) throw new Error('referralInvalidTerms');
-      await vault.update(d=>{d.settings.referralProgram={rateBps,months:duration};referralTerms(d);}); setSaved(true);
-    } catch(e){setError(referralError(e));} finally{setBusy(false);}
+    e.preventDefault(); setError(undefined);
+    await saveStatus.save(async () => {
+      try { const number=Number(rate.replace(',','.'))*100, rateBps=Math.round(number), duration=Number(months);
+        if (!rate.trim() || Math.abs(rateBps-number)>0.000001) throw new Error('referralInvalidTerms');
+        await vault.update(d=>{d.settings.referralProgram={rateBps,months:duration};referralTerms(d);});
+      } catch(e){setError(referralError(e));throw e;}
+    }).catch(()=>{});
   }
-  return <section className="card"><h2>{t('referralSettingsTab')}</h2><p className="hint mt-2">{t('referralTermsHint')}</p><form onSubmit={e=>void submit(e)} className="mt-5"><div className="referral-form-grid"><Field label={t('referralRate')}><input type="text" inputMode="decimal" required maxLength={6} value={rate} onChange={e=>{setRate(e.target.value);setSaved(false);}}/></Field><Field label={t('referralMonths')}><input type="number" required min={1} max={60} step={1} value={months} onChange={e=>{setMonths(e.target.value);setSaved(false);}}/></Field></div><button className="btn btn-primary" disabled={busy}>{t(busy?'working':'save')}</button>{error&&<Notice error>{t(error)}</Notice>}{saved&&<Notice>{t('referralSaved')}</Notice>}</form></section>;
+  return <section className="card"><h2>{t('referralSettingsTab')}</h2><p className="hint mt-2">{t('referralTermsHint')}</p><form onSubmit={e=>void submit(e)} className="mt-5"><div className="referral-form-grid"><Field label={t('referralRate')}><input type="text" inputMode="decimal" required maxLength={6} value={rate} onChange={e=>{setRate(e.target.value);saveStatus.changed();setError(undefined);}}/></Field><Field label={t('referralMonths')}><input type="number" required min={1} max={60} step={1} value={months} onChange={e=>{setMonths(e.target.value);saveStatus.changed();setError(undefined);}}/></Field></div><SaveButton status={saveStatus}/>{error&&<Notice error>{t(error)}</Notice>}</form></section>;
 }
 function ReferralLedger({ vault }: { vault: VaultController }) {
   const { t,language }=useI18n(); const data=vault.data!;

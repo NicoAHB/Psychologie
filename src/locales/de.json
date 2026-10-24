@@ -19,6 +19,7 @@
   "save": "Speichern",
   "saving": "Wird verschlüsselt …",
   "saved": "Auf diesem Gerät gespeichert",
+  "savedAtTime": "Gespeichert um {time}",
   "storageError": "Speichern fehlgeschlagen. Bitte freien Speicher prüfen und erneut speichern, bevor Sie schließen.",
   "retry": "Erneut versuchen",
   "offline": "Offline · lokal weiterarbeiten",

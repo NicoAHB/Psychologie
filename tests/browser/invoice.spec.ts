@@ -18,7 +18,8 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await page.getByLabel('Anschrift', { exact: true }).fill('Musterweg 7\n10115 Berlin');
   await page.getByLabel('IBAN', { exact: true }).fill('DE02 1203 0000 0000 2020 51');
   await page.getByLabel('Steuerhinweis auf der Rechnung').fill('Umsatzsteuerfrei nach § 4 Nr. 14 UStG (Beispielhinweis)');
-  await page.getByRole('button', { name: 'Praxisdaten speichern' }).click(); await expect(page.getByText('Praxisdaten gespeichert.')).toBeVisible();
+  const practice = page.locator('#settings-practice');
+  await practice.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(practice.getByRole('button', { name: /^Gespeichert um \d{2}:\d{2}$/ })).toBeDisabled();
 
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
   await dialog.getByLabel('Name *', { exact: true }).fill('Max Mustermann'); await dialog.getByLabel('Anschrift (für Rechnungen)').fill('Lindenallee 3\n80331 München');

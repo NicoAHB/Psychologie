@@ -20,6 +20,18 @@
   --aurora-tint-2: var(--aurora-color-2);
 }
 
+/* Saved is deliberately grey, with full text contrast in either theme. */
+:root[data-theme] .btn.btn-save-saved:disabled {
+  background: #edf0f2; color: #52606b; border-color: #b9c1c8;
+  opacity: 1; box-shadow: none; cursor: default;
+  max-width: 100%; white-space: normal;
+}
+@media screen {
+  :root[data-theme="dark"] .btn.btn-save-saved:disabled {
+    background: #263244; color: #c4cfdd; border-color: #576577;
+  }
+}
+
 @media screen {
   :root[data-theme="dark"] {
     --app-canvas: #0c1628;

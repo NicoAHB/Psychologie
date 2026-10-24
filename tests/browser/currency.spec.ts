@@ -28,8 +28,9 @@ test('whole EUR input, official NBU rate, two accounts and UAH-only invoice incl
   await page.getByLabel('Bank (Ukraine)', { exact: true }).fill('Тестовий банк України');
   await page.getByLabel('Kontoinhaber/in (Ukraine)', { exact: true }).fill('Ім’я Приклад');
   await expect(page.getByLabel('Wechselkurs EUR → UAH', { exact: true })).toHaveValue('48,1256');
-  await page.getByRole('button', { name: 'Praxisdaten speichern' }).click();
-  await expect(page.getByText('Praxisdaten gespeichert.', { exact: true })).toBeVisible();
+  const practice = page.locator('#settings-practice');
+  await practice.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await expect(practice.getByRole('button', { name: /^Gespeichert um \d{2}:\d{2}$/ })).toBeDisabled();
   await ukrainianClient(page);
   await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
   const dialog = page.getByRole('dialog');

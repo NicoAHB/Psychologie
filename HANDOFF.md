@@ -186,3 +186,7 @@ Prüfstand des Anwendungscodes `5d1f7586ef780dbaf0664716d17ba8e6ca107a98`:
 Ein lokaler paralleler Gesamtlauf meldete 112 bestandene Fälle, 19 übersprungene Fälle und einen Verlust der Testseiten-Variablen im bestehenden Video-Source-Harness. Derselbe Videotest bestand isoliert; der vollständige GitHub-Chromium-Lauf bestand ebenfalls. Browser-/UDP-Richtlinien wurden nicht verändert. Ein lokaler Download des Safari-Fehlerartefakts wurde durch die ausgehende Netzwerkregel verweigert; Fehlerzustände werden deshalb zusätzlich direkt in der CI-Annotation ausgegeben. Tests wurden weder deaktiviert noch ihre fachlichen Prüfungen entfernt.
 
 Cloud-Startanleitung am 23. Oktober aktualisiert und als Entwurf gespeichert (`start_skill`; Installationsskript und Netzwerkauswahl erhalten). Zum Aktivieren sind Speichern/Veröffentlichen in den Umgebungseinstellungen erforderlich. Eine Wiederherstellung dieses neuen Entwurfs in einer frischen Aufgabe wurde nicht behauptet oder getestet. Anwendung und Quellcode werden gesondert über GitHub veröffentlicht.
+
+## Speicherstatus der Einstellungen
+
+Die dauerhaft geöffneten Speicherformulare zeigen nach erfolgreichem Schreiben einen grauen, deaktivierten Button mit Gerätezeit. Änderungen aktivieren ihn wieder; Fehler und Eingaben während eines laufenden Schreibens werden berücksichtigt. [Bedienung und technische Übergabe](docs/speicherstatus.md).
