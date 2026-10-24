@@ -52,3 +52,5 @@ html[data-font-size='extraLarge'] .appointment-row-actions { flex-basis: 100%; }
 :root .bank-account { min-inline-size: 0; max-inline-size: 100%; }
 :root .bank-account legend { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
 html[data-font-size='extraLarge'] .form-grid { grid-template-columns: minmax(0, 1fr); }
+.modal-heading > h2 { min-inline-size: 0; overflow-wrap: anywhere; }
+html[data-font-size='extraLarge'] .modal-heading { flex-wrap: wrap; align-items: flex-start; }
