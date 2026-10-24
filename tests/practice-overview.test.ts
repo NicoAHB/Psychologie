@@ -95,15 +95,15 @@ test('duplicate suggestions are bounded and never modify the underlying records'
   assert.equal(possibleClientDuplicates(dated, { name: 'Anderer Name', email: '', contact: '24.10.2026' }).length, 0);
 });
 test('saving a name-only duplicate requires explicit review and leaves stored records unchanged', () => {
-  const clients = [client('nico', 'Nico von Felde')], before = structuredClone(clients);
-  const input = { name: '  nico VON   Felde ', email: '', contact: '' };
-  assert.throws(() => requireClientDuplicateReview(clients, input), error => error instanceof DuplicateClientReviewRequired && error.matches[0].client.id === 'nico');
-  assert.doesNotThrow(() => requireClientDuplicateReview(clients, input, ['nico']));
+  const clients = [client('sample', 'Alex von Beispiel')], before = structuredClone(clients);
+  const input = { name: '  alex VON   Beispiel ', email: '', contact: '' };
+  assert.throws(() => requireClientDuplicateReview(clients, input), error => error instanceof DuplicateClientReviewRequired && error.matches[0].client.id === 'sample');
+  assert.doesNotThrow(() => requireClientDuplicateReview(clients, input, ['sample']));
   assert.deepEqual(clients, before);
   assert.doesNotThrow(() => requireClientDuplicateReview(clients, { name: 'Ganz andere Person', email: '', contact: '' }));
 });
 test('a newly matching record requires review again at the serialized write, regardless of an earlier check', () => {
-  const input = { name: 'Nico von Felde', email: '', contact: '' }, clients = [client('first', input.name)];
+  const input = { name: 'Alex von Beispiel', email: '', contact: '' }, clients = [client('first', input.name)];
   assert.doesNotThrow(() => requireClientDuplicateReview([], input));
   assert.throws(() => requireClientDuplicateReview(clients, input), DuplicateClientReviewRequired);
   clients.push(client('second', input.name));

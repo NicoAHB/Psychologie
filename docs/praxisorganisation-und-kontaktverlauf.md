@@ -95,7 +95,7 @@ Keine Teilzahlungen/Erstattungen, kein automatisches Zusammenführen von Persone
 
 ## Korrektur: Dubletten beim Speichern ausdrücklich prüfen
 
-Der ursprüngliche Hinweis erschien unterhalb der optionalen Formularfelder und war nicht mit dem Speichervorgang verbunden. Ein identischer Name ließ sich daher ohne Bestätigung nochmals speichern. Der Fehler wurde mit „Nico von Felde“ ohne E-Mail oder Telefonnummer reproduziert.
+Der ursprüngliche Hinweis erschien unterhalb der optionalen Formularfelder und war nicht mit dem Speichervorgang verbunden. Ein identischer Name ließ sich daher ohne Bestätigung nochmals speichern. Der Fehler wurde mit „Alex von Beispiel“ ohne E-Mail oder Telefonnummer reproduziert.
 
 Der Hinweis steht jetzt direkt unter dem Namen. Zusätzlich prüft das Formular beim Speichern synchron den aktuellen entsperrten Datenbestand. Bei einem Treffer öffnet sich ein eigener beschrifteter Dialog: vorhandene Akte öffnen, gegebenenfalls wieder aktivieren, zum ausgefüllten Formular zurückkehren oder **Trotzdem neue Akte anlegen**. Vor der Bestätigung wird keine neue Akte gespeichert. Enter und schnelles Speichern durchlaufen dieselbe Prüfung; der verzögerte Inline-Hinweis entscheidet nicht über das Speichern.
 

@@ -8,19 +8,19 @@ const uk = JSON.parse(await readFile(new URL('../../src/locales/uk.json', import
 
 test('an identical name cannot be saved before reviewing duplicates, even immediately after typing or pressing Enter', async ({ page }, info) => {
   test.setTimeout(90000); await page.setViewportSize({ width: /mobile|iphone/.test(info.project.name) ? 390 : 820, height: 1180 });
-  const { data } = workflowData(); data.clients[0].name = 'Nico von Felde'; data.clients[0].email = ''; data.clients[0].contact = '';
+  const { data } = workflowData(); data.clients[0].name = 'Alex von Beispiel'; data.clients[0].email = ''; data.clients[0].contact = '';
   const read = await seedWorkflow(page, data); await nav(page, de.clients);
   await page.getByRole('button', { name: de.newClient, exact: true }).first().click();
   const form = page.getByRole('dialog', { name: de.newClient, exact: true });
-  await form.getByLabel(`${de.name} *`, { exact: true }).fill('Nico von Felde');
+  await form.getByLabel(`${de.name} *`, { exact: true }).fill('Alex von Beispiel');
   // A native submit checks the latest input without waiting for the debounced visual hint.
   await form.locator('form').evaluate((node: HTMLFormElement) => node.requestSubmit());
   const review = page.getByRole('dialog', { name: de.duplicateReviewTitle, exact: true });
-  await expect(review).toBeVisible(); await expect(review).toContainText('Nico von Felde'); expect((await read()).clients).toHaveLength(1);
+  await expect(review).toBeVisible(); await expect(review).toContainText('Alex von Beispiel'); expect((await read()).clients).toHaveLength(1);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   expect(await review.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   await review.getByRole('button', { name: de.duplicateReviewBack, exact: true }).click();
-  await expect(form.getByLabel(`${de.name} *`, { exact: true })).toHaveValue('Nico von Felde');
+  await expect(form.getByLabel(`${de.name} *`, { exact: true })).toHaveValue('Alex von Beispiel');
   const notice = form.getByRole('region', { name: de.duplicateClientsTitle, exact: true });
   await expect(notice).toBeVisible();
   // The warning must be visible while entering the name, without visiting the optional fields.
@@ -32,7 +32,7 @@ test('an identical name cannot be saved before reviewing duplicates, even immedi
 });
 
 test('only an explicit choice creates a separate record; approval is not reused for the next client', async ({ page }) => {
-  const { data, client } = workflowData(); client.name = 'Nico von Felde';
+  const { data, client } = workflowData(); client.name = 'Alex von Beispiel';
   const read = await seedWorkflow(page, data); await nav(page, de.clients);
   await page.getByRole('button', { name: de.newClient, exact: true }).first().click();
   const form = page.getByRole('dialog', { name: de.newClient, exact: true }); await form.getByLabel(`${de.name} *`, { exact: true }).fill(client.name);
