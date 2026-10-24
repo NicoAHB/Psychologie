@@ -63,3 +63,121 @@ Die bisherigen direkten Downloads, Teilen, Ordnersicherung, In-App-Verlauf und C
 - Nur bei gewünschtem Termin-E-Mail-Versand die geänderte **vorhandene** Function bereitstellen: `supabase functions deploy send-client-email`. Bestehende serverseitige Anbieter-Konfiguration und öffentliche Build-Option `VITE_EMAIL_ENABLED` wie in der Dokumentation zum Dokumentenversand verwenden. Keine Geheimnisse im Frontend. Das wurde nicht gegen ein echtes Projekt ausgeführt.
 - App wie bisher mit `npm ci`, `npm test`, `npm run build` und dem vorhandenen GitHub-Pages-Workflow bauen. Auf bestehenden Geräten eine angebotene Aktualisierung über „Jetzt aktualisieren“ übernehmen; Browserdaten niemals als Update-Schritt löschen.
 - Keine zusätzlichen Pakete, keine Transkription, Spracherkennung oder KI, keine neuen Audio-/Versanddienste, keine öffentliche Buchung oder Klienten-Anmeldung.
+
+### Seitenaufteilung für Claude
+
+Die fachlichen Abläufe und globalen Zustände bleiben in `src/App.tsx`: Tresor-Controller, Sperren, Abgleich, Wiederherstellung, Routen, ausgewählte Akte, Formular- und Suchdialoge. Die Darstellung liegt jetzt in:
+
+- `src/pages/TodayPage.tsx`: Tagesansicht, Einrichtungs-Checkliste, Termin-/Zahlungsblöcke und Wartelistenhinweis.
+- `src/pages/ClientsPage.tsx`: Klientenverzeichnis und Profilansicht mit kontrollierten Filtern und Aktionen aus App.
+- `src/pages/AppointmentsPage.tsx`: Terminliste, Wochenansicht, Ausfall-/E-Mail-Dialoge und Warteliste.
+- `src/pages/FinancesPage.tsx`: offene Zahlungen, Einnahmen, Jahresübersicht, Export und Rechnungen.
+- `src/pages/MorePage.tsx`: unveränderte Navigation über das bestehende Array.
+- `src/pages/SettingsPage.tsx`: Einstellungsbereiche und direkte Sprungziele.
+
+`src/components/Today.tsx`, `appointments.tsx` und `settings.tsx` bleiben als schlanke Kompatibilitäts-Exporte bestehen. Keine neue Route und kein neuer Router, keine verschobenen Verschlüsselungs- oder Speicheroperationen. Aufteilung erst nach grünen Unit-/Browserprüfungen einschließlich wiederholtem isoliertem Video-Test und Safari-Matrix; anschließend erneut vollständige Tests und Build. Die alten Importpfade können schrittweise auf `src/pages/` umgestellt werden.
+
+### Bewusst beibehaltene Grenzen
+
+- Keine E-Mail-Zustellung bei geschlossener/gesperrter App und kein neuer serverseitiger Klartext-Terminplan. Der bestehende Telegram-Dienst bleibt eigenständig.
+- Keine Prämienregel geändert; bezahlte Ausfallhonorare haben die oben dokumentierte Wirkung der bestehenden Formel.
+- Kein Steuerabschluss, Ausgaben- oder Rückzahlungsjournal und keine neue steuerliche Wechselkursbewertung. Die Auswertung ist eine Übersicht der erfassten Zahlungen.
+- Keine automatische Wartelisten-Nachricht, Kontaktfreigabe oder Interpretation freier Wunschzeit-Texte.
+- Bestehende direkte Sicherungsfunktionen bleiben zugänglich; Pflichtbestätigung und verpflichtender Lesbarkeitstest gelten für das Abschließen des neuen Assistenten. Gespeicherte externe Sicherungsdateien lassen sich nicht nachträglich verändern oder fernlöschen. Ein entfernter Wartelisteneintrag kann in einem bewusst wiederhergestellten älteren Versionsstand enthalten sein; Aktenlöschung behandelt verknüpfte Einträge wie andere personenbezogene Daten.
+- Keine echten Nachrichten, keine Live-Supabase-Migration oder Function-Bereitstellung, keine tatsächlichen Kontozahlungen. Tests nutzen ausschließlich erfundene Daten, lokale SQL-Testinstanzen und Ersatztransporte.
+- Safari-Engine auf Linux mit Geräteprofilen ersetzt keine abschließende Hardware-Abnahme von iPadOS, Dateien-Dialog und Mikrofon. Es wird keine rechtliche, medizinische oder datenschutzrechtliche Prüfung behauptet.
+
+### Prüfbefehle
+
+```sh
+npm test
+npm run build
+npm run test:e2e -- --workers=1
+# Safari-Engine: vorhandener CI-Workflow mit offizieller Playwright-Umgebung
+npm run test:ipad
+# Projekt-Unterpfad für GitHub Pages
+VITE_BASE_PATH=/Psychologie/ npm run build
+VITE_BASE_PATH=/Psychologie/ PLAYWRIGHT_PORT=4271 npm run test:e2e -- tests/browser/pages.spec.ts --workers=1
+```
+
+Schwerpunkte: Altdaten, verschlüsselte Round-Trips, konkurrierende Zahlarten und Ausfallarten, Löschmarkierungen, aktenbezogener ZIP-Export, UAH/EUR in beiden Richtungen, separate Einwilligung/Widerruf, dauerhafte Versandreservierung vor Transport, 23-Stunden-Grenze, Sommerzeit und Erinnerungsfenster, Wartelisten-Merge, freie Kapazität, Steuer-Teilmengen und Stornos, ukrainische PDF-Ränder, Pflichtbestätigung/Prüfung des Backups, 820/390 px, sehr große Schrift, Tastatur und axe in beiden Farbschemata. Browserläufe, die einen Entwicklungsserver als Quellmodul-Prüfaufbau nutzen (Video), brauchen während des Laufs unveränderte Quell-Dateien, um unerwartete HMR-Neuladungen zu vermeiden.
+
+## Geänderte Dateien
+
+Vollständige Liste dieser Erweiterung gegenüber dem Ausgangsstand `43b59a9` (75 Dateien). Keine Paket- oder Lockdatei geändert.
+
+- [CLAUDE.md](../CLAUDE.md)
+- [HANDOFF.md](../HANDOFF.md)
+- [README.md](../README.md)
+- [docs/praxisablaeufe-a-b-c.md](../docs/praxisablaeufe-a-b-c.md)
+- [playwright.ipad.config.ts](../playwright.ipad.config.ts)
+- [public/theme-init.js](../public/theme-init.js)
+- [src/App.tsx](../src/App.tsx)
+- [src/appearance.css](../src/appearance.css)
+- [src/audio-memos.css](../src/audio-memos.css)
+- [src/components/AppearanceCard.tsx](../src/components/AppearanceCard.tsx)
+- [src/components/AppointmentEmail.tsx](../src/components/AppointmentEmail.tsx)
+- [src/components/AppointmentFailure.tsx](../src/components/AppointmentFailure.tsx)
+- [src/components/BackupAssistant.tsx](../src/components/BackupAssistant.tsx)
+- [src/components/HelpButton.tsx](../src/components/HelpButton.tsx)
+- [src/components/PaymentMethodField.tsx](../src/components/PaymentMethodField.tsx)
+- [src/components/SetupChecklist.tsx](../src/components/SetupChecklist.tsx)
+- [src/components/SyncConflicts.tsx](../src/components/SyncConflicts.tsx)
+- [src/components/TaxOverview.tsx](../src/components/TaxOverview.tsx)
+- [src/components/Today.tsx](../src/components/Today.tsx)
+- [src/components/Waitlist.tsx](../src/components/Waitlist.tsx)
+- [src/components/appointments.tsx](../src/components/appointments.tsx)
+- [src/components/backup.tsx](../src/components/backup.tsx)
+- [src/components/client-profile.tsx](../src/components/client-profile.tsx)
+- [src/components/forms.tsx](../src/components/forms.tsx)
+- [src/components/money.tsx](../src/components/money.tsx)
+- [src/components/security.tsx](../src/components/security.tsx)
+- [src/components/settings.tsx](../src/components/settings.tsx)
+- [src/invoice.css](../src/invoice.css)
+- [src/lib/appearance.ts](../src/lib/appearance.ts)
+- [src/lib/appointmentEmail.ts](../src/lib/appointmentEmail.ts)
+- [src/lib/backupGuide.ts](../src/lib/backupGuide.ts)
+- [src/lib/backupState.ts](../src/lib/backupState.ts)
+- [src/lib/cancellations.ts](../src/lib/cancellations.ts)
+- [src/lib/clientExport.ts](../src/lib/clientExport.ts)
+- [src/lib/crdt.ts](../src/lib/crdt.ts)
+- [src/lib/discussion.ts](../src/lib/discussion.ts)
+- [src/lib/documents.ts](../src/lib/documents.ts)
+- [src/lib/invoice.ts](../src/lib/invoice.ts)
+- [src/lib/marketing.ts](../src/lib/marketing.ts)
+- [src/lib/merge.ts](../src/lib/merge.ts)
+- [src/lib/practiceFlow.ts](../src/lib/practiceFlow.ts)
+- [src/lib/records.ts](../src/lib/records.ts)
+- [src/lib/taxPdf.ts](../src/lib/taxPdf.ts)
+- [src/lib/taxReport.ts](../src/lib/taxReport.ts)
+- [src/lib/theme.tsx](../src/lib/theme.tsx)
+- [src/lib/types.ts](../src/lib/types.ts)
+- [src/lib/useAppointmentEmails.ts](../src/lib/useAppointmentEmails.ts)
+- [src/lib/useVault.ts](../src/lib/useVault.ts)
+- [src/lib/waitlist.ts](../src/lib/waitlist.ts)
+- [src/lib/workItems.ts](../src/lib/workItems.ts)
+- [src/lib/workerTasks.ts](../src/lib/workerTasks.ts)
+- [src/locales/de.json](../src/locales/de.json)
+- [src/locales/uk.json](../src/locales/uk.json)
+- [src/marketing.css](../src/marketing.css)
+- [src/pages/AppointmentsPage.tsx](../src/pages/AppointmentsPage.tsx)
+- [src/pages/ClientsPage.tsx](../src/pages/ClientsPage.tsx)
+- [src/pages/FinancesPage.tsx](../src/pages/FinancesPage.tsx)
+- [src/pages/MorePage.tsx](../src/pages/MorePage.tsx)
+- [src/pages/SettingsPage.tsx](../src/pages/SettingsPage.tsx)
+- [src/pages/TodayPage.tsx](../src/pages/TodayPage.tsx)
+- [src/practice-features.css](../src/practice-features.css)
+- [src/practice-workflow.css](../src/practice-workflow.css)
+- [src/styles.css](../src/styles.css)
+- [src/workers/secure.worker.ts](../src/workers/secure.worker.ts)
+- [src/workflow.css](../src/workflow.css)
+- [supabase/functions/send-client-email/handler.ts](../supabase/functions/send-client-email/handler.ts)
+- [tests/appearance.test.ts](../tests/appearance.test.ts)
+- [tests/browser/phase-a.spec.ts](../tests/browser/phase-a.spec.ts)
+- [tests/browser/phase-b.spec.ts](../tests/browser/phase-b.spec.ts)
+- [tests/browser/phase-c.spec.ts](../tests/browser/phase-c.spec.ts)
+- [tests/browser/practice-workflow.spec.ts](../tests/browser/practice-workflow.spec.ts)
+- [tests/practice-appointments.test.ts](../tests/practice-appointments.test.ts)
+- [tests/practice-flow.test.ts](../tests/practice-flow.test.ts)
+- [tests/tax-and-backup-guide.test.ts](../tests/tax-and-backup-guide.test.ts)
+- [tests/waitlist.test.ts](../tests/waitlist.test.ts)

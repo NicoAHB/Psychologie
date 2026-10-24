@@ -1,5 +1,7 @@
 # Praxisraum: Einstieg für Claude
 
+Neu: **Praxisabläufe A–C**: Einrichtungs-Checkliste, Direktabschluss mit Zahlung/Zahlart, lokale Schriftgröße, Hilfen, Ausfälle mit optionalem Honorar, separate Einwilligung für Termin-E-Mails mit Kalenderdatei, Warteliste, Jahresübersicht nach Währung und Sicherungs-Assistent. Die Seiten liegen in `src/pages/`; globale Tresor-/Routensteuerung bleibt in `App.tsx`. [Bedienung, technische Übergabe für Claude, Grenzen und vollständige Dateiliste](docs/praxisablaeufe-a-b-c.md).
+
 Bitte zuerst `README.md`, `HANDOFF.md` und `docs/lokale-werkzeuge-und-video.md` lesen.
 
 Aktuelle UI-Vereinfachung: [docs/termin-und-zahlungsablauf.md](docs/termin-und-zahlungsablauf.md). Fünf Hauptziele, Nebenwerkzeuge unter **Mehr**; interne Route `finances` und gespeicherte Datentypen bleiben unverändert. Die Oberfläche spricht von Terminen statt Sitzungen. Bestehende Freitexte/Rechnungssnapshots niemals umschreiben.

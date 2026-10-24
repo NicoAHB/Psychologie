@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: **Praxisabläufe A–C**: Einrichtungs-Checkliste, Direktabschluss mit Zahlung/Zahlart, lokale Schriftgröße, Hilfen, Ausfälle mit optionalem Honorar, separate Einwilligung für Termin-E-Mails mit Kalenderdatei, Warteliste, Jahresübersicht nach Währung und Sicherungs-Assistent. Die Seiten liegen in `src/pages/`; globale Tresor-/Routensteuerung bleibt in `App.tsx`. [Bedienung, technische Übergabe für Claude, Grenzen und vollständige Dateiliste](docs/praxisablaeufe-a-b-c.md).
+
 Neu: **Heute, Klienten, Termine, Zahlungen und Mehr** als fünf Hauptmenüpunkte. Der Ablauf ist **Termin anlegen → Termin abschließen → Zahlung offen/bezahlt**. Einstellungen und Marketing-Werkzeuge liegen unter **Mehr**. [Bedienung, geänderte Dateien und technische Übergabe](docs/termin-und-zahlungsablauf.md).
 
 Neu: **Pastell-Hintergründe und einstellbares Milchglas direkt in der App** unter **Mehr → Einstellungen → Darstellung**. Vier Farbverläufe, eigene Pastellfarben, getrennte Transparenzregler für Inhaltskarten und Menüs sowie Glas-Weichzeichnung. Die Auswahl wird sofort angewendet und auf diesem Gerät gespeichert. [Bedienung und technische Übergabe](docs/darstellung.md).

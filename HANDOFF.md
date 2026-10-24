@@ -1,5 +1,7 @@
 # Weiterarbeit am Tablet
 
+Neu: **Praxisabläufe A–C**: Einrichtungs-Checkliste, Direktabschluss mit Zahlung/Zahlart, lokale Schriftgröße, Hilfen, Ausfälle mit optionalem Honorar, separate Einwilligung für Termin-E-Mails mit Kalenderdatei, Warteliste, Jahresübersicht nach Währung und Sicherungs-Assistent. Die Seiten liegen in `src/pages/`; globale Tresor-/Routensteuerung bleibt in `App.tsx`. [Bedienung, technische Übergabe für Claude, Grenzen und vollständige Dateiliste](docs/praxisablaeufe-a-b-c.md).
+
 ## Neu: einfacher Termin- und Zahlungsablauf
 
 Fünf Hauptziele: **Heute, Klienten, Termine, Zahlungen, Mehr**. Alle weiteren Werkzeuge stehen unter **Mehr**, einschließlich Einstellungen und Empfehlungen. **Termin nachtragen** ist bei Terminen verfügbar; **Termin abschließen** legt eine offene Zahlung an. Zahlungen beginnt mit **Offen** und den Schaltflächen **Als bezahlt markieren**. Bestehende Daten und Infrastruktur bleiben unverändert. Bedienung, technische Übergabe und vollständige Dateiliste: [docs/termin-und-zahlungsablauf.md](docs/termin-und-zahlungsablauf.md).
