@@ -90,7 +90,7 @@ test('a store outage fails closed, while a legacy installation without the new m
   assert.equal(old.apiKey, legacy.RESEND_API_KEY); assert.equal(old.editable, false);
 });
 test('frontend projection drops unexpected secret fields and validates server responses', async () => {
-  const safe = { ready: true, enabled: true, editable: true, keyStored: true, senderEmail: 'praxis@example.com', senderName: 'Praxis', accountEmail: 'owner@example.com', source: 'saved' as const };
+  const safe = { provider: 'resend' as const, endpoint: '', ready: true, enabled: true, editable: true, keyStored: true, senderEmail: 'praxis@example.com', senderName: 'Praxis', accountEmail: 'owner@example.com', source: 'saved' as const };
   assert.deepEqual(readEmailStatus({ ...safe, apiKey: secret }), safe); assert.throws(() => readEmailStatus({ ...safe, ready: 'yes' }), /emailConnectionError/);
   const sent: Record<string, unknown>[] = [];
   overrideCloud({ auth: { getUser: async () => ({ data: { user: { id: owner } } }) }, functions: { invoke: async (_: string, { body }: { body: Record<string, unknown> }) => { sent.push(body); return { data: body.action === 'test' ? { providerId: 'synthetic', acceptedAt: new Date().toISOString() } : safe }; } } });

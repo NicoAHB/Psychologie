@@ -39,7 +39,7 @@ export async function sendDocumentEmail(delivery: EmailDelivery, file: DocumentF
   } });
   if (error) {
     let code = ''; try { code = (await error.context?.json())?.error; } catch { /* No response body on network failure. */ }
-    throw new Error(['emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailRateLimited', 'authError'].includes(code) ? code : 'emailSendError');
+    throw new Error(['emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailGmailConnectionInvalid', 'emailGmailAddressMismatch', 'emailGmailDeliveryUnknown', 'emailRateLimited', 'authError'].includes(code) ? code : 'emailSendError');
   }
   if (!data || typeof data.providerId !== 'string' || !data.providerId || typeof data.acceptedAt !== 'string' || Number.isNaN(Date.parse(data.acceptedAt))) throw new Error('emailSendError');
   return { providerId: data.providerId, acceptedAt: data.acceptedAt };

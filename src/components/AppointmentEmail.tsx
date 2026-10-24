@@ -17,7 +17,7 @@ export function AppointmentEmail({ vault, appointment, onClose }: { vault: Vault
   const send = async () => {
     setBusy(true); setError(undefined);
     try { await dispatchAppointmentEmail(vault,appointment.id,purpose,{ signal:controller.current!.signal }); }
-    catch (err) { if(!controller.current!.signal.aborted) { const code = (err as Error).message; setError(['emailNotConfigured','emailSetupRequired','emailProviderKeyInvalid','emailSenderNotVerified','authError','emailRetryExpired','appointmentEmailConsentMissing','emailRateLimited','appointmentEmailUnknown'].includes(code) ? code as TextKey : 'emailSendError'); } }
+    catch (err) { if(!controller.current!.signal.aborted) { const code = (err as Error).message; setError(['emailNotConfigured','emailSetupRequired','emailProviderKeyInvalid','emailSenderNotVerified', 'emailGmailConnectionInvalid', 'emailGmailAddressMismatch', 'emailGmailDeliveryUnknown','authError','emailRetryExpired','appointmentEmailConsentMissing','emailRateLimited','appointmentEmailUnknown'].includes(code) ? code as TextKey : 'emailSendError'); } }
     finally { if(!controller.current!.signal.aborted)setBusy(false); }
   };
   return <Modal title={t('appointmentEmailTitle')} onClose={() => { if(!busy)onClose(); }}><Field label={t('appointmentEmailType')}><select value={purpose} disabled={busy} onChange={e => setPurpose(e.target.value as AppointmentEmailPurpose)}><option value="appointmentConfirmation">{t('appointmentConfirmation')}</option><option value="appointmentReminder">{t('appointmentReminder')}</option></select></Field>

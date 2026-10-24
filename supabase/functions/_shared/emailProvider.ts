@@ -4,6 +4,7 @@ export interface ProviderEnvironment {
   RESEND_API_KEY?: string; EMAIL_FROM?: string;
 }
 export interface EmailProvider {
+  provider: 'resend' | 'gmail'; endpoint: string;
   apiKey?: string; from?: string; senderEmail: string; senderName: string;
   enabled: boolean; editable: boolean; source: 'saved' | 'environment' | 'none'; updatedAt?: string;
 }
@@ -28,7 +29,10 @@ export async function loadEmailProvider(env: ProviderEnvironment, owner: string,
       editable = true;
       if (saved) {
         if (typeof saved.apiKey !== 'string' || !saved.apiKey || typeof saved.senderEmail !== 'string' || typeof saved.senderName !== 'string' || typeof saved.enabled !== 'boolean') throw new Error('invalid');
-        return { apiKey: saved.enabled ? saved.apiKey : undefined,
+        const provider = saved.provider ?? 'resend', endpoint = saved.endpoint ?? '';
+        if (!['resend', 'gmail'].includes(provider) || typeof endpoint !== 'string'
+          || provider === 'gmail' && !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,160}\/exec$/.test(endpoint)) throw new Error('invalid');
+        return { provider, endpoint, apiKey: saved.enabled ? saved.apiKey : undefined,
           from: saved.enabled ? (saved.senderName ? `${saved.senderName} <${saved.senderEmail}>` : saved.senderEmail) : undefined,
           senderEmail: saved.senderEmail, senderName: saved.senderName, enabled: saved.enabled, editable,
           source: 'saved', updatedAt: saved.updatedAt };
@@ -41,12 +45,13 @@ export async function loadEmailProvider(env: ProviderEnvironment, owner: string,
     }
   }
   const legacy = env.EMAIL_FROM?.match(/^(.*?)\s*<([^<>]+)>$/);
-  return { apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM,
+  return { provider: 'resend', endpoint: '', apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM,
     senderEmail: legacy?.[2] ?? env.EMAIL_FROM ?? '', senderName: legacy?.[1]?.trim() ?? '',
     enabled: !!(env.RESEND_API_KEY && env.EMAIL_FROM), editable, source: env.RESEND_API_KEY && env.EMAIL_FROM ? 'environment' : 'none' };
 }
 export function publicEmailStatus(provider: EmailProvider, accountEmail: string) {
   return { ready: !!(provider.apiKey && provider.from), senderEmail: provider.senderEmail,
+    provider: provider.provider, endpoint: provider.endpoint,
     senderName: provider.senderName, enabled: provider.enabled, editable: provider.editable,
     keyStored: provider.source !== 'none', source: provider.source, updatedAt: provider.updatedAt, accountEmail };
 }
@@ -54,8 +59,10 @@ export function publicEmailStatus(provider: EmailProvider, accountEmail: string)
 export async function emailProviderError(response: Response) {
   if (response.status === 429) return 'emailRateLimited';
   if (response.status === 401) return 'emailProviderKeyInvalid';
+  let name = ''; try { const body = await response.json(); name = body.name;
+    if (['emailGmailConnectionInvalid', 'emailGmailAddressMismatch', 'emailGmailDeliveryUnknown'].includes(body.error)) return body.error as string;
+  } catch { /* Generic provider error. */ }
   if (response.status === 403 || response.status === 422) {
-    let name = ''; try { name = (await response.json()).name; } catch { /* Generic provider error. */ }
     if (name === 'validation_error' || name === 'restricted_api_key' || name === 'invalid_access') return 'emailSenderNotVerified';
   }
   return 'emailSendError';

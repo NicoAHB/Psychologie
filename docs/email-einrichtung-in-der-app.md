@@ -1,6 +1,8 @@
 # E-Mail-Versand dauerhaft in der App einrichten
 
-## Für die Nutzerin
+**Neu: Gmail benötigt keine eigene Domain.** Unter „Versand über“ Gmail wählen und der [Gmail-Anleitung](gmail-versand.md) folgen. Die folgenden Domain-/Resend-Schritte gelten nur bei der Auswahl Resend.
+
+## Einrichtung bei Auswahl Resend
 
 Der neue Bereich steht unter **Mehr → Einstellungen → E-Mail-Versand**. Auch im
 Versanddialog einer Rechnung, einer Unterlage oder einer Termin-Nachricht führt
@@ -42,8 +44,9 @@ unbestätigten Versandversuche automatisch wiederholt.
 Diese Freigabe muss einmal die Person mit Projektzugriff vornehmen. Die App zeigt
 die Schritte unter **Einmalige technische Freigabe**, inklusive kopierbarem SQL
 und Befehlen für das angemeldete Konto. Bis dahin wird kein funktionierender
-Produktivversand behauptet. Ohne Anbieter-Konto, bestätigte Domain und diese
-Freigabe kann die statische GitHub-Pages-App keine E-Mails zustellen.
+Produktivversand behauptet. Ohne einen eingerichteten Versandzugang und diese Freigabe kann die statische
+GitHub-Pages-App keine E-Mails zustellen. Die bestätigte eigene Domain wird nur
+bei der Auswahl Resend benötigt; Gmail verwendet die separate Google-Freigabe.
 
 1. Bestehendes Projekt verwenden. Die öffentlichen Projektwerte
    `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` müssen wie bisher in

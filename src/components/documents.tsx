@@ -16,7 +16,7 @@ import { needsAttention } from '../lib/assessments';
 import type { ImportedQuestionnaire } from '../lib/questionnaireImport';
 import { TelegramComposer } from './telegram';
 
-const errorKey = (error: unknown): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
+const errorKey = (error: unknown): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailGmailConnectionInvalid', 'emailGmailAddressMismatch', 'emailGmailDeliveryUnknown', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
 
 function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { vault: VaultController; client: Client; questionnaire: boolean; onClose: () => void; onSaved: (document: ClientDocument, email: boolean) => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [title, setTitle] = useState('');

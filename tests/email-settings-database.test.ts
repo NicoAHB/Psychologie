@@ -36,6 +36,13 @@ test('service-only saves preserve a blank key, rotate explicitly, pause, validat
   let result = await get(); assert.equal(result.apiKey, 're_synthetic_key_123'); assert.equal(result.senderEmail, 'neu@example.com'); assert.equal(result.enabled, false);
   await save('re_rotated_key_456'); result = await get(); assert.equal(result.apiKey, 're_rotated_key_456');
   await assert.rejects(() => save('invalid'), /INVALID_EMAIL_SETTINGS/); await assert.rejects(() => save(null, true, 'bad'), /INVALID_EMAIL_SETTINGS/);
+  const endpoint = 'https://script.google.com/macros/s/AKfycb_synthetic_deployment_123456789/exec', key = `gmail_${'a'.repeat(64)}`;
+  const gmail = (secret: string | null, url = endpoint) => db.query('select public.save_email_provider_settings($1,$2,$3,true,$4,$5,$6)', [owner, 'Practice@Gmail.com', 'Praxis', secret, 'gmail', url]);
+  await assert.rejects(() => gmail(null), /EMAIL_KEY_REQUIRED/);
+  await assert.rejects(() => gmail(key, 'https://evil.example/'), /INVALID_EMAIL_SETTINGS/);
+  await gmail(key); result = await get(); assert.equal(result.provider, 'gmail'); assert.equal(result.apiKey, key); assert.equal(result.senderEmail, 'practice@gmail.com');
+  await gmail(null); assert.equal((await get()).apiKey, key);
+  await assert.rejects(() => save(null), /EMAIL_KEY_REQUIRED/);
   await db.exec('reset role'); assert.equal((await db.query('select * from vault.secrets')).rows.length, 1);
   await db.query('delete from auth.users where id=$1', [owner]); assert.equal((await db.query('select * from vault.secrets')).rows.length, 0);
 });

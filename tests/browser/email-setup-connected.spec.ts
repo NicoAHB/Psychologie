@@ -4,13 +4,17 @@ import { test, expect } from './fixtures';
 import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
 const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import.meta.url), 'utf8')) as Record<string, string>;
 const uk = JSON.parse(await readFile(new URL('../../src/locales/uk.json', import.meta.url), 'utf8')) as Record<string, string>;
-test('provider setup persists across reloads without a build flag or browser secrets, and tests only the owner account', async ({ page }) => {
+for (const provider of ['resend', 'gmail'] as const) test(`${provider} setup persists across reloads without browser secrets, and tests only the owner account`, async ({ page }) => {
   test.skip(process.env.PLAYWRIGHT_EMAIL_TEST !== 'true', 'Requires the fake, intercepted email-test build.');
   test.setTimeout(90000);
-  const key = 're_synthetic_for_browser_test_only', user = { id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated', email: 'owner@example.com', created_at: new Date().toISOString() };
+  let key = provider === 'gmail' ? `gmail_${'a'.repeat(64)}` : 're_synthetic_for_browser_test_only';
+  const sender = provider === 'gmail' ? 'practice@gmail.com' : 'kontakt@example.com';
+  const keyLabel = provider === 'gmail' ? de.emailGmailCode : de.emailSetupApiKey;
+  const user = { id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated', email: 'owner@example.com', created_at: new Date().toISOString() };
   const encoded = (v: object) => Buffer.from(JSON.stringify(v)).toString('base64url'), token = `${encoded({ alg: 'HS256', typ: 'JWT' })}.${encoded({ sub: user.id, aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 })}.synthetic`;
   await page.addInitScript(({ user, token }) => localStorage.setItem('sb-email-test-auth-token', JSON.stringify({ user, access_token: token, refresh_token: 'test-only', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600, token_type: 'bearer' })), { user, token });
-  let status = { ready: false, enabled: false, editable: true, keyStored: false, senderEmail: '', senderName: '', accountEmail: user.email, source: 'none' };
+  if (provider === 'gmail') await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (text: string) => { (window as unknown as { copiedGmailScript: string }).copiedGmailScript = text; } } }));
+  let status = { provider: 'resend', endpoint: '', ready: false, enabled: false, editable: true, keyStored: false, senderEmail: '', senderName: '', accountEmail: user.email, source: 'none' };
   const requests: Record<string, unknown>[] = [];
   await page.route('https://email-test.supabase.co/**', async route => {
     const path = new URL(route.request().url()).pathname;
@@ -20,7 +24,7 @@ test('provider setup persists across reloads without a build flag or browser sec
     if (body.action === 'status') return route.fulfill({ json: status });
     if (body.action === 'save') {
       expect(body.apiKey === key || body.apiKey === '').toBe(true);
-      status = { ...status, ready: body.enabled, enabled: body.enabled, keyStored: true, senderEmail: body.senderEmail, senderName: body.senderName, source: 'saved' };
+      status = { ...status, ready: body.enabled, enabled: body.enabled, keyStored: true, senderEmail: body.senderEmail, senderName: body.senderName, provider: body.provider, endpoint: body.endpoint, source: 'saved' };
       return route.fulfill({ json: status });
     }
     if (body.action === 'test') { expect(body.to).toBeUndefined(); expect(body.attachment).toBeUndefined(); return route.fulfill({ json: { providerId: 'synthetic-receipt', acceptedAt: new Date().toISOString() } }); }
@@ -28,16 +32,23 @@ test('provider setup persists across reloads without a build flag or browser sec
   });
   const { data } = workflowData(), read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(de.saved); const before = await read(); await nav(page, de.settings); const card = page.locator('#settings-email');
   await expect(card.getByLabel(de.emailSetupSenderAddress, { exact: true })).toBeVisible();
+  await card.getByLabel(de.emailProviderChoice, { exact: true }).selectOption(provider);
   await card.getByLabel(de.emailSetupSenderName, { exact: true }).fill('Praxis Beispiel');
-  await card.getByLabel(de.emailSetupSenderAddress, { exact: true }).fill('kontakt@example.com');
-  const api = card.getByLabel(de.emailSetupApiKey, { exact: true }); await api.fill(key); await expect(api).toHaveAttribute('type', 'password');
+  await card.getByLabel(de.emailSetupSenderAddress, { exact: true }).fill(sender);
+  const api = card.getByLabel(keyLabel, { exact: true });
+  if (provider === 'gmail') {
+    await card.getByLabel(de.emailGmailEndpoint, { exact: true }).fill('https://script.google.com/macros/s/AKfycb_synthetic_deployment_123456789/exec');
+    await card.getByRole('button', { name: de.emailGmailGenerateCode, exact: true }).click(); key = await api.inputValue(); expect(key).toMatch(/^gmail_[0-9a-f]{64}$/);
+    await card.getByRole('button', { name: de.emailGmailCopyScript, exact: true }).click();
+    expect(await page.evaluate(() => (window as unknown as { copiedGmailScript: string }).copiedGmailScript)).toContain(key);
+  } else await api.fill(key); await expect(api).toHaveAttribute('type', 'password');
   await card.getByRole('button', { name: de.emailSetupShowKey, exact: true }).click(); await expect(api).toHaveAttribute('type', 'text');
   await card.getByRole('button', { name: de.save, exact: true }).click();
   await expect(card.getByRole('button', { name: /Gespeichert um/ })).toBeDisabled(); await expect(api).toHaveValue(''); await expect(api).toHaveAttribute('type', 'password');
   expect(requests.filter(x => x.action === 'test')).toHaveLength(0);
   await card.getByRole('button', { name: de.emailSetupSendTest, exact: true }).click(); await expect(card.getByText(de.emailSetupTestAccepted, { exact: false })).toBeVisible();
   await page.reload(); await unlock(page); await nav(page, de.settings);
-  await expect(card.getByLabel(de.emailSetupSenderAddress, { exact: true })).toHaveValue('kontakt@example.com'); await expect(card.getByLabel(de.emailSetupApiKey, { exact: true })).toHaveValue('');
+  await expect(card.getByLabel(de.emailSetupSenderAddress, { exact: true })).toHaveValue(sender); await expect(card.getByLabel(keyLabel, { exact: true })).toHaveValue('');
   await card.getByRole('checkbox', { name: de.emailSetupEnabled, exact: true }).uncheck(); await card.getByRole('button', { name: de.save, exact: true }).click();
   await expect(card.getByText(de.emailSetupPaused, { exact: true })).toBeVisible(); await expect(card.getByRole('button', { name: de.emailSetupSendTest, exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Українська', exact: true }).first().click(); await expect(card.getByText(uk.emailSetupPaused, { exact: true })).toBeVisible();
@@ -50,9 +61,9 @@ test('provider setup persists across reloads without a build flag or browser sec
   expect(JSON.stringify(await read()).includes(key)).toBe(false);
   expect(requests.filter(x => x.action === 'test')).toHaveLength(1);
   await page.getByRole('button', { name: 'Deutsch', exact: true }).first().click();
-  await card.getByLabel(de.emailSetupApiKey, { exact: true }).fill(key);
+  await card.getByLabel(keyLabel, { exact: true }).fill(key);
   await page.getByRole('button', { name: de.lock, exact: true }).last().click(); await unlock(page); await nav(page, de.settings);
-  await expect(card.getByLabel(de.emailSetupApiKey, { exact: true })).toHaveValue('');
+  await expect(card.getByLabel(keyLabel, { exact: true })).toHaveValue('');
   await expect(card.getByText(de.emailSetupPaused, { exact: true })).toBeVisible();
   expect(requests.filter(x => x.action === 'save')).toHaveLength(2);
 });

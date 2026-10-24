@@ -1,4 +1,5 @@
 import { loadEmailProvider } from '../_shared/emailProvider.ts';
+import { sendViaEmailProvider } from '../_shared/gmailRelay.ts';
 /** Only explicit, consented marketing deliveries. Never log requests, contacts,
  * tokens, messages, images or provider responses. No access to the patient vault. */
 export interface MarketingEnvironment {
@@ -252,30 +253,10 @@ export function createMarketingHandler(
       try {
         let response: Response;
         if (channel === "email") {
-          response = await request("https://api.resend.com/emails", {
-            method: "POST",
-            signal: AbortSignal.timeout(25000),
-            headers: {
-              Authorization: `Bearer ${emailProvider!.apiKey}`,
-              "Content-Type": "application/json",
-              "Idempotency-Key": `marketing/${owner}/${id}`,
-            },
-            body: JSON.stringify({
-              from: emailProvider!.from,
-              to: [to],
-              subject,
-              text,
-              ...(imageBytes && {
-                attachments: [
-                  {
-                    filename: "marketing.webp",
-                    content: image.content,
-                    content_type: "image/webp",
-                  },
-                ],
-              }),
-            }),
-          });
+          response = await sendViaEmailProvider(emailProvider!, {
+            key: `marketing/${owner}/${id}`, to, subject, text,
+            ...(imageBytes && { attachments: [{ filename: 'marketing.webp', content: image.content, content_type: 'image/webp' }] }),
+          }, request);
         } else if (imageBytes) {
           const form = new FormData();
           form.set("chat_id", to);
