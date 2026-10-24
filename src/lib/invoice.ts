@@ -46,7 +46,7 @@ export const uninvoiced = (data: VaultData, clientId: string) => data.sessions.f
 
 export function buildInvoice(data: VaultData, client: Client, sessions: Session[], issuedAt: string, language: Language, id: string, options: { currency?: Currency; rate?: ExchangeRate; dueOn?: string } = {}): Invoice {
   if (!sessions.length) throw new Error('noSessions');
-  if (syncConflicts(data).some(c => c.collection === 'settings' && c.field.startsWith('practice.') || c.collection === 'clients' && c.id === client.id && ['name', 'address', 'currency', '$exists'].includes(c.field) || c.collection === 'sessions' && sessions.some(s => s.id === c.id) && ['$amount', 'paidAt', 'date', 'invoiceId', '$exists'].includes(c.field))) throw new Error('invoiceWorkflowConflict');
+  if (syncConflicts(data).some(c => c.collection === 'settings' && c.field.startsWith('practice.') || c.collection === 'clients' && c.id === client.id && ['name', 'address', 'postalAddress', 'currency', '$exists'].includes(c.field) || c.collection === 'sessions' && sessions.some(s => s.id === c.id) && ['$amount', 'paidAt', 'date', 'invoiceId', '$exists'].includes(c.field))) throw new Error('invoiceWorkflowConflict');
   const dueOn = options.dueOn ?? issuedAt;
   if (!validDay(issuedAt) || !validDay(dueOn) || dueOn < issuedAt) throw new Error('invalidInvoiceDate');
   const service = data.settings.practice.serviceName.trim() || translate(language, 'invoiceDefaultService');

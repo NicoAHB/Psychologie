@@ -5,6 +5,8 @@ import { completedSessionId } from '../lib/practiceFlow';
 import { useSessionDraft } from '../lib/useSessionDraft';
 import { deleteSessionDraft } from '../lib/sessionDrafts';
 import { changeClientStatus, clientStatus } from '../lib/clientStatus';
+import { cleanPostalAddress, editablePostalAddress, formatPostalAddress, validPostalCode } from '../lib/clientAddress';
+import { ClientAddressFields } from './ClientAddressFields';
 import { validDay } from '../lib/invoice';
 import { conflictsWithAbsence } from '../lib/availability';
 import { isSessionVoided } from '../lib/invoice';
@@ -54,7 +56,9 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   const [chat, setChat] = useState(client?.telegramChatId || '');
   const [consent, setConsent] = useState(client?.reminderConsent || false);
   const [referralCode,setReferralCode] = useState(''), [referralConsent,setReferralConsent] = useState(false), [referralChecked,setReferralChecked] = useState(false);
-  const [address, setAddress] = useState(client?.address || '');
+  const [initialAddress] = useState(() => editablePostalAddress(client));
+  const [address, setAddress] = useState(() => !client?.address && !client?.postalAddress ? { ...initialAddress.value, country: t(client?.language === 'uk' ? 'addressUkraine' : 'addressGermany') } : initialAddress.value);
+  const [addressChanged, setAddressChanged] = useState(false), [countryTouched, setCountryTouched] = useState(false);
   const [zone, setZone] = useState(client?.timeZone || vault.data!.settings.timeZone);
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState('');
@@ -64,6 +68,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (followUpOn && !validDay(followUpOn)) { setError('required'); return; }
+    if ((!client || addressChanged) && !validPostalCode(address)) { setError('addressInvalidPostalCode'); return; }
     if(birthday&&(!validDay(birthday)||birthday>today())){setError('marketingBirthdayInvalid');return;}
     if (!name.trim() || (chat && !/^-?\d+$/.test(chat)) || !isValidZone(zone)) { setError('required'); return; }
     if (email.trim().length>254 || email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
@@ -71,7 +76,8 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     setBusy(true);
     try {
       const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
-      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, address: address.trim(), timeZone: zone, currency, cancellationFee: cancellationFee ? { currency: cancellationCurrency, amountCents: parseMoney(cancellationFee) } : undefined, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined, birthday:birthday||undefined };
+      const postalAddress = !client || addressChanged ? cleanPostalAddress(address) : client.postalAddress;
+      const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, postalAddress, address: postalAddress ? formatPostalAddress(postalAddress) : client?.address ?? '', timeZone: zone, currency, cancellationFee: cancellationFee ? { currency: cancellationCurrency, amountCents: parseMoney(cancellationFee) } : undefined, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined, birthday:birthday||undefined };
       const appointmentEmailChanged = appointmentEmail !== !!(client && hasAppointmentEmailConsent(client)) || email.trim() !== (client?.email ?? '');
       if (appointmentEmailChanged) result.appointmentEmailConsent = appointmentEmail ? { id: uid(), destination: email.trim(), grantedAt: new Date().toISOString() } : client?.appointmentEmailConsent ? { ...client.appointmentEmailConsent, revokedAt: new Date().toISOString() } : undefined;
       const emailChanged=marketingEmail!==!!(client&&marketingConsent(client,'email'))||email.trim()!==(client?.email??'');
@@ -83,7 +89,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
         const index = data.clients.findIndex(c => c.id === result.id);
         if (index < 0) { if (client) throw new Error('storageError'); changeClientStatus(result, status); result.marketingConsent={...(grants.email&&{email:grants.email}),...(grants.telegram&&{telegram:grants.telegram})};data.clients.push(result); }
         else { const target = data.clients[index];
-          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'timeZone', 'currency', 'followUpOn', 'followUpNote', 'birthday', 'cancellationFee', 'appointmentEmailConsent'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
+          for (const field of ['name', 'contact', 'email', 'language', 'telegramChatId', 'reminderConsent', 'avatarId', 'address', 'postalAddress', 'timeZone', 'currency', 'followUpOn', 'followUpNote', 'birthday', 'cancellationFee', 'appointmentEmailConsent'] as const) if (JSON.stringify(result[field]) !== JSON.stringify(client?.[field])) Object.assign(target, { [field]: result[field] });
           for(const channel of ['email','telegram']as const)if(channel==='email'?emailChanged:telegramChanged){target.marketingConsent??={};const previous=target.marketingConsent[channel];if(grants[channel])target.marketingConsent[channel]=grants[channel];else if(previous&&!previous.revokedAt)target.marketingConsent[channel]={...previous,revokedAt:new Date().toISOString()};}
           if (client && status !== clientStatus(client)) changeClientStatus(target, status);
         }
@@ -101,7 +107,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   return <Modal title={t(client ? 'editClient' : 'newClient')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
-    <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field><Field label={t('clientFollowUpOn')}><input type="date" value={followUpOn} onChange={e => setFollowUpOn(e.target.value)}/></Field><Field label={t('clientFollowUpNote')}><input value={followUpNote} maxLength={500} onChange={e => setFollowUpNote(e.target.value)}/></Field></div>
+    <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field><div className="date-clear-field"><Field label={t('clientFollowUpOn')}><input type="date" value={followUpOn} onChange={e => setFollowUpOn(e.target.value)}/></Field><button type="button" className="btn btn-secondary" aria-label={t('clientFollowUpClear')} disabled={busy || !followUpOn} onClick={() => setFollowUpOn('')}>{t('clearDate')}</button></div><Field label={t('clientFollowUpNote')}><input value={followUpNote} maxLength={500} onChange={e => setFollowUpNote(e.target.value)}/></Field></div>
     {!client && <fieldset className="form-section"><legend>{t('referralOptionalCode')}</legend>
       <Field label={t('referralOptionalCode')} hint={t('referralCodeHint')}><input autoComplete="off" autoCapitalize="characters" maxLength={24} value={referralCode} onChange={e=>{setReferralCode(e.target.value.toUpperCase());setReferralChecked(false);setReferralConsent(false);setError(undefined);}}/></Field>
       <button type="button" className="btn btn-secondary mb-3" disabled={!referralCode.trim()} onClick={()=>{try{resolveReferralCode(vault.data!,referralCode);setReferralChecked(true);setError(undefined);}catch(e){setReferralChecked(false);setError(referralError(e));}}}>{t('referralCheck')}</button>
@@ -111,9 +117,9 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <Field label={t('contact')}><input value={contact} maxLength={160} onChange={e => setContact(e.target.value)} placeholder={t('contactPlaceholder')}/></Field>
     <Field label={t('clientEmail')} hint={t('clientEmailHint')}><input type="email" autoComplete="off" inputMode="email" maxLength={254} value={email} onChange={e => {setEmail(e.target.value);setMarketingEmail(false);setAppointmentEmail(false);}} placeholder={t('clientEmailPlaceholder')}/></Field>
     <Field label={t('marketingBirthday')} hint={t('marketingBirthdayPrivacy')}><input type="date" value={birthday} max={today()} onChange={e=>setBirthday(e.target.value)}/></Field>
-    <Field label={t('clientAddress')}><textarea rows={2} value={address} maxLength={400} onChange={e => setAddress(e.target.value)}/></Field>
+    <ClientAddressFields value={address} legacy={initialAddress.legacy} onChange={(value, field) => { setAddress(value); setAddressChanged(true); if (field === 'country') setCountryTouched(true); }}/>
     <ZoneSelect label={t('clientTimeZone')} hint={t('clientTimeZoneHint')} value={zone} onChange={setZone}/>
-    <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { setUkrainian(e.target.checked); setReferralConsent(false); if (!currencyTouched) setCurrency(e.target.checked ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
+    <div className="form-section"><h3>{t('clientLanguage')}</h3><label className="check-label"><input type="checkbox" checked={ukrainian} onChange={e => { const enabled = e.target.checked; setUkrainian(enabled); setReferralConsent(false); if (!countryTouched && !client?.address && !client?.postalAddress) { setAddress(a => ({ ...a, country: t(enabled ? 'addressUkraine' : 'addressGermany') })); setAddressChanged(true); } if (!currencyTouched) setCurrency(enabled ? 'UAH' : 'EUR'); }}/><span>{t('ukrainianReminders')}</span></label><p className="hint">{t('languageHelp')}</p></div>
     <Field label={t('billingCurrency')} hint={t('billingCurrencyHint')}><select value={currency} onChange={e => { setCurrency(e.target.value as Currency); setCurrencyTouched(true); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <Field label={t('telegramChatId')} hint={t('chatHelp')}><input value={chat} maxLength={24} inputMode="numeric" onChange={e => {setChat(e.target.value);setMarketingTelegram(false);}} placeholder={t('chatPlaceholder')}/></Field>
     <label className="check-label"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/><span>{t('reminderConsent')}</span></label>

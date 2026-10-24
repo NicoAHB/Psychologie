@@ -1,4 +1,5 @@
 import type { CrdtState } from './crdt';
+import { normalizeClientAddress } from './clientAddress';
 export type Language = 'de' | 'uk';
 export type Currency = 'EUR' | 'UAH';
 export type PaymentMethod = 'cash' | 'transfer';
@@ -16,11 +17,16 @@ export type MarketingChannelSelection = MarketingChannel | 'both' | 'none';
 export interface MarketingConsent { id: string; token: string; destination: string; grantedAt: string; revokedAt?: string }
 // `updatedAt` is display/audit metadata. Causal CRDT registers drive device merging.
 export interface Stamped { updatedAt?: number }
+export interface ClientPostalAddress {
+  street: string; additional: string; postalCode: string; city: string; region: string; country: string;
+}
 export interface Client extends Stamped {
   id: string; name: string; createdAt: string; language: Language; preparation: string;
   contact: string; telegramChatId: string; reminderConsent: boolean; avatarId?: string;
   /** Postal address for invoices. */
   address?: string;
+  /** Optional on older vaults; one atomic postal snapshot, fully encrypted. */
+  postalAddress?: ClientPostalAddress;
   /** Where the client lives (IANA name). Appointment times are always shown in this zone as well. */
   timeZone?: string;
   currency?: Currency;
@@ -231,6 +237,7 @@ export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
     documents: value.documents ?? [], waitlist: value.waitlist ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+  result.clients = value.clients.map(client => normalizeClientAddress(client, value.crdt?.entities[JSON.stringify(['clients', client.id])]?.postalAddress?.values.at(-1)?.value));
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

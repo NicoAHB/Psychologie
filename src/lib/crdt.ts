@@ -1,6 +1,8 @@
 import { sha256 } from '@noble/hashes/sha2.js';
 import type { VaultData } from './types';
 import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
+import { formatPostalAddress } from './clientAddress';
+import type { ClientPostalAddress } from './types';
 
 export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
@@ -36,6 +38,7 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
   const result: Record<string, Json | undefined> = {};
   for (const [k, v] of Object.entries(row)) {
     if (k === 'id' || k === 'updatedAt' || collection === 'settings' && k === 'autoSync') continue;
+    if (collection === 'clients' && k === 'address' && row.postalAddress) continue;
     if ('feeCents' in row && ['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId', 'paymentMethod', 'kind', 'failureStatus'].includes(k)) continue;
     if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
@@ -183,6 +186,7 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
     else {
       if (['sessions', 'notes'].includes(collection)) row.tags ??= [];
       if (collection === 'clients' && Object.keys(registers).some(field => field.startsWith('statusHistory:'))) row.statusHistory ??= [];
+      if (collection === 'clients' && row.postalAddress) row.address = formatPostalAddress(row.postalAddress as unknown as ClientPostalAddress);
       if (collection === 'documents') { row.deliveries ??= []; row.returns ??= []; }
       if (collection === 'newsletters') { row.messages ??= []; row.recipients ??= []; }
       if (collection === 'documents') for (const field of ['deliveries', 'returns', 'telegramDeliveries']) {

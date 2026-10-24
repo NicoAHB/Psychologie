@@ -22,7 +22,7 @@ test('practice profile, invoice with print view, tax-advisor CSV and search acro
   await practice.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(practice.getByRole('button', { name: /^Gespeichert um \d{2}:\d{2}$/ })).toBeDisabled();
 
   await nav(page, 'Klienten'); await page.getByRole('button', { name: 'Klient anlegen', exact: true }).first().click();
-  await dialog.getByLabel('Name *', { exact: true }).fill('Max Mustermann'); await dialog.getByLabel('Anschrift (für Rechnungen)').fill('Lindenallee 3\n80331 München');
+  await dialog.getByLabel('Name *', { exact: true }).fill('Max Mustermann'); await dialog.getByLabel('Straße und Hausnummer', { exact: true }).fill('Lindenallee 3'); await dialog.getByLabel('Postleitzahl', { exact: true }).fill('80331'); await dialog.getByLabel('Ort / Stadt', { exact: true }).fill('München');
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
   await page.getByRole('button', { name: 'Termin nachtragen', exact: true }).click();
   await dialog.getByLabel('Terminnotiz (optional)').fill('Schlafprobleme und Grübeln besprochen');
