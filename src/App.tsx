@@ -19,7 +19,7 @@ import type { SessionDraft } from './lib/types';
 import { flushBeforeLock } from './lib/autoLock';
 import type { ClientStatus } from './lib/types';
 import { SyncConflicts } from './components/SyncConflicts';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCheck, ChevronRight, Cloud, Leaf, LoaderCircle, LockKeyhole, Menu, Search, ShieldCheck, WifiOff, X } from 'lucide-react';
 import { LanguageSwitch, useI18n, type TextKey } from './lib/i18n';
 import { autoLockMinutes } from './lib/autoLock';
@@ -46,6 +46,7 @@ import { AppointmentForm, ClientForm, NoteForm, PaymentForm, SessionForm } from 
 import { Welcome } from './components/Welcome';
 import { useCloudUser } from './components/CloudAuth';
 type Form = { type: 'client'; client?: Client } | { type: 'appointment'; clientId?: string; appointment?: Appointment } | { type: 'session'; clientId?: string; appointment?: Appointment; session?: Session; restored?: SessionDraft } | { type: 'note'; clientId: string } | { type: 'payment'; session: Session };
+const GuidePage = lazy(() => import('./pages/GuidePage').then(module => ({ default: module.GuidePage })));
 export default function App() {
   const vault = useVault(); const { t } = useI18n(); const user = useCloudUser(!!vault.data);
   useAppointmentEmails(vault,user ?? undefined);
@@ -159,6 +160,12 @@ export default function App() {
       {completedNotice && <Notice><span>{t('appointmentCompletedOpen')}</span><button className="text-link" onClick={() => { navigate('finances'); setCompletedNotice(false); }}>{t('goToPayments')}</button><button className="icon-btn" aria-label={t('close')} onClick={() => setCompletedNotice(false)}><X size={18}/></button></Notice>}
       {isMoreRoute(route) && route !== 'more' && <button className="btn btn-ghost back-to-more" onClick={() => navigate('more')}>{t('backToMore')}</button>}
       {route === 'more' && <MorePage navigate={navigate}/>}
+      {route === 'guide' && <Suspense fallback={<p role="status">{t('working')}</p>}><GuidePage onOpen={target => {
+        navigate(target.route);
+        if (target.route === 'settings') setSettingsFocus(target.section);
+        if (target.route === 'clients') { setSelectedId(undefined); setClientFilter('all'); }
+        if (target.route === 'appointments' && target.waitlist) setWaitlistFocus(true);
+      }}/></Suspense>}
       {route === 'overview' && <Today onWaitlist={() => { navigate('appointments'); setWaitlistFocus(true); }} vault={vault} {...quickProps} backup={backupInfo} onSetup={section => { navigate('settings'); setSettingsFocus(section); }}
         onNewAppointment={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })}
         onNewClient={() => setForm({ type: 'client' })} onClient={openClient}

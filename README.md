@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu: **Mehr → Anleitung** bietet einen einfachen Einstieg, 14 aufklappbare Themen, eine deutsch/ukrainische Suche und direkte Verlinkungen zu den passenden Bereichen. Die Anleitung funktioniert auch offline. [Bedienung und technische Übergabe](docs/anleitung.md).
+
 Neu: **Mehrere Wiedervorlagen**, lokale **Dublettenhinweise mit ausdrücklicher Bestätigung vor dem Speichern** bei der Klientenanlage, **Rechnungsprüfung** mit direkter Stammdatenbearbeitung und ein gemeinsamer **Kontaktverlauf** im Klientenprofil. Bestehende Akten und Sicherungen bleiben kompatibel. [Bedienung, Grenzen, Dateiliste und technische Übergabe für Claude](docs/praxisorganisation-und-kontaktverlauf.md).
 
 Neu: **Praxisabläufe A–C**: Einrichtungs-Checkliste, Direktabschluss mit Zahlung/Zahlart, lokale Schriftgröße, Hilfen, Ausfälle mit optionalem Honorar, separate Einwilligung für Termin-E-Mails mit Kalenderdatei, Warteliste, Jahresübersicht nach Währung und Sicherungs-Assistent. Die Seiten liegen in `src/pages/`; globale Tresor-/Routensteuerung bleibt in `App.tsx`. [Bedienung, technische Übergabe für Claude, Grenzen und vollständige Dateiliste](docs/praxisablaeufe-a-b-c.md).

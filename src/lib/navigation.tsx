@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   CalendarClock,
+  BookOpen,
   LayoutDashboard,
   Mail,
   MoreHorizontal,
@@ -13,8 +14,8 @@ import {
 } from "lucide-react";
 import type { Route } from "./types";
 import type { TextKey } from "./i18n";
-// "more" is presentation state only; persisted routes and vault types stay unchanged.
-export type AppRoute = Route | 'more';
+// These destinations are presentation state only; vault types stay unchanged.
+export type AppRoute = Route | 'more' | 'guide';
 export const mainNavigation: { id: AppRoute; icon: LucideIcon }[] = [
   { id: 'overview', icon: LayoutDashboard },
   { id: 'clients', icon: Users },
@@ -23,7 +24,8 @@ export const mainNavigation: { id: AppRoute; icon: LucideIcon }[] = [
   { id: 'more', icon: MoreHorizontal },
 ];
 // Add future tools here; the primary navigation always stays short.
-export const moreNavigation: { id: Route; icon: LucideIcon; description: TextKey }[] = [
+export const moreNavigation: { id: Exclude<AppRoute, 'more'>; icon: LucideIcon; description: TextKey }[] = [
+  { id: 'guide', icon: BookOpen, description: 'moreGuideHint' },
   { id: 'settings', icon: Settings2, description: 'moreSettingsHint' },
   { id: 'newsletter', icon: Mail, description: 'moreNewsletterHint' },
   { id: 'marketingCampaigns', icon: CalendarClock, description: 'moreCampaignsHint' },

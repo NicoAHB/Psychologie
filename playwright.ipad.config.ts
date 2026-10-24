@@ -7,7 +7,7 @@ const softwareDisplay = process.env.WEBKIT_DISABLE_COMPOSITING_MODE === '1' ? { 
 export default defineConfig({
   // Run tests sequentially within each software-rendered Safari project.
   // CI isolates the devices on separate runners to avoid competing compositors.
-  testDir: './tests/browser', testMatch: ['practice-workflow.spec.ts', 'marketing.spec.ts', 'appearance.spec.ts', 'referrals.spec.ts', 'simple-workflow.spec.ts', 'phase-a.spec.ts', 'phase-b.spec.ts', 'phase-c.spec.ts', 'save-button.spec.ts', 'client-address.spec.ts', 'follow-up-fields.spec.ts', 'practice-overview.spec.ts', 'client-duplicates.spec.ts'], timeout: 60000, workers: 1,
+  testDir: './tests/browser', testMatch: ['practice-workflow.spec.ts', 'marketing.spec.ts', 'appearance.spec.ts', 'referrals.spec.ts', 'simple-workflow.spec.ts', 'phase-a.spec.ts', 'phase-b.spec.ts', 'phase-c.spec.ts', 'save-button.spec.ts', 'client-address.spec.ts', 'follow-up-fields.spec.ts', 'practice-overview.spec.ts', 'client-duplicates.spec.ts', 'guide.spec.ts'], timeout: 60000, workers: 1,
   // Avoid screencast overhead while measuring rendering and IndexedDB in the
   // virtual display. Keep failure screenshots and the bounded I/O diagnostic.
   // The app's reduced-motion CSS removes drawer/chart transitions. Keep glass

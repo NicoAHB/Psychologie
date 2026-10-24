@@ -15,8 +15,8 @@ test('five main destinations and More remain reachable in both languages on port
     const buttons = page.locator('.sidebar nav button > span');
     await expect(buttons).toHaveText(['overview', 'clients', 'appointments', 'finances', 'more'].map(key => words[key]));
     await nav(page, words.more);
-    await expect(page.locator('.more-navigation button')).toHaveCount(5);
-    for (const route of ['settings', 'newsletter', 'marketingCampaigns', 'messageTemplates', 'referrals']) {
+    await expect(page.locator('.more-navigation button')).toHaveCount(6);
+    for (const route of ['guide', 'settings', 'newsletter', 'marketingCampaigns', 'messageTemplates', 'referrals']) {
       await nav(page, words[route]);
       await expect(page.locator('.sidebar nav [aria-current="page"]')).toHaveText(words.more);
       await expect(page.getByRole('heading', { name: words[route === 'settings' ? 'settingsTitle' : route], exact: true }).first()).toBeVisible();

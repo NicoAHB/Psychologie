@@ -1,5 +1,7 @@
 # Weiterarbeit am Tablet
 
+Neu: **Mehr → Anleitung** bietet einen einfachen Einstieg, 14 aufklappbare Themen, eine deutsch/ukrainische Suche und direkte Verlinkungen zu den passenden Bereichen. Die Anleitung funktioniert auch offline. [Bedienung und technische Übergabe](docs/anleitung.md).
+
 Neu: **Mehrere Wiedervorlagen**, lokale **Dublettenhinweise mit ausdrücklicher Bestätigung vor dem Speichern** bei der Klientenanlage, **Rechnungsprüfung** mit direkter Stammdatenbearbeitung und ein gemeinsamer **Kontaktverlauf** im Klientenprofil. Bestehende Akten und Sicherungen bleiben kompatibel. [Bedienung, Grenzen, Dateiliste und technische Übergabe für Claude](docs/praxisorganisation-und-kontaktverlauf.md).
 
 Neu: Wiedervorlagedatum mit eigenem Knopf löschbar; der Bereich ist auch für Safari mit großer Schrift in getrennte Zeilen gegliedert und bietet sieben optionale Gründe plus eigene Notizen. Getrennte Klienten-Adressfelder mit deutscher/ukrainischer Reihenfolge, optionaler Oblast und sicherem Erhalt älterer Freitextanschriften. [Bedienung, Datenerweiterung und technische Übergabe](docs/klientenanschrift-und-wiedervorlage.md).

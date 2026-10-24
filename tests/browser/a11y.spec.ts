@@ -29,7 +29,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.getByRole('tab', { name: tab }).click();
       await scan(page, found, `client ${tab}`);
     }
-    for (const route of ['Termine', 'Zahlungen', 'Mehr', 'Einstellungen']) {
+    for (const route of ['Termine', 'Zahlungen', 'Mehr', 'Anleitung', 'Einstellungen']) {
       await nav(page, route);
       await scan(page, found, route);
       if (route === 'Zahlungen') { await page.locator('.finance-history > summary').click(); await scan(page, found, 'payment history and CSV tools'); }

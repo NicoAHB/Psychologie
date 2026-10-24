@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures';
 import { readFile } from 'node:fs/promises';
 import { fakeMemoCapture, recordMemo } from './memo-fixture';
+import { nav } from './workflow-fixture';
 
 test('GitHub Pages project path: installable manifest, usable app and offline reload', async ({ page, context }) => {
   test.skip(!process.env.VITE_BASE_PATH, 'This check targets the project-path build.');
@@ -22,6 +23,12 @@ test('GitHub Pages project path: installable manifest, usable app and offline re
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Meinen Praxisraum einrichten', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Mit Beispieldaten entdecken', exact: true }).click();
+  await nav(page, 'Anleitung');
+  await page.getByLabel('In der Anleitung suchen', { exact: true }).fill('iPad Sicherung');
+  await expect(page.locator('#guide-body-backups')).toBeVisible();
+  await page.getByRole('button', { name: 'Українська', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: 'Інструкція', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
