@@ -7,6 +7,7 @@ import { deleteSessionDraft } from '../lib/sessionDrafts';
 import { changeClientStatus, clientStatus } from '../lib/clientStatus';
 import { cleanPostalAddress, editablePostalAddress, formatPostalAddress, validPostalCode } from '../lib/clientAddress';
 import { ClientAddressFields } from './ClientAddressFields';
+import { FollowUpFields } from './FollowUpFields';
 import { validDay } from '../lib/invoice';
 import { conflictsWithAbsence } from '../lib/availability';
 import { isSessionVoided } from '../lib/invoice';
@@ -107,7 +108,9 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
   return <Modal title={t(client ? 'editClient' : 'newClient')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
-    <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field><div className="date-clear-field"><Field label={t('clientFollowUpOn')}><input type="date" value={followUpOn} onChange={e => setFollowUpOn(e.target.value)}/></Field><button type="button" className="btn btn-secondary" aria-label={t('clientFollowUpClear')} disabled={busy || !followUpOn} onClick={() => setFollowUpOn('')}>{t('clearDate')}</button></div><Field label={t('clientFollowUpNote')}><input value={followUpNote} maxLength={500} onChange={e => setFollowUpNote(e.target.value)}/></Field></div>
+    <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field>
+      <FollowUpFields date={followUpOn} note={followUpNote} disabled={busy} onDate={setFollowUpOn} onNote={setFollowUpNote}/>
+    </div>
     {!client && <fieldset className="form-section"><legend>{t('referralOptionalCode')}</legend>
       <Field label={t('referralOptionalCode')} hint={t('referralCodeHint')}><input autoComplete="off" autoCapitalize="characters" maxLength={24} value={referralCode} onChange={e=>{setReferralCode(e.target.value.toUpperCase());setReferralChecked(false);setReferralConsent(false);setError(undefined);}}/></Field>
       <button type="button" className="btn btn-secondary mb-3" disabled={!referralCode.trim()} onClick={()=>{try{resolveReferralCode(vault.data!,referralCode);setReferralChecked(true);setError(undefined);}catch(e){setReferralChecked(false);setError(referralError(e));}}}>{t('referralCheck')}</button>

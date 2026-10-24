@@ -54,8 +54,17 @@ html[data-font-size='extraLarge'] .appointment-row-actions { flex-basis: 100%; }
 html[data-font-size='extraLarge'] .form-grid { grid-template-columns: minmax(0, 1fr); }
 .modal-heading > h2 { min-inline-size: 0; overflow-wrap: anywhere; }
 html[data-font-size='extraLarge'] .modal-heading { flex-wrap: wrap; align-items: flex-start; }
-.date-clear-field { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; margin-block-end: 18px; }
-.date-clear-field > .field { flex: 1 1 210px; margin-block-end: 0; }
-.date-clear-field > .btn { min-height: 44px; max-width: 100%; white-space: normal; }
+.follow-up-fields { min-inline-size: 0; max-inline-size: 100%; padding: 18px; margin-block: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.follow-up-fields legend { display: flex; align-items: center; gap: 8px; padding-inline: 6px; max-inline-size: 100%; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+.follow-up-fields legend > svg { flex-shrink: 0; }
+.follow-up-fields > .hint { margin-block: 0 18px; }
+/* Separate grid rows avoid Safari's intrinsic date-control width overlapping
+   the clear action. Never place the action over a native form control. */
+.follow-up-date-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-block-end: 18px; min-inline-size: 0; }
+.follow-up-date-controls > .field { min-inline-size: 0; margin-block-end: 0; }
+.follow-up-fields input[type='date'] { box-sizing: border-box; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; }
+.follow-up-date-actions { display: flex; justify-content: flex-end; min-inline-size: 0; }
+.follow-up-date-actions > .btn { min-height: 44px; max-inline-size: 100%; white-space: normal; }
+.follow-up-fields > .field:last-of-type { margin-block-end: 0; }
 .client-address-fields { min-inline-size: 0; max-inline-size: 100%; }
 .client-address-fields legend { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }

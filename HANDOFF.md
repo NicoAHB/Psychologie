@@ -1,6 +1,6 @@
 # Weiterarbeit am Tablet
 
-Neu: Wiedervorlagedatum mit eigenem Knopf löschbar; getrennte Klienten-Adressfelder mit deutscher/ukrainischer Reihenfolge, optionaler Oblast und sicherem Erhalt älterer Freitextanschriften. [Bedienung, Datenerweiterung und technische Übergabe](docs/klientenanschrift-und-wiedervorlage.md).
+Neu: Wiedervorlagedatum mit eigenem Knopf löschbar; der Bereich ist auch für Safari mit großer Schrift in getrennte Zeilen gegliedert und bietet sieben optionale Gründe plus eigene Notizen. Getrennte Klienten-Adressfelder mit deutscher/ukrainischer Reihenfolge, optionaler Oblast und sicherem Erhalt älterer Freitextanschriften. [Bedienung, Datenerweiterung und technische Übergabe](docs/klientenanschrift-und-wiedervorlage.md).
 
 Neu: **Praxisabläufe A–C**: Einrichtungs-Checkliste, Direktabschluss mit Zahlung/Zahlart, lokale Schriftgröße, Hilfen, Ausfälle mit optionalem Honorar, separate Einwilligung für Termin-E-Mails mit Kalenderdatei, Warteliste, Jahresübersicht nach Währung und Sicherungs-Assistent. Die Seiten liegen in `src/pages/`; globale Tresor-/Routensteuerung bleibt in `App.tsx`. [Bedienung, technische Übergabe für Claude, Grenzen und vollständige Dateiliste](docs/praxisablaeufe-a-b-c.md).
 
