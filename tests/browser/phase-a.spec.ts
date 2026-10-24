@@ -24,11 +24,14 @@ test('setup links focus their exact settings and help is accessible without a mo
   const result = await new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze(); expect(result.violations).toEqual([]);
   await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0);
 });
-test('large device-local text remains readable on portrait screens in both themes', async ({ page }) => {
-  test.setTimeout(90000); const { data } = workflowData(); await seedWorkflow(page, data);
+for (const width of [820,390]) test(`large device-local text remains readable at ${width}px in both themes`, async ({ page }) => {
+  test.setTimeout(90000);
+  // Set the CSS viewport before navigation, like the existing portrait tests.
+  // WebKit's iOS emulation can retain its prior layout viewport across two live device-width resizes.
+  await page.setViewportSize({ width,height:1180 }); const { data } = workflowData(); await seedWorkflow(page, data);
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
-  for (const width of [820, 390]) {
-    await page.setViewportSize({ width, height: 1180 }); await nav(page, de.settings);
+  {
+    await nav(page, de.settings);
     await page.getByLabel(de.fontSize, { exact: true }).selectOption('extraLarge');
     for (const mode of ['light','dark']) {
       await page.getByLabel(de.colorScheme, { exact: true }).selectOption(mode);

@@ -18,6 +18,7 @@ test('quick payment preserves appointment pricing, currency and exact receipt me
   const data = fixture(); data.appointments[0].billing = { currency: 'UAH', amountCents: 400000, rate: { micros: 47000000, date: today(), source: 'manual' } };
   const s = completeAndPay(data, 'a', 'cash'); assert.equal(s.paidAt, today()); assert.equal(s.paymentMethod, 'cash'); assert.equal(s.feeCents, 8500); assert.deepEqual(s.billing, data.appointments[0].billing); assert.equal(s.notes, '');
   assert.equal(completeAndPay(data, 'a', 'transfer').paymentMethod, 'cash'); assert.equal(data.sessions.length, 1); assert.equal(data.appointments[0].status, 'completed');
+  s.kind='cancellationFee'; assert.throws(()=>completeAndPay(data,'a','cash'),/quickPaymentUnavailable/);
 });
 test('quick completion refuses missing/cancelled appointments, open charges and unfinished note drafts', () => {
   const data = fixture(); assert.throws(() => completeAndPay(data, 'missing', 'cash'));

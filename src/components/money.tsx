@@ -41,16 +41,16 @@ export function ExchangeRateField({ value, onChange, auto = true }: { value?: Ex
     {value && value.date !== today() && <p className="hint">{t('rateOlder')}</p>}
   </div>;
 }
-export function FeeInput({ value, onChange, inputCurrency, onCurrency, currency, rate, onRate, auto = true }: {
+export function FeeInput({ value, onChange, inputCurrency, onCurrency, currency, rate, onRate, auto = true, allowForeignInput = false }: {
   value: string; onChange: (value: string) => void; inputCurrency: Currency; onCurrency: (currency: Currency) => void;
-  currency: Currency; rate?: ExchangeRate; onRate: (rate?: ExchangeRate) => void; auto?: boolean;
+  currency: Currency; rate?: ExchangeRate; onRate: (rate?: ExchangeRate) => void; auto?: boolean; allowForeignInput?: boolean;
 }) {
   const { t, language } = useI18n(); let preview: { feeCents: number; billing: Billing } | undefined;
   try { preview = billAmount(parseMoney(value), inputCurrency, currency, rate); } catch { /* Show a preview only for complete, valid input. */ }
   return <div className="fee-input">
-    {currency === 'UAH' && <Field label={t('amountEnteredIn')}><select value={inputCurrency} onChange={e => { const next = e.target.value as Currency; try { onChange(String(convertWhole(parseMoney(value), inputCurrency, next, rate) / 100)); } catch { onChange(''); } onCurrency(next); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>}
-    <Field label={currency === 'EUR' || inputCurrency === 'EUR' ? t('fee') : t('feeUah')} hint={t('wholeAmountsHint')}><input inputMode="numeric" pattern="[0-9]*" maxLength={6} value={value} onChange={e => onChange(e.target.value)}/></Field>
-    {currency === 'UAH' && <><ExchangeRateField value={rate} onChange={onRate} auto={auto}/>{preview && <div className="currency-preview" aria-live="polite"><ArrowDownUp size={18}/><div><span>{t('payableAmount')}</span><strong>{money(preview.billing.amountCents, language, 'UAH')}</strong><small>≈ {money(preview.feeCents, language)} · {t('euroComparisonOnly')}</small></div></div>}<p className="hint">{t('rateFixedHint')}</p></>}
+    {(currency === 'UAH' || allowForeignInput) && <Field label={t('amountEnteredIn')}><select value={inputCurrency} onChange={e => { const next = e.target.value as Currency; try { onChange(String(convertWhole(parseMoney(value), inputCurrency, next, rate) / 100)); } catch { onChange(''); } onCurrency(next); }}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>}
+    <Field label={inputCurrency === 'EUR' ? t('fee') : t('feeUah')} hint={t('wholeAmountsHint')}><input inputMode="numeric" pattern="[0-9]*" maxLength={6} value={value} onChange={e => onChange(e.target.value)}/></Field>
+    {(currency === 'UAH' || inputCurrency === 'UAH') && <><ExchangeRateField value={rate} onChange={onRate} auto={auto}/>{preview && <div className="currency-preview" aria-live="polite"><ArrowDownUp size={18}/><div><span>{t('payableAmount')}</span><strong>{money(preview.billing.amountCents, language, currency)}</strong>{currency === 'UAH' && <small>≈ {money(preview.feeCents, language)} · {t('euroComparisonOnly')}</small>}</div></div>}<p className="hint">{t('rateFixedHint')}</p></>}
   </div>;
 }
 export function BillingMoney({ feeCents, billing }: { feeCents: number; billing?: Billing }) {

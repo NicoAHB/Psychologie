@@ -1304,7 +1304,7 @@
   "waitlistTimesPlaceholder": "Zum Beispiel: dienstags nach 16 Uhr",
   "waitlistNote": "Notiz zur Terminvereinbarung",
   "waitlistEmpty": "Aktuell wartet niemand auf einen Termin.",
-  "waitlistDeleteConfirm": "Diesen Eintrag endgültig von der Warteliste entfernen?",
+  "waitlistDeleteConfirm": "Diesen Eintrag von der Warteliste entfernen?",
   "waitlistFreeTitle": "Ein Termin ist frei geworden",
   "waitlistFreeHint": "Diese künftigen Zeiten wurden durch Absage oder Verschieben frei. Prüfen Sie die Wunschzeiten Ihrer Warteliste. Eine Teilüberschneidung oder eingetragene Abwesenheit schließt den Hinweis aus.",
   "waitlistOpen": "Warteliste ansehen",

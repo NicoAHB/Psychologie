@@ -17,7 +17,7 @@ export function AppointmentFailure({ vault, appointment, onClose }: { vault: Vau
     <p>{vault.data!.clients.find(c => c.id === appointment.clientId)?.name} · {appointment.date} · {appointment.time}</p>
     <Field label={t('appointmentOutcome')}><select value={status} onChange={e => setStatus(e.target.value as FailureStatus)}><option value="noShow">{t('noShow')}</option><option value="lateCancelled">{t('lateCancelled')}</option></select></Field>
     <label className="check-label"><input type="checkbox" checked={withFee} onChange={e => setWithFee(e.target.checked)}/><span>{t('chargeCancellationFee')}</span></label>
-    {withFee && <FeeInput value={fee} onChange={setFee} inputCurrency={inputCurrency} onCurrency={setInputCurrency} currency={defaults.currency} rate={rate} onRate={setRate} auto={false}/>}
+    {withFee && <FeeInput allowForeignInput value={fee} onChange={setFee} inputCurrency={inputCurrency} onCurrency={setInputCurrency} currency={defaults.currency} rate={rate} onRate={setRate} auto={false}/>}
     <p className="hint">{t('cancellationFeeHint')}</p>{error && <Notice error>{t(error)}</Notice>}<div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{t(busy ? 'working' : 'save')}</button></div>
   </form></Modal>;
 }

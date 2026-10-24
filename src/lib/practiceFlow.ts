@@ -12,7 +12,7 @@ export function completeAndPay(data: VaultData, appointmentId: string, method: P
   if (!appointment || !data.clients.some(c => c.id === appointment.clientId)) throw new Error('required');
   const existing = data.sessions.find(s => s.appointmentId === appointmentId);
   // A delayed click/retry must never overwrite an existing payment, invoice or clinical record.
-  if (existing) { if (!existing.paidAt) throw new Error('quickPaymentUnavailable'); return existing; }
+  if (existing) { if (!existing.paidAt || existing.kind === 'cancellationFee' || appointment.status !== 'completed') throw new Error('quickPaymentUnavailable'); return existing; }
   if (data.sessionDrafts.some(d => d.appointmentId === appointmentId && !d.originalSessionId)) throw new Error('quickPaymentDraft');
   if (appointment.status !== 'scheduled') throw new Error('quickPaymentUnavailable');
   const session: Session = {

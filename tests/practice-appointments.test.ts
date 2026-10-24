@@ -28,6 +28,7 @@ test('failure charges use defaults or explicit client overrides including zero a
   recordAppointmentFailure(data, appointment.id, 'noShow', price); assert.equal(data.appointments[0].status,'noShow'); assert.equal(data.sessions[0].paidAt,null); assert.equal(data.sessions[0].kind,'cancellationFee');
   assert.throws(() => recordAppointmentFailure(data,appointment.id,'lateCancelled',price));
   deleteSession(data,data.sessions[0].id); assert.equal(data.appointments[0].status,'scheduled');
+  client.currency='EUR'; delete data.appointments[0].billing; assert.equal(failurePricing(data,data.appointments[0]).billing.currency,'EUR'); assert.equal(failurePricing(data,data.appointments[0]).billing.amountCents,1900);
   client.cancellationFee.amountCents = 0; assert.equal(cancellationDefault(data,data.appointments[0]).value,0); recordAppointmentFailure(data,appointment.id,'lateCancelled'); assert.equal(data.sessions.length,0); assert.equal(data.appointments[0].status,'lateCancelled');
 });
 test('fee metadata and unpaid state survive encrypted backups, client export, deletion and offline financial conflicts', async () => {
