@@ -68,3 +68,28 @@ html[data-font-size='extraLarge'] .modal-heading { flex-wrap: wrap; align-items:
 .follow-up-fields > .field:last-of-type { margin-block-end: 0; }
 .client-address-fields { min-inline-size: 0; max-inline-size: 100%; }
 .client-address-fields legend { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+.follow-up-tasks { margin-block-end: 22px; min-inline-size: 0; }
+.follow-up-tasks h3 { display: flex; align-items: center; gap: 8px; font-size: calc(16px * var(--text-scale, 1)); }
+.follow-up-task-list p { margin-block: 4px; overflow-wrap: anywhere; }
+.follow-up-task-list .button-row { flex-wrap: wrap; max-inline-size: 100%; }
+.follow-up-due { display: block; color: var(--muted); font-size: calc(12px * var(--text-scale, 1)); }
+.follow-up-due.is-overdue { font-weight: 650; }
+.duplicate-notice, .invoice-preflight { padding: 16px; border: 1px solid var(--border); border-radius: 12px; margin-block: 18px; background: var(--surface); min-inline-size: 0; }
+.duplicate-notice h3, .invoice-preflight h3 { margin-block-end: 10px; font-size: calc(15px * var(--text-scale, 1)); }
+.duplicate-notice ul, .invoice-preflight ul { padding-inline-start: 20px; }
+.duplicate-notice li { margin-block: 12px; }
+.duplicate-notice .button-row, .invoice-preflight .button-row { margin-block-start: 10px; flex-wrap: wrap; }
+.invoice-preflight p { margin-block: 8px; }
+.invoice-check-iban, .invoice-preflight small { display: block; overflow-wrap: anywhere; }
+.contact-history-list { list-style: none; padding: 0; margin: 0; }
+.contact-event { display: flex; gap: 12px; width: 100%; text-align: start; padding: 16px 4px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; min-height: 44px; }
+.contact-event > span:last-child { display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; overflow-wrap: anywhere; }
+.contact-event time, .contact-event small { color: var(--muted); }
+.contact-event-icon { flex-shrink: 0; padding-block-start: 4px; }
+.contact-event:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+.contact-event-details { overflow-wrap: anywhere; }
+.contact-event-details h3, .contact-event-details p { margin-block: 12px; }
+.contact-event-body { padding: 14px; border: 1px solid var(--border); border-radius: 10px; max-height: 45vh; overflow: auto; }
+.contact-event-body:focus-visible { outline: 3px solid var(--sage); outline-offset: 2px; }
+.follow-up-task-list .btn, .duplicate-notice .btn, .invoice-preflight .btn { max-inline-size: 100%; min-inline-size: 0; white-space: normal; }
+@media (max-width: 700px) { .follow-up-task-list > li { align-items: stretch; flex-direction: column; } }

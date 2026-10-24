@@ -1,7 +1,9 @@
+import { ContactHistory } from './ContactHistory';
+import { FollowUpBoard } from './FollowUpBoard';
 import { clientStatus } from '../lib/clientStatus';
 import { BillingMoney } from './money';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, FileImage, Home, Images, Leaf, LockKeyhole, Mic, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, History, FileImage, Home, Images, Leaf, LockKeyhole, Mic, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, money } from '../lib/dates';
 import { INSTRUMENTS, history, scoreOf, severityOf } from '../lib/assessments';
@@ -26,7 +28,7 @@ import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
 
 const VideoConsultation = lazy(() => import('./VideoConsultation').then(m => ({ default: m.VideoConsultation })));
 
-export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances';
+export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances' | 'contact';
 export interface ProfileActions {
   onBack: () => void; onEditClient: () => void; onNewSession: () => void; onNewNote: () => void; onNewAppointment: () => void;
   onEditSession: (session: Session) => void; onPhoto: (blobId: string) => void; onPayment: (session: Session) => void; onDeleteNote: (note: PhotoNote) => void;
@@ -71,6 +73,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
         <Tile icon={<ClipboardList size={15}/>} label={t('latestQuestionnaire')}>{latest ? (() => { const entry = latest.entries.at(-1)!; const total = scoreOf(latest.kind, entry.answers); return <><strong>{t(`${latest.kind}Title` as TextKey).split(' · ')[0]}: {total} / {INSTRUMENTS[latest.kind].max}</strong><small>{t(`sev_${severityOf(latest.kind, total)}` as TextKey)}</small></>; })() : <strong>—</strong>}</Tile>
       </div></section>
     <section className="preparation-card"><div className="section-heading"><div><span className="eyebrow"><Sparkles size={15}/>{t('privateNote')}</span><h2>{t('preparation')}</h2></div></div><p>{t('preparationHint')}</p><PreparationEditor key={client.id} vault={vault} client={client}/><div className="autosave"><LockKeyhole size={13}/>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</div></section>
+    <FollowUpBoard vault={vault} clientId={client.id}/>
     <section className="card"><div className="section-heading"><h2><Home size={17}/> {t('homeworkOpen')}</h2></div>
       {o.openHomework.length ? <ul className="homework-list">{o.openHomework.map(s => <li key={s.id}>
         <div><small>{dateLabel(s.date, language, { day: 'numeric', month: 'long' })}</small><p className="pre-line">{s.homework}</p></div>
@@ -154,18 +157,20 @@ function ClientFinances({ vault, client, actions }: { vault: VaultController; cl
 }
 
 export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId, focusMemoId, onMemoFocusHandled }: { vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
-  const { t } = useI18n(); const [videoOpen, setVideoOpen] = useState(false);
-  const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }];
+  const { t } = useI18n(); const [videoOpen, setVideoOpen] = useState(false); const [contactDocumentId, setContactDocumentId] = useState<string>(); const [contactInvoiceId, setContactInvoiceId] = useState<string>();
+  const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }, { id: 'contact', label: t('contactHistoryTitle'), icon: <History size={15}/> }];
   return <div className="profile-content">{videoOpen && <Suspense fallback={<p role="status">…</p>}><VideoConsultation vault={vault} client={client} onClose={() => setVideoOpen(false)}/></Suspense>}
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
     <div className="profile-heading"><Avatar client={client} vault={vault} large/><div><h2>{client.name}</h2><p>{client.contact || t('profile')} · <span className="workflow-chip">{t(`clientStatus_${clientStatus(client)}`)}</span></p></div><button className="btn btn-secondary" onClick={actions.onEditClient}>{t('editClient')}</button></div>
     <div className="button-row profile-actions"><button className="btn btn-secondary btn-small" onClick={actions.onNewSession}><Plus size={16}/>{t('addSession')}</button><button className="btn btn-secondary btn-small" onClick={actions.onNewNote}><FileImage size={16}/>{t('addNote')}</button><button className="btn btn-primary btn-small" onClick={actions.onNewAppointment}><CalendarDays size={16}/>{t('newAppointment')}</button><ClientExportButton vault={vault} client={client}/><ReferralCardButton vault={vault} client={client}/><button className="btn btn-secondary btn-small" onClick={() => setVideoOpen(true)}>{t('videoTitle')}</button></div>
     <div className="profile-tabs" role="tablist" aria-label={t('profileSections')}>{tabs.map(x => <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls="profile-panel" className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.icon}{x.label}</button>)}</div>
+    {contactInvoiceId && vault.data!.invoices.find(i => i.id === contactInvoiceId && i.clientId === client.id) && <InvoiceView vault={vault} invoice={vault.data!.invoices.find(i => i.id === contactInvoiceId)!} onClose={() => setContactInvoiceId(undefined)}/>}
     <div role="tabpanel" id="profile-panel" aria-labelledby={`tab-${tab}`} className="profile-panel">
       {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
       {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions} focusMemoId={focusMemoId} onMemoFocusHandled={onMemoFocusHandled}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
-      {tab === 'documents' && <DocumentsSection vault={vault} client={client} focusId={focusDocumentId}/>}
+      {tab === 'documents' && <DocumentsSection vault={vault} client={client} focusId={contactDocumentId ?? focusDocumentId}/>}
+      {tab === 'contact' && <ContactHistory vault={vault} clientId={client.id} onDocument={id => { setContactDocumentId(id); setTab('documents'); }} onInvoice={setContactInvoiceId}/>}
       {tab === 'finances' && <ClientFinances vault={vault} client={client} actions={actions}/>}
     </div>
   </div>;

@@ -1,3 +1,6 @@
+import { InvoiceChecks } from './InvoiceChecks';
+import { PracticeCard } from './PracticeCard';
+import { ClientForm } from './forms';
 import { runSecureTask } from '../lib/workerTasks';
 import { useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -79,6 +82,7 @@ export function InvoiceView({ vault, invoice: initialInvoice, onClose }: { vault
     <div className="form-actions invoice-actions"><button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-secondary" disabled={busy || !client} onClick={() => void prepare('download')}><Download size={17}/>{t(busy ? 'working' : 'invoiceDownload')}</button><button className="btn btn-secondary" disabled={busy} onClick={() => window.print()}><Printer size={17}/>{t('printInvoice')}</button><button className="btn btn-primary" disabled={busy || !!cancelled || conflict || !validEmail(client?.email ?? '')} onClick={() => void prepare('email')}><Mail size={17}/>{t('invoiceEmail')}</button><button className="btn btn-primary" disabled={busy || !!cancelled || conflict || !client} onClick={() => void prepare('telegram')}><Send size={17}/>{t('invoiceTelegram')}</button></div>
     {!isCancellation(invoice) && !cancelled && <div className="invoice-workflow-actions"><button className="btn btn-secondary" disabled={busy || conflict} onClick={() => setRevision('correct')}>{t('invoiceCorrect')}</button><button className="btn btn-ghost" disabled={busy} onClick={() => setRevision('cancel')}>{t('invoiceCancel')}</button></div>}
     {!isCancellation(invoice) && !cancelled && outstanding !== null && outstanding > 0 && <section className="invoice-reminder"><h3>{t('invoiceReminderTitle')} · {money(outstanding, language, invoice.currency ?? 'EUR')}</h3><p className="hint">{t('invoiceReminderHint')}</p><div className="button-row"><button className="btn btn-secondary" disabled={busy || conflict || !validEmail(client?.email ?? '')} onClick={() => void prepare('email', 'paymentReminder')}><Mail size={16}/>{t('invoiceReminder')} · E-Mail</button><button className="btn btn-secondary" disabled={busy || conflict || !client} onClick={() => void prepare('telegram', 'paymentReminder')}><Send size={16}/>{t('invoiceReminder')} · Telegram</button></div></section>}
+    {!cancelled && !isCancellation(invoice) && <InvoiceChecks source={invoice} issued onFix={() => setRevision('correct')}/>}
     {root && createPortal(<InvoiceSheet invoice={invoice} paid={paid}/>, root)}
     {revision && <InvoiceRevisionDialog key={invoice.id} vault={vault} invoice={invoice} correct={revision === 'correct'} onClose={() => setRevision(undefined)} onSaved={next => { setRevision(undefined); setCurrentId(next.id); setError(undefined); }}/>}
     {composer && client && (composer.kind === 'email' ? <EmailComposer vault={vault} client={client} documentId={composer.id} purpose={composer.purpose} onClose={() => setComposer(undefined)}/> : <TelegramComposer vault={vault} client={client} documentId={composer.id} purpose={composer.purpose} onClose={() => setComposer(undefined)}/>)}
@@ -88,6 +92,7 @@ export function InvoiceForm({ vault, clientId, onClose, onCreated }: { vault: Va
   const { t, language } = useI18n(); const data = vault.data!;
   const [selected, setSelected] = useState(clientId || data.clients.find(c => uninvoiced(data, c.id).length)?.id || data.clients[0]?.id || '');
   const client = data.clients.find(c => c.id === selected); const open = client ? uninvoiced(data, client.id) : [];
+  const [fix, setFix] = useState<'client' | 'practice' | 'banks'>();
   const [chosen, setChosen] = useState<string[] | null>(null); const ids = chosen ?? open.map(s => s.id);
   const [issuedAt, setIssuedAt] = useState(today()); const [dueOn, setDueOn] = useState(issuedAt); const [dueTouched, setDueTouched] = useState(false); const [lang, setLang] = useState<Language>(client?.language ?? language);
   const [currency, setCurrency] = useState<Currency>(currencyOf(client)); const [rate, setRate] = useState<ExchangeRate | undefined>(data.settings.exchangeRate);
@@ -113,8 +118,9 @@ export function InvoiceForm({ vault, clientId, onClose, onCreated }: { vault: Va
     <Field label={t('invoiceCurrency')} hint={t('invoiceCurrencyHint')}><select value={currency} onChange={e => setCurrency(e.target.value as Currency)}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     {currency === 'UAH' && <><ExchangeRateField value={rate} onChange={setRate}/><p className="hint">{t('invoiceRateHint')}</p></>}
     {preview && <div className="currency-preview" aria-live="polite"><div><span>{t('payableAmount')}</span><strong>{money(preview.totalCents, language, currency)}</strong>{currency === 'UAH' && preview.totalEuroCents !== undefined && <small>≈ {money(preview.totalEuroCents, language)} · {t('euroComparisonOnly')}</small>}</div></div>}
-    {!bankFor(data.settings.practice, currency).iban && <Notice>{t('bankMissing')}</Notice>}
-    {!data.settings.practice.name && <Notice>{t('practiceDisclaimer')}</Notice>}
+    {client && <InvoiceChecks source={{ recipient: { name: client.name, address: client.address ?? '' }, sender: data.settings.practice, currency }} onFix={setFix}/>}
+    {fix === 'client' && client && <ClientForm vault={vault} client={client} onClose={() => setFix(undefined)} onSaved={() => setFix(undefined)}/>}
+    {(fix === 'practice' || fix === 'banks') && <Modal title={t('practiceProfile')} onClose={() => setFix(undefined)}><PracticeCard vault={vault} focus={fix} currency={currency}/><div className="form-actions"><button type="button" className="btn btn-secondary" onClick={() => setFix(undefined)}>{t('close')}</button></div></Modal>}
     {error && <Notice error>{t(error)}</Notice>}
     <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy || !ids.length}><FileText size={17}/>{t('createInvoice')}</button></div>
   </form></Modal>;

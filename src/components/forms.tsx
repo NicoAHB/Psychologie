@@ -1,3 +1,4 @@
+import { ClientDuplicateNotice } from './ClientDuplicateNotice';
 import { releaseSlot } from '../lib/waitlist';
 import { hasAppointmentEmailConsent } from '../lib/appointmentEmail';
 import { PaymentMethodField } from './PaymentMethodField';
@@ -38,7 +39,7 @@ function Actions({ busy, onClose, label, onDelete, deleteLabel }: { busy: boolea
   const { t } = useI18n();
   return <div className="form-actions">{onDelete && <button type="button" className="btn btn-danger" disabled={busy} onClick={onDelete}><Trash2 size={16}/>{deleteLabel || t('delete')}</button>}<button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy ? <LoaderCircle className="spin" size={17}/> : <Check size={17}/>} {busy ? t('working') : label || t('save')}</button></div>;
 }
-export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vault: VaultController; client?: Client; onClose: () => void; onSaved: (id: string) => void; onDeleted?: () => void }) {
+export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenExisting }: { onOpenExisting?: (id: string) => void; vault: VaultController; client?: Client; onClose: () => void; onSaved: (id: string) => void; onDeleted?: () => void }) {
   const { t } = useI18n();
   const [status, setStatus] = useState<ClientStatus>(client ? clientStatus(client) : 'active');
   const [followUpOn, setFollowUpOn] = useState(client?.followUpOn ?? ''), [followUpNote, setFollowUpNote] = useState(client?.followUpNote ?? '');
@@ -109,7 +110,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
     <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field>
-      <FollowUpFields date={followUpOn} note={followUpNote} disabled={busy} onDate={setFollowUpOn} onNote={setFollowUpNote}/>
+      <FollowUpFields date={followUpOn} note={followUpNote} disabled={busy} onDate={setFollowUpOn} onNote={setFollowUpNote}/><p className="hint">{t('followUpMoreHint')}</p>
     </div>
     {!client && <fieldset className="form-section"><legend>{t('referralOptionalCode')}</legend>
       <Field label={t('referralOptionalCode')} hint={t('referralCodeHint')}><input autoComplete="off" autoCapitalize="characters" maxLength={24} value={referralCode} onChange={e=>{setReferralCode(e.target.value.toUpperCase());setReferralChecked(false);setReferralConsent(false);setError(undefined);}}/></Field>
@@ -129,6 +130,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted }: { vau
     <label className="check-label"><input type="checkbox" checked={appointmentEmail} disabled={!email.trim()} onChange={e => setAppointmentEmail(e.target.checked)}/><span>{t('appointmentEmailConsent')}</span></label><p className="hint">{t('appointmentEmailPrivacy')}</p>
     <Field label={t('clientCancellationFee')} hint={t('clientCancellationFeeHint')}><input inputMode="numeric" value={cancellationFee} maxLength={6} onChange={e => setCancellationFee(e.target.value)} placeholder={t('cancellationFeeUseDefault')}/></Field><Field label={t('clientCancellationFeeCurrency')}><select value={cancellationCurrency} onChange={e => setCancellationCurrency(e.target.value as Currency)}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <fieldset className="form-section marketing-consent"><legend>{t('marketingConsentHeading')}</legend><p className="hint mb-3">{t('marketingConsentHint')}</p><label className="check-label"><input type="checkbox" checked={marketingEmail} disabled={!email.trim()} onChange={e=>setMarketingEmail(e.target.checked)}/><span>{t('marketingConsentEmail')}</span></label><label className="check-label"><input type="checkbox" checked={marketingTelegram} disabled={!validMarketingContact({...client,telegramChatId:chat} as Client,'telegram')} onChange={e=>setMarketingTelegram(e.target.checked)}/><span>{t('marketingConsentTelegram')}</span></label><button type="button" className="text-link" disabled={!marketingEmail&&!marketingTelegram} onClick={()=>{setMarketingEmail(false);setMarketingTelegram(false);}}>{t('marketingNoMessages')}</button>{!marketingEmail&&!marketingTelegram&&<p className="hint" role="status">{t('marketingPreferencesNone')}</p>}<p className="hint mt-2">{t('marketingConsentContactChange')}</p></fieldset>
+    {!client && <ClientDuplicateNotice vault={vault} input={{ name, email, contact, birthday }} onOpen={onOpenExisting ?? onSaved}/>}
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={client && onDeleted ? () => void removeClient() : undefined} deleteLabel={t('deleteClient')}/>
   </form></Modal>;
 }

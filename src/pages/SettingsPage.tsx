@@ -1,14 +1,13 @@
+import { PracticeCard } from '../components/PracticeCard';
 import type { SettingsSection } from '../lib/practiceFlow';
 import { MemoLabelsCard } from '../components/MemoLabelsCard';
 import { parseMoney } from '../lib/dates';
 import { feeText } from '../lib/records';
 import { useEffect, useState } from 'react';
-import { Briefcase, CalendarDays, Cloud, FileText, Leaf, Trash2 } from 'lucide-react';
+import { CalendarDays, Cloud, FileText, Leaf, Trash2 } from 'lucide-react';
 import { uid } from '../lib/types';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { isValidZone } from '../lib/zones';
-import { ExchangeRateField } from '../components/money';
-import type { ExchangeRate, PracticeProfile } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Notice, PageHeading } from '../components/ui';
 import { CloudAuth } from '../components/CloudAuth';
@@ -28,23 +27,7 @@ function TemplatesCard({ vault }: { vault: VaultController }) {
     <Field label={t('templateBody')}><textarea rows={4} value={body} maxLength={4000} onChange={e => setBody(e.target.value)}/></Field>
     <button className="btn btn-secondary" disabled={vault.demo || !name.trim() || !body.trim()} onClick={() => { void vault.update(d => { d.templates.push({ id: uid(), name: name.trim(), body }); }).then(() => { setName(''); setBody(''); }).catch(() => {}); }}>{t('templateAdd')}</button></section>;
 }
-function PracticeCard({ vault }: { vault: VaultController }) {
-  const { t } = useI18n(); const stored = vault.data!.settings.practice;
-  const [draft, setDraft] = useState<PracticeProfile>(stored); const [rate, setRate] = useState<ExchangeRate | undefined>(vault.data!.settings.exchangeRate); const saveStatus = useSaveStatus();
-  const field = (key: keyof PracticeProfile, label: TextKey, props: { multiline?: boolean; hint?: TextKey; placeholder?: TextKey; max?: number } = {}) =>
-    <Field label={t(label)} hint={props.hint && t(props.hint)}>{props.multiline
-      ? <textarea rows={3} maxLength={props.max ?? 400} value={draft[key] ?? ''} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); saveStatus.changed(); }}/>
-      : <input maxLength={props.max ?? 120} value={draft[key] ?? ''} placeholder={props.placeholder && t(props.placeholder)} onChange={e => { setDraft({ ...draft, [key]: e.target.value }); saveStatus.changed(); }}/>}</Field>;
-  return <section id="settings-practice" tabIndex={-1} className="card settings-card settings-wide"><span className="settings-icon tone-beige"><Briefcase size={24}/></span><h2>{t('practiceProfile')}</h2><p>{t('practiceDisclaimer')}</p>
-    <div className="form-grid">{field('name', 'practiceName')}{field('taxId', 'practiceTaxId')}</div>
-    {field('address', 'practiceAddress', { multiline: true })}
-    <fieldset id="settings-banks" tabIndex={-1} className="bank-account"><legend>{t('bankGermany')}</legend><div className="form-grid">{field('accountHolder', 'accountHolder')}{field('bank', 'practiceBank')}</div><div className="form-grid">{field('iban', 'practiceIban', { max: 42 })}{field('bic', 'bankBic', { max: 11 })}</div></fieldset>
-    <fieldset className="bank-account"><legend>{t('bankUkraine')}</legend><div className="form-grid">{field('accountHolderUa', 'accountHolderUa')}{field('bankUa', 'practiceBankUa')}</div><div className="form-grid">{field('ibanUa', 'practiceIbanUa', { max: 42 })}{field('bicUa', 'bankBicUa', { max: 11 })}</div></fieldset>
-    <div className="form-section"><h3>{t('exchangeRateTitle')}</h3><p className="hint">{t('exchangeRatePrivacy')}</p><ExchangeRateField value={rate} onChange={value => { setRate(value); saveStatus.changed(); }}/></div>
-    <div className="form-grid">{field('serviceName', 'practiceService')}{field('invoicePrefix', 'practicePrefix', { max: 10 })}</div>
-    {field('taxNote', 'practiceTaxNote', { multiline: true, placeholder: 'practiceTaxNotePlaceholder', max: 600 })}
-    <div className="button-row"><SaveButton status={saveStatus} disabled={vault.demo} onClick={() => { void saveStatus.save(() => vault.update(d => { d.settings.practice = { ...draft, name: draft.name.trim(), iban: draft.iban.replace(/\s+/g, ' ').trim(), ibanUa: draft.ibanUa?.replace(/\s+/g, ' ').trim() }; d.settings.exchangeRate = rate; })).catch(() => {}); }}/></div>{saveStatus.failed && <Notice error>{t('storageError')}</Notice>}</section>;
-}
+
 
 export function SettingsPage({ vault, auto, onSync, syncing, onRestore, focus }: { focus?: SettingsSection; vault: VaultController; auto: AutoBackup; onSync: () => Promise<void>; syncing: boolean; onRestore: () => Promise<void> }) {
   const { t } = useI18n(); const [message, setMessage] = useState<TextKey>(); const settings = vault.data!.settings;

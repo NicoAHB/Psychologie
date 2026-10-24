@@ -1,0 +1,121 @@
+import { readFile } from 'node:fs/promises';
+import AxeBuilder from '@axe-core/playwright';
+import { test, expect } from './fixtures';
+import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
+import { addDays, today } from '../../src/lib/dates';
+import { uid } from '../../src/lib/types';
+const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import.meta.url), 'utf8')) as Record<string, string>;
+const uk = JSON.parse(await readFile(new URL('../../src/locales/uk.json', import.meta.url), 'utf8')) as Record<string, string>;
+
+test('multiple follow-ups can be filtered, moved and completed independently, then survive lock and reload', async ({ page }, info) => {
+  await page.setViewportSize({ width: /mobile|iphone/.test(info.project.name) ? 390 : 820, height: 1180 });
+  const { data, client } = workflowData(); data.clients[0].followUpOn = addDays(today(), -1); data.clients[0].followUpNote = 'Bisherige Wiedervorlage';
+  for (const [note, offset] of [['Heute nachfragen', 0], ['Später klären', 20]] as const) data.followUps.push({ id: uid(), clientId: client.id, dueOn: addDays(today(), offset), note, createdAt: new Date().toISOString() });
+  const read = await seedWorkflow(page, data), board = page.locator('.follow-up-tasks');
+  await expect(board.locator('.follow-up-task-list > li')).toHaveCount(3);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await board.getByLabel(de.followUpFilter, { exact: true }).selectOption('today'); await expect(board.locator('.follow-up-task-list > li')).toHaveCount(1);
+  await board.getByLabel(de.followUpFilter, { exact: true }).selectOption('overdue'); await expect(board).toContainText('Bisherige Wiedervorlage');
+  await board.getByLabel(de.followUpFilter, { exact: true }).selectOption('later'); await expect(board).toContainText('Später klären');
+  await board.getByRole('button', { name: de.followUpAdd, exact: true }).click();
+  let editor = page.getByRole('dialog', { name: de.followUpAdd, exact: true });
+  await editor.getByLabel(de.clientFollowUpOn, { exact: true }).fill(addDays(today(), 10));
+  await editor.getByLabel(de.clientFollowUpNote, { exact: true }).fill('Zusätzlicher Rückruf');
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await editor.getByRole('button', { name: de.save, exact: true }).click(); await expect(editor).toHaveCount(0, { timeout: 15000 });
+  await board.getByLabel(de.followUpFilter, { exact: true }).selectOption('all');
+  let row = board.locator('.follow-up-task-list > li').filter({ hasText: 'Zusätzlicher Rückruf' });
+  await row.getByRole('button', { name: de.followUpReschedule, exact: true }).click(); editor = page.getByRole('dialog', { name: de.followUpEdit, exact: true });
+  await editor.getByLabel(de.clientFollowUpOn, { exact: true }).fill(today()); await editor.getByRole('button', { name: de.save, exact: true }).click(); await expect(editor).toHaveCount(0, { timeout: 15000 });
+  await expect(row).toContainText(de.followUpFilter_today);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await row.getByRole('button', { name: de.clientFollowUpDone, exact: true }).click(); await expect(row).toHaveCount(0);
+  expect((await read()).followUps.find(t => t.note === 'Zusätzlicher Rückruf')?.completedAt).toBeTruthy();
+  expect((await read()).clients[0].followUpOn).toBe(addDays(today(), -1));
+  await page.getByRole('button', { name: de.lock, exact: true }).last().click(); await page.reload(); await unlock(page);
+  await expect(board).not.toContainText('Zusätzlicher Rückruf'); await expect(board).toContainText('Bisherige Wiedervorlage');
+  await nav(page, de.clients); await page.locator('.directory-list button').first().click();
+  await expect(board).toContainText('Später klären');
+  row = board.locator('.follow-up-task-list > li').filter({ hasText: 'Später klären' });
+  await row.getByRole('button', { name: de.followUpReschedule, exact: true }).click();
+  editor = page.getByRole('dialog', { name: de.followUpEdit, exact: true });
+  page.once('dialog', d => void d.accept()); await editor.getByRole('button', { name: de.delete, exact: true }).click();
+  await expect(editor).toHaveCount(0, { timeout: 15000 }); await expect(row).toHaveCount(0);
+  await nav(page, de.settings);
+  page.once('dialog', d => void d.accept());
+  await page.locator('.passkey-list li').filter({ hasText: de.historyReasonDelete }).first().getByRole('button', { name: de.historyRestore, exact: true }).click();
+  await expect(page.getByText(de.historyRestored, { exact: true })).toBeVisible({ timeout: 15000 });
+  await nav(page, de.clients);
+  const restoredEntry = page.locator('.directory-list button').first();
+  if (await restoredEntry.isVisible()) await restoredEntry.click();
+  await expect(board).toContainText('Später klären');
+});
+
+test('duplicate hints can reactivate an existing record and still allow a distinct person sharing an email', async ({ page }) => {
+  const { data, client } = workflowData(); data.clients[0].status = 'paused';
+  const read = await seedWorkflow(page, data); await nav(page, de.clients);
+  await page.getByRole('button', { name: de.newClient, exact: true }).first().click();
+  const dialog = page.getByRole('dialog'); await dialog.getByLabel(`${de.name} *`, { exact: true }).fill(client.name);
+  const notice = dialog.getByRole('region', { name: de.duplicateClientsTitle, exact: true });
+  await expect(notice).toBeVisible(); await expect(notice).toContainText(de.duplicateReason_name);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await notice.getByRole('button', { name: de.clientReactivate, exact: true }).click(); await expect(dialog).toHaveCount(0, { timeout: 15000 });
+  expect((await read()).clients).toHaveLength(1); expect((await read()).clients[0].status).toBe('active'); expect((await read()).sessions).toHaveLength(2);
+  await page.getByRole('button', { name: de.newClient, exact: true }).first().click();
+  await dialog.getByLabel(`${de.name} *`, { exact: true }).fill('Andere eigenständige Person'); await dialog.getByLabel(de.clientEmail, { exact: true }).fill(client.email);
+  await expect(notice).toContainText(de.duplicateReason_email);
+  await dialog.getByRole('button', { name: de.save, exact: true }).click(); await expect(dialog).toHaveCount(0, { timeout: 15000 });
+  expect((await read()).clients).toHaveLength(2);
+});
+
+test('invoice checks link to editable recipient/practice details and show the selected currency account', async ({ page }) => {
+  test.setTimeout(90000);
+  const { data } = workflowData(); data.invoices = []; data.sessions.forEach(s => delete s.invoiceId);
+  data.clients[0].address = ''; Object.assign(data.settings.practice, { name: '', address: '', ibanUa: '' });
+  const read = await seedWorkflow(page, data); await nav(page, de.finances); await page.getByRole('button', { name: de.createInvoice, exact: true }).click();
+  const form = page.getByRole('dialog', { name: de.createInvoice, exact: true }), check = form.locator('.invoice-preflight');
+  await expect(check).toContainText(de.invoiceCheck_recipientAddress); await expect(check).toContainText(de.invoiceCheck_practiceName); await expect(check).toContainText(de.invoiceCheck_bank);
+  await check.getByRole('button', { name: de.invoiceCheckEditClient, exact: true }).click();
+  const clientForm = page.getByRole('dialog', { name: de.editClient, exact: true });
+  await clientForm.getByLabel(de.addressStreet, { exact: true }).fill('вул. Прикладна, 10'); await clientForm.getByLabel(de.addressPostalCode, { exact: true }).fill('01001'); await clientForm.getByLabel(de.addressCity, { exact: true }).fill('Київ');
+  await clientForm.getByRole('button', { name: de.save, exact: true }).click(); await expect(clientForm).toHaveCount(0, { timeout: 15000 });
+  expect((await read()).invoices).toHaveLength(0); // Saving the nested editor must not submit its parent invoice form.
+  await expect(check).not.toContainText(de.invoiceCheck_recipientAddress);
+  await check.getByRole('button', { name: de.invoiceCheckEditBank, exact: true }).click();
+  const bankEditor = page.getByRole('dialog', { name: de.practiceProfile, exact: true });
+  await expect(bankEditor.locator('fieldset.bank-account').nth(1)).toBeFocused();
+  await bankEditor.getByRole('button', { name: de.close, exact: true }).last().click();
+  await check.getByRole('button', { name: de.invoiceCheckEditPractice, exact: true }).click();
+  const practice = page.getByRole('dialog', { name: de.practiceProfile, exact: true });
+  await practice.getByLabel(de.practiceName, { exact: true }).fill('Fiktive Praxis'); await practice.getByLabel(de.practiceAddress, { exact: true }).fill('Praxisweg 1'); await practice.getByLabel(de.practiceIbanUa, { exact: true }).fill('UA-NEU');
+  await practice.getByRole('button', { name: de.save, exact: true }).click(); await expect(practice.getByRole('button', { name: /^Gespeichert um / })).toBeDisabled({ timeout: 15000 });
+  await practice.getByRole('button', { name: de.close, exact: true }).last().click();
+  await expect(check).toContainText(de.invoiceCheckComplete); await expect(check).toContainText('UA-NEU');
+  await form.getByLabel(de.invoiceCurrency, { exact: true }).selectOption('EUR'); await expect(check).toContainText('DE-TEST');
+  await form.getByLabel(de.invoiceCurrency, { exact: true }).selectOption('UAH'); await expect(check).toContainText('UA-NEU');
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await form.getByRole('button', { name: de.createInvoice, exact: true }).click(); await expect(form).toHaveCount(0, { timeout: 15000 });
+  expect((await read()).invoices[0].sender.name).toBe('Fiktive Praxis'); expect((await read()).invoices[0].paymentAccount?.iban).toBe('UA-NEU');
+});
+
+for (const [width, theme] of [[820, 'light'], [390, 'dark']] as const) test(`contact history is read-only, scoped and accessible in DE/UA at ${width}px`, async ({ page }) => {
+  test.setTimeout(90000); await page.setViewportSize({ width, height: 1180 });
+  const { data, client, invoice } = workflowData(); const blobId = uid();
+  data.documents.push({ id: uid(), clientId: client.id, invoiceId: invoice.id, title: 'Rechnung als Anlage', createdAt: '2026-10-20T10:00:00Z', returnExpected: true, file: { blobId, fileName: 'rechnung.pdf', size: 1, mimeType: 'application/pdf' },
+    deliveries: [{ id: uid(), recipient: client.email, requestedAt: '2026-10-20T10:00:00Z', acceptedAt: '2026-10-20T10:01:00Z', subject: 'Ihre Rechnung', body: 'Gespeicherter Nachrichtentext' }],
+    telegramDeliveries: [{ id: uid(), recipient: client.telegramChatId, requestedAt: '2026-10-21T10:00:00Z', text: 'Unbestätigte Nachricht' }], returns: [{ id: uid(), receivedOn: '2026-10-22', uploadedAt: '2026-10-22T10:00:00Z', file: { blobId, fileName: 'ausgefüllt.pdf', mimeType: 'application/pdf', size: 1 } }] });
+  await seedWorkflow(page, data); await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
+  await nav(page, de.settings); await page.getByLabel(de.colorScheme, { exact: true }).selectOption(theme); await page.getByLabel(de.fontSize, { exact: true }).selectOption('extraLarge');
+  await nav(page, de.clients); await page.locator('.directory-list button').first().click(); await page.getByRole('tab', { name: de.contactHistoryTitle, exact: true }).click();
+  const history = page.locator('.contact-history'); await expect(history.locator('.contact-event')).toHaveCount(3);
+  await expect(history.locator('.contact-event').first()).toContainText(de.contactStatus_received);
+  await history.getByLabel(de.contactHistoryFilter, { exact: true }).selectOption('telegram'); await expect(history.locator('.contact-event')).toHaveCount(1); await expect(history).toContainText(de.contactStatus_unconfirmed);
+  await history.getByLabel(de.contactHistoryFilter, { exact: true }).selectOption('email');
+  await history.getByRole('button', { name: /Ihre Rechnung/ }).click();
+  const details = page.getByRole('dialog'); await expect(details).toContainText('Gespeicherter Nachrichtentext');
+  await details.getByRole('button', { name: 'Українська', exact: true }).click(); await expect(details).toHaveAccessibleName(uk.contactHistoryDetails); await expect(details).toContainText(uk.contactStatus_sent);
+  expect(await details.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await details.getByRole('button', { name: uk.close, exact: true }).last().click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

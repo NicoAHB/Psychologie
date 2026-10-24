@@ -52,7 +52,9 @@ export async function clientExport(data: VaultData, clientId: string, language: 
   text('newsletter.md', `# ${T('newsletter')}\n\n` + newsletters.map(n => `## ${n.createdAt} · ${n.channel}\n\n` + n.messages.map(m => `${m.title}\n\n${m.content}\n\n${m.titleUk ?? ''}\n\n${m.contentUk ?? ''}\n`).join('\n')).join('\n'));
   const referrals = clientReferralExport(data,clientId);
   text('empfehlungen.json', JSON.stringify(referrals,null,2));
-  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, waitlist, referrals, newsletters, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
+  const followUps = (data.followUps ?? []).filter(t => t.clientId === clientId);
+  text('wiedervorlagen.json', JSON.stringify({ followUps, legacy: { dueOn: client.followUpOn, note: client.followUpNote } }, null, 2));
+  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, waitlist, followUps, referrals, newsletters, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
   text('README.md', `# ${T('clientExportTitle')}: ${client.name}\n\n${T('clientExportReadme')}\n\n${T('clientExportContents')}\n`);
   for (const attachment of attachments) { const blob = await file(attachment.blobId, attachment.mimeType); archive[attachment.path] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]; }
   return { bytes: new Uint8Array(zipSync(archive)), filename: `Praxisraum-${safe(client.name)}-${new Date().toISOString().slice(0, 10)}.zip` };

@@ -1,3 +1,4 @@
+import { followUpRows } from './followUpTasks';
 import { appointmentEnd } from './dates';
 import { practiceToday } from './followUp';
 import { isSessionVoided } from './invoice';
@@ -19,10 +20,10 @@ export function workItems(data: VaultData, now = new Date()): WorkItem[] {
     if (!session.invoiceId && !isSessionVoided(data, session) && (!unbilled.has(session.clientId) || session.date < unbilled.get(session.clientId)!.date)) unbilled.set(session.clientId, session);
   }
   for (const client of data.clients) {
-    if (client.followUpOn && client.followUpOn <= day) entries.push({ id: client.id, kind: 'followUp', clientId: client.id, date: client.followUpOn });
     const first = unbilled.get(client.id);
     if (first) entries.push({ id: client.id, kind: 'invoice', clientId: client.id, date: first.date });
   }
+  for (const task of followUpRows(data)) if (task.dueOn <= day) entries.push({ id: task.id, kind: 'followUp', clientId: task.clientId, date: task.dueOn });
   const priority = { draft: 0, followUp: 1, appointment: 2, session: 2, invoice: 3 };
   return entries.filter(e => clients.has(e.clientId)).sort((a, b) => priority[a.kind] - priority[b.kind] || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }

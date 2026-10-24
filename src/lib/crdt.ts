@@ -4,7 +4,7 @@ import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 import { formatPostalAddress } from './clientAddress';
 import type { ClientPostalAddress } from './types';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;

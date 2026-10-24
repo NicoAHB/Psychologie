@@ -12,6 +12,7 @@ export function deleteClient(data: VaultData, clientId: string) {
   data.referrals = (data.referrals ?? []).filter(r => !removed.has(r.id));
   data.referralPayouts = (data.referralPayouts ?? []).filter(p => p.referrerId !== clientId).map(p => ({ ...p, allocations: p.allocations.filter(a => !removed.has(a.referralId)) }));
   data.waitlist = (data.waitlist ?? []).filter(w => w.clientId !== clientId);
+  data.followUps = (data.followUps ?? []).filter(t => t.clientId !== clientId);
   data.clients = data.clients.filter(c => c.id !== clientId);
   data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.clientId !== clientId);
   data.appointments = data.appointments.filter(a => a.clientId !== clientId);

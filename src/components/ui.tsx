@@ -24,7 +24,7 @@ export function Modal({ title, children, onClose, wide = false }: { title: strin
   }, []);
   // Native top-layer dialogs must escape card filters and outer forms/dialogs.
   // A body portal also gives WebKit one stable focus/inert hierarchy.
-  return createPortal(<dialog ref={ref} aria-labelledby={titleId} className={`modal ${wide ? 'modal-wide' : ''}`} onCancel={e => { e.preventDefault(); e.stopPropagation(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }}>
+  return createPortal(<dialog ref={ref} aria-labelledby={titleId} className={`modal ${wide ? 'modal-wide' : ''}`} onSubmit={e => e.stopPropagation()} onCancel={e => { e.preventDefault(); e.stopPropagation(); onClose(); }} onClick={e => { if (e.target === e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose(); } }}>
     <div className="modal-heading"><h2 id={titleId}>{title}</h2><LanguageSwitch/><button className="icon-btn" type="button" aria-label={t('close')} onClick={onClose}><X size={20}/></button></div>{children}
   </dialog>, document.body);
 }
