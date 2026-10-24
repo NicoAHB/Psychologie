@@ -13,4 +13,7 @@
 .email-setup-bootstrap .btn { margin-block: .5rem; }
 .email-setup pre { max-width: 100%; max-height: 16rem; overflow: auto; white-space: pre-wrap; padding: .75rem; background: var(--surface); font-size: .8rem; }
 .email-setup input, .email-setup .btn { max-width: 100%; }
+/* Keep label and surface in the same theme during a switch: fading only the
+   background can briefly put pale dark-mode text on a white button. */
+.email-setup .btn { transition: box-shadow .18s, transform .18s; }
 @media (max-width: 480px) { .email-setup .button-row { align-items: stretch; flex-direction: column; } .email-setup .btn { white-space: normal; } }
