@@ -3,6 +3,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures';
 import { nav, seedWorkflow, workflowData, unlock } from './workflow-fixture';
 import { addDays, today } from '../../src/lib/dates';
+import { materialize,mergeStates,recordChanges,stateOf } from '../../src/lib/crdt';
+import { completeAndPay,completedSessionId } from '../../src/lib/practiceFlow';
 import { uid, type Client } from '../../src/lib/types';
 const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import.meta.url),'utf8')) as Record<string,string>;
 for (const theme of ['light','dark']) test(`failure fee and consented email preview stay local in ${theme} mode`,async({page})=>{
@@ -30,4 +32,11 @@ test('waiting list persists and a cancelled future appointment produces a direct
   page.once('dialog',d=>void d.accept());await page.getByRole('button',{name:de.cancelAppointment,exact:true}).click();await nav(page,de.overview);await expect(page.locator('.waiting-notice')).toContainText(de.waitlistFreeTitle);await page.getByRole('button',{name:de.waitlistOpen,exact:true}).click();await expect(page.locator('#waitlist-panel')).toBeFocused();await expect(page.locator('.waiting-list')).toContainText('Nachmittags');
   await page.getByRole('button',{name:de.lock,exact:true}).last().click();await page.reload();await unlock(page);expect((await read()).waitlist[0].preferredTimes).toBe('Nachmittags');
   await nav(page,de.appointments);page.once('dialog',d=>void d.accept());await page.locator('.waiting-list').getByRole('button',{name:new RegExp('^'+de.delete+':')}).click();await expect(page.locator('.waiting-list')).toHaveCount(0);expect((await read()).waitlist).toHaveLength(0);
+});
+
+test('reviewing offline completion versus no-show keeps the selected fee and outcome together',async({page})=>{
+ const {data,client}=workflowData();const appointment={id:uid(),clientId:client.id,date:today(),time:'12:00',duration:50,timeZone:'Europe/Berlin',feeCents:8500,reminderId:uid(),status:'scheduled' as const};data.appointments.push(appointment);data.crdt=stateOf(data);
+ const a=structuredClone(data),b=structuredClone(data);a.appointments[0].status='noShow';a.sessions.push({id:completedSessionId(appointment.id),appointmentId:appointment.id,clientId:client.id,date:appointment.date,time:appointment.time,feeCents:3000,billing:{currency:'EUR',amountCents:3000},paidAt:null,notes:'',tags:[],kind:'cancellationFee',failureStatus:'noShow'});completeAndPay(b,appointment.id,'cash');recordChanges(data,a,10,'a');recordChanges(data,b,20,'b');
+ const merged=materialize(a,mergeStates(stateOf(a),stateOf(b))),read=await seedWorkflow(page,merged);await page.getByRole('button',{name:de.syncConflictsReview,exact:true}).click();const dialog=page.getByRole('dialog');const fee=dialog.locator('.conflict-variant').filter({hasText:de.cancellationFee});await expect(fee).toHaveCount(1);
+ expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);await fee.getByRole('button',{name:new RegExp('^'+de.syncConflictChoose)}).click();await expect(dialog).toHaveCount(0,{timeout:15000});const restored=await read();expect(restored.sessions.find(s=>s.appointmentId===appointment.id)?.kind).toBe('cancellationFee');expect(restored.appointments[0].status).toBe('noShow');
 });

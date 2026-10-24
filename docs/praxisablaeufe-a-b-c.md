@@ -102,9 +102,13 @@ VITE_BASE_PATH=/Psychologie/ PLAYWRIGHT_PORT=4271 npm run test:e2e -- tests/brow
 
 Schwerpunkte: Altdaten, verschlüsselte Round-Trips, konkurrierende Zahlarten und Ausfallarten, Löschmarkierungen, aktenbezogener ZIP-Export, UAH/EUR in beiden Richtungen, separate Einwilligung/Widerruf, dauerhafte Versandreservierung vor Transport, 23-Stunden-Grenze, Sommerzeit und Erinnerungsfenster, Wartelisten-Merge, freie Kapazität, Steuer-Teilmengen und Stornos, ukrainische PDF-Ränder, Pflichtbestätigung/Prüfung des Backups, 820/390 px, sehr große Schrift, Tastatur und axe in beiden Farbschemata. Browserläufe, die einen Entwicklungsserver als Quellmodul-Prüfaufbau nutzen (Video), brauchen während des Laufs unveränderte Quell-Dateien, um unerwartete HMR-Neuladungen zu vermeiden.
 
+### Gemeinsame Prüfung von Ausfall und Zahlung
+
+`src/lib/practiceConflicts.ts` ergänzt die fachliche Konfliktauflösung oberhalb der bestehenden generischen CRDT-Register: Die bewusst gewählte Finanzvariante setzt den dazugehörigen Terminstatus und bestätigt eine passende konkurrierende Statusvariante mit. Ein isolierter Statuswechsel, der einem bestehenden Zahlungsposten widerspricht, wird mit einer verständlichen Meldung abgelehnt. Die Varianten bleiben erhalten, bis die Beraterin den Zahlungsposten geprüft bzw. korrigiert hat. Es wird keine bezahlte Leistung automatisch in ein unberechnetes Ausfallereignis umgedeutet. Unit- und Browserprüfungen decken den Geräte-Konflikt „abgeschlossen und bezahlt“ gegen „nicht erschienen“ ab.
+
 ## Geänderte Dateien
 
-Vollständige Liste dieser Erweiterung gegenüber dem Ausgangsstand `43b59a9` (75 Dateien). Keine Paket- oder Lockdatei geändert.
+Vollständige Liste dieser Erweiterung gegenüber `43b59a9` (76 Dateien). Keine Paket- oder Lockdatei geändert.
 
 - [CLAUDE.md](../CLAUDE.md)
 - [HANDOFF.md](../HANDOFF.md)
@@ -146,6 +150,7 @@ Vollständige Liste dieser Erweiterung gegenüber dem Ausgangsstand `43b59a9` (7
 - [src/lib/invoice.ts](../src/lib/invoice.ts)
 - [src/lib/marketing.ts](../src/lib/marketing.ts)
 - [src/lib/merge.ts](../src/lib/merge.ts)
+- [src/lib/practiceConflicts.ts](../src/lib/practiceConflicts.ts)
 - [src/lib/practiceFlow.ts](../src/lib/practiceFlow.ts)
 - [src/lib/records.ts](../src/lib/records.ts)
 - [src/lib/taxPdf.ts](../src/lib/taxPdf.ts)

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { syncConflicts, resolveConflict, type SyncConflict } from '../lib/crdt';
+import { resolvePracticeConflict } from '../lib/practiceConflicts';
+import { syncConflicts, type SyncConflict } from '../lib/crdt';
 import { useI18n, type TextKey } from '../lib/i18n';
 import type { VaultController } from '../lib/useVault';
 import type { Invoice, SessionDraftValues, MarketingConsent, PaymentMethod } from '../lib/types';
@@ -9,7 +10,7 @@ import { InvoiceSheet } from './invoices';
 import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from '../lib/audioMemos';
 
 function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict: SyncConflict }) {
-  const { t, language } = useI18n(); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(false);
+  const { t, language } = useI18n(); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
   const record = conflict.collection !== 'settings' ? vault.data![conflict.collection].find(r => r.id === conflict.id) : undefined;
   const clientId = record && 'clientId' in record ? record.clientId : conflict.collection === 'clients' ? conflict.id : undefined;
   const clientName = vault.data!.clients.find(c => c.id === clientId)?.name;
@@ -19,9 +20,9 @@ function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict:
   const canCombine = !['firstPaidOn','status'].includes(conflict.field) && !['referralCodes','referrals','referralPayouts'].includes(conflict.collection) && conflict.variants.every(v => typeof v.value === 'string');
   const textLimit = conflict.collection === 'audioMemos' ? conflict.field === 'summary' ? MEMO_MAX_SUMMARY : conflict.field === 'label' ? MEMO_MAX_LABEL : 50000 : 50000;
   const save = async (index: number, combined?: string) => {
-    setBusy(true); setError(false);
-    try { await vault.update(d => resolveConflict(d, conflict, conflict.variants[index], combined)); }
-    catch { setError(true); } finally { setBusy(false); }
+    setBusy(true); setError(undefined);
+    try { await vault.update(d => resolvePracticeConflict(d, conflict, conflict.variants[index], combined)); }
+    catch (error) { setError(error instanceof Error && error.message === 'syncConflictOutcomeMismatch' ? 'syncConflictOutcomeMismatch' : 'storageError'); } finally { setBusy(false); }
   };
   return <section className="sync-conflict"><h3>{title} · {t(fieldLabels[conflict.field] ?? collectionLabels[conflict.collection])}</h3><p className="hint">{t('syncConflictVariants')}</p>
     {conflict.variants.map((v, i) => {
@@ -31,14 +32,14 @@ function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict:
       return <div className="conflict-variant" key={`${v.actor}:${v.sequence}`}>
         {consent ? <div><p>{consent.destination}</p><p>{t('date')}: {consent.grantedAt}</p>{consent.revokedAt&&<p>{t(conflict.field === 'appointmentEmailConsent' ? 'appointmentEmailConsentMissing' : 'marketingConsentMissing')} · {consent.revokedAt}</p>}</div> : draft ? <div><p><strong>{draft.date} · {draft.time}</strong></p><h4>{t('sessionNotes')}</h4><p className="pre-line">{draft.notes}</p><h4>{t('homework')}</h4><p className="pre-line">{draft.homework}</p><h4>{t('preparation')}</h4><p className="pre-line">{draft.nextTopics}</p><p>{t('photosAttached')}: {draft.photos.length} · {t('memoSection')}: {draft.memos.length}</p><ul>{draft.memos.map(memo => <li key={memo.id}>{memo.label || t('memoDefaultTitle')}: {memo.summary}</li>)}</ul></div>
           : conflict.field === '$snapshot' && conflict.collection === 'invoices' ? <div className="table-scroll"><InvoiceSheet invoice={{ ...v.value as unknown as Invoice, id: conflict.id }} paid={null}/></div>
-          : amount ? <div>{amount.kind === 'cancellationFee' && <p>{t('cancellationFee')} · {t(amount.failureStatus ?? 'noShow')}</p>}<p><strong>{money(amount.feeCents, language)}</strong>{amount.billing?.currency === 'UAH' ? ` · ${money(amount.billing.amountCents, language, 'UAH')}` : ''}</p><p>{t('paymentStatus')}: {amount.paidAt ? `${t('paid')} · ${dateLabel(amount.paidAt, language, { dateStyle: 'short' })}` : t('unpaid')}</p>{amount.paidAt && <p>{t('paymentMethod')}: {t(amount.paymentMethod === 'cash' ? 'paymentCash' : amount.paymentMethod === 'transfer' ? 'paymentTransfer' : 'paymentUnspecified')}</p>}{amount.billing?.rate && <p>{t('exchangeRate')}: {(amount.billing.rate.micros / 1e6).toLocaleString(language === 'uk' ? 'uk-UA' : 'de-DE', { maximumFractionDigits: 6 })} · {amount.billing.rate.date}</p>}</div>
+          : amount ? <div><p>{amount.kind === 'cancellationFee' ? `${t('cancellationFee')} · ${t(amount.failureStatus ?? 'noShow')}` : t('completed')}</p><p><strong>{money(amount.feeCents, language)}</strong>{amount.billing?.currency === 'UAH' ? ` · ${money(amount.billing.amountCents, language, 'UAH')}` : ''}</p><p>{t('paymentStatus')}: {amount.paidAt ? `${t('paid')} · ${dateLabel(amount.paidAt, language, { dateStyle: 'short' })}` : t('unpaid')}</p>{amount.paidAt && <p>{t('paymentMethod')}: {t(amount.paymentMethod === 'cash' ? 'paymentCash' : amount.paymentMethod === 'transfer' ? 'paymentTransfer' : 'paymentUnspecified')}</p>}{amount.billing?.rate && <p>{t('exchangeRate')}: {(amount.billing.rate.micros / 1e6).toLocaleString(language === 'uk' ? 'uk-UA' : 'de-DE', { maximumFractionDigits: 6 })} · {amount.billing.rate.date}</p>}</div>
             : conflict.collection === 'appointments' && conflict.field === 'status' && typeof v.value === 'string' && ['scheduled','completed','cancelled','noShow','lateCancelled'].includes(v.value) ? <p>{t(v.value as TextKey)}</p>
             : conflict.field === 'avatarId' && typeof v.value === 'string' ? <ImageView id={v.value} vault={vault} alt={t('syncConflictAvatar')} className="conflict-avatar"/>
               : <pre>{conflict.field === '$exists' ? t(v.value ? 'syncConflictRestore' : 'syncConflictKeepDeleted') : v.value === undefined ? t('syncConflictRemoved') : typeof v.value === 'string' ? v.value : JSON.stringify(v.value, null, 2)}</pre>}
         <button className="btn btn-secondary" disabled={busy} onClick={() => void save(i)}>{t('syncConflictChoose')} {i + 1}</button></div>;
     })}
     {canCombine && <><label className="field"><span>{t('syncConflictCombine')}</span><textarea value={text} rows={5} maxLength={textLimit} onChange={e => setText(e.target.value)}/></label><button className="btn btn-primary" disabled={busy || !text.trim()} onClick={() => void save(0, text)}>{t('syncConflictSave')}</button></>}
-    {error && <Notice error>{t('storageError')}</Notice>}</section>;
+    {error && <Notice error>{t(error)}</Notice>}</section>;
 }
 export function SyncConflicts({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [open, setOpen] = useState(false); const conflicts = vault.data ? syncConflicts(vault.data) : [];

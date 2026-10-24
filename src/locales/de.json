@@ -1346,5 +1346,6 @@
   "backupGuideFinish": "Assistent abschließen",
   "backupGuideDone": "Sicherung erstellt und geprüft",
   "backupGuideRepeat": "Wiederholen Sie die Sicherung regelmäßig und nach wichtigen Änderungen. Prüfen Sie auch gelegentlich, ob Ihre externe Kopie noch zugänglich ist.",
-  "backupGuideSaveError": "Die Sicherung konnte nicht gespeichert oder geteilt werden. Versuchen Sie es erneut oder nutzen Sie den Download."
+  "backupGuideSaveError": "Die Sicherung konnte nicht gespeichert oder geteilt werden. Versuchen Sie es erneut oder nutzen Sie den Download.",
+  "syncConflictOutcomeMismatch": "Zu diesem Termin gehört bereits ein Zahlungsposten. Prüfen Sie zuerst die verknüpfte Zahlung oder wählen Sie die dazu passende Termin-Version."
 }
