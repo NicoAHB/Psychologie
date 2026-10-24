@@ -35,3 +35,14 @@ export function possibleClientDuplicates(index: ReturnType<typeof clientDuplicat
     return reasons.length ? [{ client: row.client, reasons, score: (reasons.includes('email') ? 8 : 0) + (reasons.includes('phone') ? 8 : 0) + (reasons.includes('name') ? 4 : 1) + (reasons.includes('birthday') ? 4 : 0) }] : [];
   }).sort((a, b) => b.score - a.score || a.client.name.localeCompare(b.client.name)).slice(0, limit);
 }
+
+export type ClientDuplicateMatch = ReturnType<typeof possibleClientDuplicates>[number];
+export class DuplicateClientReviewRequired extends Error {
+  constructor(readonly matches: readonly ClientDuplicateMatch[]) { super('duplicateClientsReview'); }
+}
+/** Check at submit and again inside the serialized vault mutation. A delayed
+ * visual hint must never be the only protection against an accidental duplicate. */
+export function requireClientDuplicateReview(clients: readonly Client[], input: DuplicateInput, reviewedIds: readonly string[] = []): void {
+  const matches = possibleClientDuplicates(clientDuplicateIndex(clients), input);
+  if (matches.some(match => !reviewedIds.includes(match.client.id))) throw new DuplicateClientReviewRequired(matches);
+}

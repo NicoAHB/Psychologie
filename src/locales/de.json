@@ -1399,7 +1399,7 @@
   "followUpDeleteConfirm": "Diese Wiedervorlage löschen? Die Klientenakte bleibt erhalten.",
   "followUpMoreHint": "Weitere Wiedervorlagen lassen sich im Überblick dieser Klientenakte hinzufügen.",
   "duplicateClientsTitle": "Möglicherweise bereits vorhanden",
-  "duplicateClientsHint": "Bitte prüfen Sie diese Akten. Sie können eine bestehende Akte öffnen oder die Neuanlage fortsetzen. Es wird nichts automatisch zusammengeführt.",
+  "duplicateClientsHint": "Prüfen Sie diese Akten. Sie können eine bestehende Akte öffnen. Eine zusätzliche neue Akte müssen Sie beim Speichern ausdrücklich bestätigen.",
   "duplicateOpen": "Bestehende Akte öffnen",
   "duplicateReason_email": "Gleiche E-Mail-Adresse",
   "duplicateReason_phone": "Gleiche Telefonnummer",
@@ -1443,5 +1443,9 @@
   "contactStatus_sent": "An Versanddienst übergeben",
   "contactStatus_unconfirmed": "Versand nicht bestätigt",
   "contactStatus_failed": "Versand fehlgeschlagen",
-  "contactStatus_received": "Zurückerhalten"
+  "contactStatus_received": "Zurückerhalten",
+  "duplicateReviewTitle": "Mögliche doppelte Klientenakte",
+  "duplicateReviewHint": "Es wurde noch keine neue Akte gespeichert. Öffnen Sie eine passende bestehende Akte oder bestätigen Sie bewusst, dass Sie eine zusätzliche Akte anlegen möchten.",
+  "duplicateReviewBack": "Zurück zum Formular",
+  "duplicateReviewCreate": "Trotzdem neue Akte anlegen"
 }

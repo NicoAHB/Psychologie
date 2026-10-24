@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { unzipSync, strFromU8 } from 'fflate';
 import { emptyVault, normalizeVault, uid, type Client, type VaultData } from '../src/lib/types';
 import { deleteFollowUp, finishFollowUp, followUpRows, matchesFollowUp, saveFollowUp } from '../src/lib/followUpTasks';
-import { clientDuplicateIndex, possibleClientDuplicates } from '../src/lib/clientDuplicates';
+import { clientDuplicateIndex, DuplicateClientReviewRequired, possibleClientDuplicates, requireClientDuplicateReview } from '../src/lib/clientDuplicates';
 import { invoiceChecks } from '../src/lib/invoiceChecks';
 import { contactHistory } from '../src/lib/contactHistory';
 import { stampChanges, mergeVaults } from '../src/lib/merge';
@@ -93,6 +93,22 @@ test('duplicate suggestions are bounded and never modify the underlying records'
   const dated = clientDuplicateIndex([{ ...client('dated'), contact: '2026-10-24' }, { ...client('local'), contact: '24.10.2026' }]);
   assert.equal(possibleClientDuplicates(dated, { name: 'Anderer Name', email: '', contact: '2026-10-24' }).length, 0);
   assert.equal(possibleClientDuplicates(dated, { name: 'Anderer Name', email: '', contact: '24.10.2026' }).length, 0);
+});
+test('saving a name-only duplicate requires explicit review and leaves stored records unchanged', () => {
+  const clients = [client('nico', 'Nico von Felde')], before = structuredClone(clients);
+  const input = { name: '  nico VON   Felde ', email: '', contact: '' };
+  assert.throws(() => requireClientDuplicateReview(clients, input), error => error instanceof DuplicateClientReviewRequired && error.matches[0].client.id === 'nico');
+  assert.doesNotThrow(() => requireClientDuplicateReview(clients, input, ['nico']));
+  assert.deepEqual(clients, before);
+  assert.doesNotThrow(() => requireClientDuplicateReview(clients, { name: 'Ganz andere Person', email: '', contact: '' }));
+});
+test('a newly matching record requires review again at the serialized write, regardless of an earlier check', () => {
+  const input = { name: 'Nico von Felde', email: '', contact: '' }, clients = [client('first', input.name)];
+  assert.doesNotThrow(() => requireClientDuplicateReview([], input));
+  assert.throws(() => requireClientDuplicateReview(clients, input), DuplicateClientReviewRequired);
+  clients.push(client('second', input.name));
+  assert.throws(() => requireClientDuplicateReview(clients, input, ['first']), error => error instanceof DuplicateClientReviewRequired && error.matches.some(match => match.client.id === 'second'));
+  assert.doesNotThrow(() => requireClientDuplicateReview(clients, input, ['first', 'second']));
 });
 test('invoice checks select the currency account and inspect immutable issued snapshots', () => {
   const data = fixture(), sender = { ...data.settings.practice, name: 'Praxis', address: 'Praxisweg 1', iban: 'DE-TEST', ibanUa: 'UA-TEST' };

@@ -55,7 +55,7 @@ test('duplicate hints can reactivate an existing record and still allow a distin
   const { data, client } = workflowData(); data.clients[0].status = 'paused';
   const read = await seedWorkflow(page, data); await nav(page, de.clients);
   await page.getByRole('button', { name: de.newClient, exact: true }).first().click();
-  const dialog = page.getByRole('dialog'); await dialog.getByLabel(`${de.name} *`, { exact: true }).fill(client.name);
+  const dialog = page.getByRole('dialog', { name: de.newClient, exact: true }); await dialog.getByLabel(`${de.name} *`, { exact: true }).fill(client.name);
   const notice = dialog.getByRole('region', { name: de.duplicateClientsTitle, exact: true });
   await expect(notice).toBeVisible(); await expect(notice).toContainText(de.duplicateReason_name);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
@@ -64,7 +64,10 @@ test('duplicate hints can reactivate an existing record and still allow a distin
   await page.getByRole('button', { name: de.newClient, exact: true }).first().click();
   await dialog.getByLabel(`${de.name} *`, { exact: true }).fill('Andere eigenständige Person'); await dialog.getByLabel(de.clientEmail, { exact: true }).fill(client.email);
   await expect(notice).toContainText(de.duplicateReason_email);
-  await dialog.getByRole('button', { name: de.save, exact: true }).click(); await expect(dialog).toHaveCount(0, { timeout: 15000 });
+  await dialog.getByRole('button', { name: de.save, exact: true }).click();
+  const review = page.getByRole('dialog', { name: de.duplicateReviewTitle, exact: true });
+  await expect(review).toBeVisible(); expect((await read()).clients).toHaveLength(1);
+  await review.getByRole('button', { name: de.duplicateReviewCreate, exact: true }).click(); await expect(dialog).toHaveCount(0, { timeout: 15000 });
   expect((await read()).clients).toHaveLength(2);
 });
 

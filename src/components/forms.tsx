@@ -1,4 +1,5 @@
 import { ClientDuplicateNotice } from './ClientDuplicateNotice';
+import { DuplicateClientReviewRequired, requireClientDuplicateReview, type ClientDuplicateMatch } from '../lib/clientDuplicates';
 import { releaseSlot } from '../lib/waitlist';
 import { hasAppointmentEmailConsent } from '../lib/appointmentEmail';
 import { PaymentMethodField } from './PaymentMethodField';
@@ -44,6 +45,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
   const [status, setStatus] = useState<ClientStatus>(client ? clientStatus(client) : 'active');
   const [followUpOn, setFollowUpOn] = useState(client?.followUpOn ?? ''), [followUpNote, setFollowUpNote] = useState(client?.followUpNote ?? '');
   const [name, setName] = useState(client?.name || '');
+  const [duplicateReview, setDuplicateReview] = useState<readonly ClientDuplicateMatch[]>();
   const [contact, setContact] = useState(client?.contact || '');
   const [email, setEmail] = useState(client?.email || '');
   const [appointmentEmail, setAppointmentEmail] = useState(!!client && hasAppointmentEmailConsent(client));
@@ -68,7 +70,11 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
   const [error, setError] = useState<TextKey>();
   useEffect(() => { if (!file) return; const url = URL.createObjectURL(file); setPreview(url); return () => URL.revokeObjectURL(url); }, [file]);
   async function submit(e: FormEvent) {
-    e.preventDefault(); setError(undefined);
+    e.preventDefault(); await saveClient();
+  }
+  async function saveClient(reviewedIds: readonly string[] = []) {
+    if (busy) return;
+    setError(undefined);
     if (followUpOn && !validDay(followUpOn)) { setError('required'); return; }
     if ((!client || addressChanged) && !validPostalCode(address)) { setError('addressInvalidPostalCode'); return; }
     if(birthday&&(!validDay(birthday)||birthday>today())){setError('marketingBirthdayInvalid');return;}
@@ -76,8 +82,11 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
     if (email.trim().length>254 || email.trim() && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.trim())) { setError('invalidClientEmail'); return; }
     if (cancellationFee && (!/^\d{1,6}$/.test(cancellationFee) || parseMoney(cancellationFee) < 0)) { setError('invalidAmount'); return; }
     setBusy(true);
+    let addedAvatar: string | undefined;
     try {
-      const avatarId = file ? await vault.addImage(await compressImage(file, true)) : client?.avatarId;
+      const duplicateInput = { name, email, contact, birthday };
+      if (!client) requireClientDuplicateReview(vault.getData()!.clients, duplicateInput, reviewedIds);
+      const avatarId = file ? addedAvatar = await vault.addImage(await compressImage(file, true)) : client?.avatarId;
       const postalAddress = !client || addressChanged ? cleanPostalAddress(address) : client.postalAddress;
       const result: Client = { ...client, id: client?.id || uid(), name: name.trim(), contact: contact.trim(), email: email.trim(), createdAt: client?.createdAt || today(), preparation: client?.preparation || '', language: ukrainian ? 'uk' : 'de', telegramChatId: chat.trim(), reminderConsent: consent, avatarId, postalAddress, address: postalAddress ? formatPostalAddress(postalAddress) : client?.address ?? '', timeZone: zone, currency, cancellationFee: cancellationFee ? { currency: cancellationCurrency, amountCents: parseMoney(cancellationFee) } : undefined, followUpOn: followUpOn || undefined, followUpNote: followUpNote.trim() || undefined, birthday:birthday||undefined };
       const appointmentEmailChanged = appointmentEmail !== !!(client && hasAppointmentEmailConsent(client)) || email.trim() !== (client?.email ?? '');
@@ -87,6 +96,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
       const grants={email:emailChanged&&marketingEmail?grantMarketingConsent(result,'email'):undefined,telegram:telegramChanged&&marketingTelegram?grantMarketingConsent(result,'telegram'):undefined};
       const before = referencedBlobs(vault.data!);
       await vault.update(data => {
+        if (!client) requireClientDuplicateReview(data.clients, duplicateInput, reviewedIds);
         if(grants.email||grants.telegram||Object.keys(client?.marketingConsent??{}).length)data.settings.marketingUsed=true;
         const index = data.clients.findIndex(c => c.id === result.id);
         if (index < 0) { if (client) throw new Error('storageError'); changeClientStatus(result, status); result.marketingConsent={...(grants.email&&{email:grants.email}),...(grants.telegram&&{telegram:grants.telegram})};data.clients.push(result); }
@@ -99,7 +109,12 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
       });
       await vault.purgeUnused(before); // a replaced profile picture must not linger encrypted on the device or in the cloud
       onSaved(result.id);
-    } catch (err) { setError(err instanceof Error&&['marketingContactMissing','invalidImage'].includes(err.message)?marketingError(err):referralError(err)); } finally { setBusy(false); }
+    } catch (err) {
+      if (err instanceof DuplicateClientReviewRequired) {
+        if (addedAvatar) await vault.purgeUnused([addedAvatar]).catch(() => {});
+        setDuplicateReview(err.matches);
+      } else setError(err instanceof Error&&['marketingContactMissing','invalidImage'].includes(err.message)?marketingError(err):referralError(err));
+    } finally { setBusy(false); }
   }
   async function removeClient() {
     if (!client || !window.confirm(`${client.name}\n\n${t('deleteClientConfirm')}${vault.data!.invoices.some(i => i.clientId === client.id) ? `\n\n${t('deleteClientInvoicesNote')}` : ''}`)) return;
@@ -109,6 +124,7 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
   return <Modal title={t(client ? 'editClient' : 'newClient')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={submit} noValidate>
     <div className="avatar-upload">{preview ? <img className="avatar avatar-large" src={preview} alt={t('avatar')}/> : client ? <Avatar client={client} vault={vault} large/> : <span className="avatar avatar-large"><Camera size={26}/></span>}<div><label className="btn btn-secondary file-label"><Camera size={17}/>{t(client ? 'changeAvatar' : 'addAvatar')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => { setFile(e.target.files?.[0]); e.target.value = ''; }}/></label><small>{t('avatarHint')}</small></div></div>
     <Field label={`${t('name')} *`}><input autoFocus value={name} maxLength={100} onChange={e => setName(e.target.value)} placeholder={t('namePlaceholder')} autoComplete="off" required/></Field>
+    {!client && <ClientDuplicateNotice vault={vault} input={{ name, email, contact, birthday }} disabled={busy} onOpen={onOpenExisting ?? onSaved}/>}
     <div className="form-section"><Field label={t('clientStatus')} hint={t('clientStatusHint')}><select value={status} onChange={e => setStatus(e.target.value as ClientStatus)}>{(['active', 'paused', 'closed'] as const).map(value => <option key={value} value={value}>{t(`clientStatus_${value}`)}</option>)}</select></Field>
       <FollowUpFields date={followUpOn} note={followUpNote} disabled={busy} onDate={setFollowUpOn} onNote={setFollowUpNote}/><p className="hint">{t('followUpMoreHint')}</p>
     </div>
@@ -130,8 +146,13 @@ export function ClientForm({ vault, client, onClose, onSaved, onDeleted, onOpenE
     <label className="check-label"><input type="checkbox" checked={appointmentEmail} disabled={!email.trim()} onChange={e => setAppointmentEmail(e.target.checked)}/><span>{t('appointmentEmailConsent')}</span></label><p className="hint">{t('appointmentEmailPrivacy')}</p>
     <Field label={t('clientCancellationFee')} hint={t('clientCancellationFeeHint')}><input inputMode="numeric" value={cancellationFee} maxLength={6} onChange={e => setCancellationFee(e.target.value)} placeholder={t('cancellationFeeUseDefault')}/></Field><Field label={t('clientCancellationFeeCurrency')}><select value={cancellationCurrency} onChange={e => setCancellationCurrency(e.target.value as Currency)}><option value="EUR">{t('currencyEur')}</option><option value="UAH">{t('currencyUah')}</option></select></Field>
     <fieldset className="form-section marketing-consent"><legend>{t('marketingConsentHeading')}</legend><p className="hint mb-3">{t('marketingConsentHint')}</p><label className="check-label"><input type="checkbox" checked={marketingEmail} disabled={!email.trim()} onChange={e=>setMarketingEmail(e.target.checked)}/><span>{t('marketingConsentEmail')}</span></label><label className="check-label"><input type="checkbox" checked={marketingTelegram} disabled={!validMarketingContact({...client,telegramChatId:chat} as Client,'telegram')} onChange={e=>setMarketingTelegram(e.target.checked)}/><span>{t('marketingConsentTelegram')}</span></label><button type="button" className="text-link" disabled={!marketingEmail&&!marketingTelegram} onClick={()=>{setMarketingEmail(false);setMarketingTelegram(false);}}>{t('marketingNoMessages')}</button>{!marketingEmail&&!marketingTelegram&&<p className="hint" role="status">{t('marketingPreferencesNone')}</p>}<p className="hint mt-2">{t('marketingConsentContactChange')}</p></fieldset>
-    {!client && <ClientDuplicateNotice vault={vault} input={{ name, email, contact, birthday }} onOpen={onOpenExisting ?? onSaved}/>}
     {error && <Notice error>{t(error)}</Notice>}<Actions busy={busy} onClose={onClose} onDelete={client && onDeleted ? () => void removeClient() : undefined} deleteLabel={t('deleteClient')}/>
+    {duplicateReview && <Modal title={t('duplicateReviewTitle')} onClose={() => { if (!busy) setDuplicateReview(undefined); }}>
+      <p>{t('duplicateReviewHint')}</p>
+      <ClientDuplicateNotice vault={vault} input={{ name, email, contact, birthday }} matches={duplicateReview} disabled={busy} onOpen={onOpenExisting ?? onSaved}/>
+      <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setDuplicateReview(undefined)}>{t('duplicateReviewBack')}</button><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void saveClient(duplicateReview.map(match => match.client.id))}>{t(busy ? 'working' : 'duplicateReviewCreate')}</button></div>
+      {error && <Notice error>{t(error)}</Notice>}
+    </Modal>}
   </form></Modal>;
 }
 export function AppointmentForm({ vault, clientId, appointment, onClose }: { vault: VaultController; clientId?: string; appointment?: Appointment; onClose: () => void }) {

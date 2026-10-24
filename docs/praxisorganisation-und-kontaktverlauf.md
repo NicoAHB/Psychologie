@@ -16,7 +16,7 @@ Die bisherige einzelne Wiedervorlage aus „Profil bearbeiten“ erscheint ebenf
 
 Beim Anlegen eines Klienten erscheint bei passenden Angaben ein unverbindlicher Hinweis. Die Suche vergleicht lokal E-Mail-Adressen, Telefonnummern und normalisierte Namen; auch eine vertauschte Namensreihenfolge und einzelne Tippfehler können erkannt werden. Ein Geburtsdatum stützt einen Namenshinweis, löst allein aber keinen Treffer aus. Es werden höchstens fünf Treffer angezeigt.
 
-**Bestehende Akte öffnen** verlässt das neue Formular. Bei pausierten oder abgeschlossenen Akten steht zusätzlich **Wieder aktivieren** zur Verfügung; Dokumentation und Zahlungen bleiben erhalten. Eigenständige Personen mit ähnlichem Namen oder gemeinsamer Kontaktadresse können weiterhin angelegt werden. Es werden keine Akten automatisch zusammengeführt und keine externen Adressdienste abgefragt.
+**Bestehende Akte öffnen** verlässt das neue Formular. Bei pausierten oder abgeschlossenen Akten steht zusätzlich **Wieder aktivieren** zur Verfügung; Dokumentation und Zahlungen bleiben erhalten. Eigenständige Personen mit ähnlichem Namen oder gemeinsamer Kontaktadresse können nach ausdrücklicher Bestätigung weiterhin angelegt werden. Es werden keine Akten automatisch zusammengeführt und keine externen Adressdienste abgefragt.
 
 ### Rechnung vor dem Ausstellen prüfen
 
@@ -69,7 +69,7 @@ Listen sind begrenzt und memoisiert; die Dublettensuche reagiert nach 300 ms Ein
 - `src/lib/backupState.ts`, `clientExport.ts`, `crdt.ts`, `merge.ts`, `records.ts`, `types.ts`, `useVault.ts`, `workItems.ts`
 - `src/pages/SettingsPage.tsx`, `src/practice-features.css`
 - `src/locales/de.json`, `src/locales/uk.json`
-- `tests/practice-overview.test.ts`, `tests/browser/practice-overview.spec.ts`, `playwright.ipad.config.ts`
+- `tests/practice-overview.test.ts`, `tests/browser/practice-overview.spec.ts`, `tests/browser/client-duplicates.spec.ts`, `playwright.ipad.config.ts`
 
 ## Prüfen und veröffentlichen
 
@@ -85,10 +85,24 @@ Für die lokal vorhandene Chromium-Installation nutzt die Browserkonfiguration `
 
 Die neuen Unit-Tests prüfen Altdaten, Datumsfilter, voneinander unabhängige Aufgaben, Eingabegrenzen, Konflikte, endgültige Klientenlöschung, verschlüsselte Sicherung und Klientenexport, Dublettenlogik, Kontowahl und Rechnungsstände sowie Umfang und Status des Kontaktverlaufs. Die neuen Browserprüfungen prüfen Anlegen/Bearbeiten/Erledigen/Löschen und Wiederherstellung nach Sperren/Neuladen, Reaktivierung, Rechnungskorrekturen vor Ausstellung, Sprachwechsel, Tastatur-/Axe-Prüfungen und schmale Ansichten mit großer Schrift. Es werden nur synthetische Daten genutzt und keine echten Nachrichten versendet oder echten Supabase-Projekte angesprochen.
 
-Lokaler Prüfstand: **289 Unit-Tests bestanden**, Produktionsbuild erfolgreich, **184 Browserprüfungen bestanden** (20 vorhandene, konfigurationsabhängige Tests planmäßig übersprungen). Nach der abschließenden Fokuskorrektur bestanden zusätzlich beide gezielten Chromium-Prüfungen für die Rechnungsprüfung und das ukrainische Bankformular; Unit-Tests und Build wurden danach ebenfalls erneut erfolgreich ausgeführt. Der vollständige Browserlauf enthält auch die neuen Axe-Prüfungen für Aufgabenliste, Aufgabendialog und Dublettenhinweise.
+Prüfstand der ersten Fassung (`8f9c985`): **289 Unit-Tests bestanden**, Produktionsbuild erfolgreich, **184 Browserprüfungen bestanden** (20 vorhandene, konfigurationsabhängige Tests planmäßig übersprungen). Nach der abschließenden Fokuskorrektur bestanden zusätzlich beide gezielten Chromium-Prüfungen für die Rechnungsprüfung und das ukrainische Bankformular; Unit-Tests und Build wurden danach ebenfalls erneut erfolgreich ausgeführt. Der vollständige Browserlauf enthält auch die neuen Axe-Prüfungen für Aufgabenliste, Aufgabendialog und Dublettenhinweise.
 
 Der Pages-Workflow baut nach einem Push auf `main` für `/Psychologie/`. Es sind keine manuellen SQL- oder Datenänderungen nötig. Eine bereits installierte PWA übernimmt das Update über ihren vorhandenen Hinweis **Jetzt aktualisieren**.
 
 ## Bewusste Grenzen
 
 Keine Teilzahlungen/Erstattungen, kein automatisches Zusammenführen von Personen, keine Postfach- oder Chat-Anbindung und keine rechtliche Prüfung. Die Aufgabe verändert weder Prämienberechnung noch Nachrichtenversand oder bestehende Rechnungsbeträge.
+
+## Korrektur: Dubletten beim Speichern ausdrücklich prüfen
+
+Der ursprüngliche Hinweis erschien unterhalb der optionalen Formularfelder und war nicht mit dem Speichervorgang verbunden. Ein identischer Name ließ sich daher ohne Bestätigung nochmals speichern. Der Fehler wurde mit „Nico von Felde“ ohne E-Mail oder Telefonnummer reproduziert.
+
+Der Hinweis steht jetzt direkt unter dem Namen. Zusätzlich prüft das Formular beim Speichern synchron den aktuellen entsperrten Datenbestand. Bei einem Treffer öffnet sich ein eigener beschrifteter Dialog: vorhandene Akte öffnen, gegebenenfalls wieder aktivieren, zum ausgefüllten Formular zurückkehren oder **Trotzdem neue Akte anlegen**. Vor der Bestätigung wird keine neue Akte gespeichert. Enter und schnelles Speichern durchlaufen dieselbe Prüfung; der verzögerte Inline-Hinweis entscheidet nicht über das Speichern.
+
+`requireClientDuplicateReview()` prüft die Treffer zusätzlich direkt in der Tresoränderung vor dem Hinzufügen der Akte. Kommt während der Bildverarbeitung ein neuer passender Datensatz hinzu, muss dieser erneut geprüft werden. Eine bereits vorbereitete, weiterhin unreferenzierte Profilbilddatei wird dabei über die vorhandene verschlüsselte Blob-Bereinigung entfernt. Die Bestätigung gilt nur für den laufenden Speicherversuch und wird nicht dauerhaft gespeichert oder auf spätere Neuanlagen übertragen.
+
+Es erfolgt keine automatische Zusammenführung oder Löschung vorhandener Doppelakten. Eine Änderung bestehender Klienten bleibt wie bisher möglich. Datenmodell, Verschlüsselung und Supabase-Schema sind unverändert. Die Warnung prüft die im geöffneten Tresor bekannten Akten; zwei getrennte Offline-Geräte können weiterhin unabhängig neue Akten anlegen.
+
+Zusätzliche Tests prüfen den identischen Namen ohne Kontaktdaten, die Prüfung gegen einen inzwischen geänderten Bestand, unmittelbares Speichern/native Submit und Enter, Abbrechen mit Erhalt der Eingaben, Öffnen der vorhandenen Akte, bewusste zusätzliche Anlage und eine neue Bestätigung bei der nächsten Neuanlage. Die Warnung wird auch auf Ukrainisch, im Dunkelmodus, mit großer Schrift und über Axe geprüft. `playwright.ipad.config.ts` nimmt die drei neuen Szenarien in die Safari-CI auf.
+
+Prüfstand dieser Korrektur: **291 Unit-Tests**, Produktionsbuild und **16 gezielte Chromium-Browserprüfungen** bestanden (Desktop und Handy, einschließlich der bisherigen vier neuen Funktionen). Zusätzlich bestanden **28 bestehende Browserprüfungen** für lokale Klientenanlage mit Profilbild, verschlüssertes Speichern, Anschriften, Wiedervorlage und Empfehlungen (insgesamt 44 unterschiedliche geprüfte Chromium-Fälle). Keine echten Nachrichten und keine Tests gegen echte Supabase-Projekte.
