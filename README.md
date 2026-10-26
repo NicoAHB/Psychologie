@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu in **0.2.0**: App-Updates stoppen bei Speicherfehlern, dreistufiger E-Mail-Assistent mit eigener Empfangsbestätigung und Kopierhilfe für das iPad, getrennte Zeitpunkte für Dateiprüfung und tatsächlich bestätigten Wiederherstellungstest, später geladene Seiten/Dialogs sowie sichtbare Versionskennung unter Einstellungen. [Bedienung, Grenzen, Tests und Übergabe für Claude](docs/optimierungen-2026-10-26.md).
+
 Neu: **E-Mail-Versand direkt in der App einrichten** unter **Mehr → Einstellungen → E-Mail-Versand**, mit dauerhaft gespeichertem Absender, geschütztem Anbieter-Schlüssel und freiwilliger Testmail an die eigene Konto-Adresse. Jetzt auch **Gmail ohne eigene Domain**, mit eigener Google-Apps-Script-Freigabe statt Google-Passwort; Resend bleibt auswählbar. Die einmalige Supabase-Freigabe bleibt erforderlich. [Gmail einrichten / Übergabe für Claude](docs/gmail-versand.md). [Einrichtung, Grenzen und technische Übergabe für Claude](docs/email-einrichtung-in-der-app.md).
 
 Neu: **Mehr → Anleitung** bietet einen einfachen Einstieg, 14 aufklappbare Themen, eine deutsch/ukrainische Suche und direkte Verlinkungen zu den passenden Bereichen. Die Anleitung funktioniert auch offline. [Bedienung und technische Übergabe](docs/anleitung.md).

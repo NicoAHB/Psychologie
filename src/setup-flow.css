@@ -1,0 +1,13 @@
+.email-wizard-steps { list-style: none; padding: 0; margin-block: 1.1rem; display: grid; gap: .55rem; }
+.setup-step { display: flex; align-items: center; gap: .8rem; width: 100%; min-height: 54px; padding: .8rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); text-align: left; color: inherit; transition: box-shadow .18s; }
+.setup-step > span:last-child { min-width: 0; }
+.setup-step strong, .setup-step small { display: block; overflow-wrap: anywhere; }
+.setup-step small { color: var(--muted); }
+.setup-step-number { display: grid; place-items: center; width: 2rem; height: 2rem; flex: 0 0 2rem; border: 1px solid var(--border); border-radius: 50%; font-weight: 600; }
+.setup-proof { margin-block: 1.2rem; padding-block: 1rem; border-block: 1px solid var(--border); }
+.setup-proof dl, .app-version dl { margin-block: .8rem; }
+.setup-proof dt, .app-version dt { font-weight: 600; margin-top: .7rem; }
+.setup-proof dd, .app-version dd { margin: .25rem 0 0; overflow-wrap: anywhere; }
+.setup-proof .btn { margin-top: .75rem; max-width: 100%; white-space: normal; }
+.app-version code { overflow-wrap: anywhere; }
+.page-loading { padding-block: 2rem; }

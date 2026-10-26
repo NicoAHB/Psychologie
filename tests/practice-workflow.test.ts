@@ -65,7 +65,7 @@ test('backup rehearsal decrypts legacy vault, unfinished notes and all attachmen
   const { data, draft } = draftFixture(); saveSessionDraft(data, draft); const salt = randomSalt(), id = uid(), key = await deriveKey('Sicherungspassphrase', salt);
   const envelope = await encryptVault(key, data, id, salt); const blobs = await Promise.all(referencedBlobs(data).map(async blobId => ({ id: blobId, vaultId: id, payload: await encryptBytes(key, new Uint8Array([1, 2, 3]), `praxisraum-blob:v1:${id}:${blobId}`) })));
   const backup = { type: 'praxisraum-backup-v1', envelope, blobs }, before = JSON.stringify(backup);
-  assert.deepEqual(await verifyBackup(backup, 'Sicherungspassphrase'), { clients: 1, sessions: 0, drafts: 1, files: 2 }); assert.equal(JSON.stringify(backup), before); assert.equal((await decryptVault(key, envelope)).sessionDrafts[0].payload.notes, draft.payload.notes);
+  assert.deepEqual(await verifyBackup(backup, 'Sicherungspassphrase'), { vaultId: envelope.vaultId, clients: 1, sessions: 0, drafts: 1, files: 2 }); assert.equal(JSON.stringify(backup), before); assert.equal((await decryptVault(key, envelope)).sessionDrafts[0].payload.notes, draft.payload.notes);
   await assert.rejects(() => verifyBackup(backup, 'Falsch')); await assert.rejects(() => verifyBackup({ ...backup, blobs: blobs.slice(1) }, 'Sicherungspassphrase'));
   const damaged = structuredClone(backup); damaged.blobs[0].payload.ciphertext = damaged.blobs[0].payload.ciphertext.slice(0, -4) + 'AAAA'; await assert.rejects(() => verifyBackup(damaged, 'Sicherungspassphrase'));
 });

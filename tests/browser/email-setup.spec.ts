@@ -11,8 +11,10 @@ test('email setup explains prerequisites, offers a real migration and is linked 
   await page.getByRole('button', { name: de.guideMessagesTitle, exact: true }).click();
   await page.locator('#guide-body-messages').getByRole('button', { name: de.emailSetupOpen, exact: true }).click();
   const card = page.locator('#settings-email'); await expect(card).toBeFocused(); await expect(card.getByRole('heading', { name: de.emailSetupTitle, exact: true })).toBeVisible();
+  await card.getByRole('button', { name: new RegExp(de.emailWizardConnection) }).click();
   await expect(card.getByText(de.emailGmailStep1, { exact: true })).toBeVisible();
   await card.getByLabel(de.emailProviderChoice, { exact: true }).selectOption('resend');
+  await card.getByRole('button', { name: new RegExp(de.emailWizardConnection) }).click();
   await expect(card.getByText(de.emailSetupSenderHint, { exact: true })).toBeVisible();
   await card.getByText(de.emailSetupBootstrapTitle, { exact: true }).click();
   await expect(card.getByRole('button', { name: de.emailSetupCopySql, exact: true })).toBeEnabled();

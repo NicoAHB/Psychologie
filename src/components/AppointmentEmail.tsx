@@ -6,7 +6,7 @@ import type { Appointment, AppointmentEmailDelivery } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { Field, Modal, Notice } from './ui';
-import { EmailSetupButton } from './EmailSetupCard';
+import { EmailSetupButton } from './EmailSetupButton';
 export function AppointmentEmail({ vault, appointment, onClose }: { vault: VaultController; appointment: Appointment; onClose: () => void }) {
   const { t, language } = useI18n(); const [purpose,setPurpose] = useState<AppointmentEmailPurpose>('appointmentConfirmation');
   const [preview,setPreview] = useState<AppointmentEmailDelivery>(), [error,setError] = useState<TextKey>(), [busy,setBusy] = useState(false);

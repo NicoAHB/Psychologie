@@ -19,7 +19,7 @@ import { InvoiceForm, InvoiceView } from './invoices';
 import { isSessionVoided, uninvoiced } from '../lib/invoice';
 import { clockText } from './DualTime';
 import { ClientExportButton } from './client-export';
-import { ReferralCardButton } from './Referrals';
+import { ReferralCardButton } from './ReferralCardButton';
 import { ClientMemoOverview, SessionMemos } from './AudioMemos';
 import { deleteAudioMemo } from '../lib/records';
 import { validateMemo } from '../lib/audioMemos';

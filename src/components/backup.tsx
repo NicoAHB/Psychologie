@@ -3,7 +3,6 @@ import { HelpButton } from './HelpButton';
 import { useEffect, useState } from 'react';
 import { Download, HardDriveDownload, History, Share2, ShieldCheck } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
-import { today } from '../lib/dates';
 import { downloadText } from '../lib/files';
 import { markBackup } from '../lib/backupState';
 import type { SnapshotEntry } from '../lib/history';
@@ -11,18 +10,11 @@ import type { AutoBackup } from '../lib/useAutoBackup';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
 import { runSecureTask } from '../lib/workerTasks';
+import { markBackupProof } from '../lib/setupProof';
+import { BackupProof } from './BackupProof';
+import { saveBackupCopy } from '../lib/backupExport';
+export { saveBackupCopy } from '../lib/backupExport';
 
-/** Hand the backup to the share sheet (iPad: "Save to Files"); falls back to a normal download. */
-export async function saveBackupCopy(vault: VaultController, preferShare: boolean): Promise<'download' | 'share' | undefined> {
-  const backup = await vault.exportBackup(); if (!backup) return;
-  const name = `praxisraum-${today()}.encrypted.json`; const text = await runSecureTask('stringify', backup);
-  const file = new File([text], name, { type: 'application/json' });
-  let kind: 'download' | 'share' = 'download';
-  if (preferShare && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Praxisraum' }); kind = 'share'; }
-  else downloadText(name, text, 'application/json');
-  await markBackup(backup.envelope.vaultId, kind);
-  return kind;
-}
 export function BackupCard({ vault, auto }: { vault: VaultController; auto: AutoBackup }) {
   const { t, language } = useI18n(); const [message, setMessage] = useState<TextKey>(); const [busy, setBusy] = useState(false);
   const [guiding,setGuiding] = useState(false);
@@ -34,6 +26,7 @@ export function BackupCard({ vault, auto }: { vault: VaultController; auto: Auto
   };
   const time = (at: number) => new Date(at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA');
   return <section id="settings-backup" tabIndex={-1} className="card settings-card"><span className="settings-icon"><ShieldCheck size={24}/></span><h2>{t('securityTitle')}</h2><HelpButton topic="securityTitle" text="helpBackup"/><p>{t('securityText')}</p>
+    <BackupProof vaultId={!vault.demo ? vault.envelope?.vaultId : undefined}/>
     <button type="button" className="btn btn-primary backup-guide-start" disabled={vault.demo} onClick={()=>setGuiding(true)}>{t('backupAssistant')}</button>{guiding&&<BackupAssistant vault={vault} onClose={()=>setGuiding(false)}/>}
     <div className="button-row"><button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(false)}><Download size={17}/>{t(busy ? 'working' : 'exportBackup')}</button>
       {canShare && <button className="btn btn-secondary" disabled={busy || vault.demo} onClick={() => void run(true)}><Share2 size={17}/>{t('shareBackup')}</button>}</div>
@@ -71,6 +64,16 @@ export function HistoryCard({ vault }: { vault: VaultController }) {
 
 export function BackupVerifyDialog({ onClose, onVerified, expectedVaultId }: { onClose: () => void; onVerified?: () => void; expectedVaultId?: string }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(), [passphrase, setPassphrase] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(false), [result, setResult] = useState<import('../lib/verifyBackup').BackupCheck>();
-  async function check() { if (!file) return; setBusy(true); setError(false); setResult(undefined); try { const text=await file.text(); const result=await runSecureTask('verifyBackup', { text, passphrase }); if(expectedVaultId && JSON.parse(text).envelope.vaultId!==expectedVaultId)throw new Error('invalidBackup'); setResult(result); setPassphrase(''); onVerified?.(); } catch { setError(true); } finally { setBusy(false); } }
-  return <Modal title={t('backupVerify')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={e => { e.preventDefault(); void check(); }}><p>{t('backupVerifyHint')}</p><Field label={t('backupVerifyFile')}><input type="file" accept=".json,application/json" disabled={busy} onChange={e => { setFile(e.target.files?.[0]); setResult(undefined); setError(false); }}/></Field><Field label={t('backupVerifyPassphrase')}><input type="password" autoComplete="off" value={passphrase} disabled={busy} onChange={e => setPassphrase(e.target.value)}/></Field>{busy && <p role="status">{t('backupVerifying')}</p>}{error && <Notice error>{t('backupVerifyError')}</Notice>}{result && <Notice>{Object.entries(result).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), t('backupVerified'))}</Notice>}<div className="form-actions"><button className="btn btn-secondary" type="button" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-primary" disabled={busy || !file || !passphrase}>{t('backupVerify')}</button></div></form></Modal>;
+  const [proofError, setProofError] = useState(false);
+  async function check() {
+    if (!file || busy) return; setBusy(true); setError(false); setProofError(false); setResult(undefined);
+    try {
+      const result = await runSecureTask('verifyBackup', { text: await file.text(), passphrase });
+      if (expectedVaultId && result.vaultId !== expectedVaultId) throw new Error('invalidBackup');
+      setResult(result); setPassphrase('');
+      try { await markBackupProof(result.vaultId, 'check'); } catch { setProofError(true); }
+      onVerified?.();
+    } catch { setError(true); } finally { setBusy(false); }
+  }
+  return <Modal title={t('backupVerify')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={e => { e.preventDefault(); void check(); }}><p>{t('backupVerifyHint')}</p><Field label={t('backupVerifyFile')}><input type="file" accept=".json,application/json" disabled={busy} onChange={e => { setFile(e.target.files?.[0]); setResult(undefined); setError(false); }}/></Field><Field label={t('backupVerifyPassphrase')}><input type="password" autoComplete="off" value={passphrase} disabled={busy} onChange={e => setPassphrase(e.target.value)}/></Field>{busy && <p role="status">{t('backupVerifying')}</p>}{error && <Notice error>{t('backupVerifyError')}</Notice>}{proofError && <Notice error>{t('backupProofWriteFailed')}</Notice>}{result && <Notice>{Object.entries(result).reduce((text, [key, value]) => text.replace(`{${key}}`, String(value)), t('backupVerified'))}</Notice>}<div className="form-actions"><button className="btn btn-secondary" type="button" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-primary" disabled={busy || !file || !passphrase}>{t('backupVerify')}</button></div></form></Modal>;
 }

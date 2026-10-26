@@ -6,10 +6,6 @@ import { completeAndPay, type SettingsSection } from './lib/practiceFlow';
 import type { PaymentMethod } from './lib/types';
 import { useAppointmentEmails } from './lib/useAppointmentEmails';
 import { Today } from './pages/TodayPage';
-import { Newsletter } from './components/Newsletter';
-import { TemplateManager } from './components/TemplateManager';
-import { MarketingCampaigns } from './components/MarketingCampaigns';
-import { Referrals } from './components/Referrals';
 import { useMarketingAutomation } from './lib/useMarketingAutomation';
 import { syncMarketingArchive } from './lib/marketingArchive';
 import './marketing.css';
@@ -32,7 +28,6 @@ import type { Appointment, Client, PhotoNote, Session } from './lib/types';
 import { deleteNote } from './lib/records';
 import { ImageView, Logo, Modal, Notice, SecurityLine } from './components/ui';
 import { AppointmentsPage } from './pages/AppointmentsPage';
-import { SettingsPage } from './pages/SettingsPage';
 import { isSessionVoided } from './lib/invoice';
 import { InvoiceForm, InvoiceView } from './components/invoices';
 import { SearchModal } from './components/SearchModal';
@@ -41,11 +36,16 @@ import type { ProfileTab } from './components/client-profile';
 import { PassphraseReset } from './components/security';
 import { useAutoBackup } from './lib/useAutoBackup';
 import { backupNeeded, hasRecords, latestChange, markBackup, readBackupState, type BackupState } from './lib/backupState';
-import { saveBackupCopy } from './components/backup';
+import { saveBackupCopy } from './lib/backupExport';
 import { AppointmentForm, ClientForm, NoteForm, PaymentForm, SessionForm } from './components/forms';
 import { Welcome } from './components/Welcome';
 import { useCloudUser } from './components/CloudAuth';
 type Form = { type: 'client'; client?: Client } | { type: 'appointment'; clientId?: string; appointment?: Appointment } | { type: 'session'; clientId?: string; appointment?: Appointment; session?: Session; restored?: SessionDraft } | { type: 'note'; clientId: string } | { type: 'payment'; session: Session };
+const Newsletter = lazy(() => import('./components/Newsletter').then(module => ({ default: module.Newsletter })));
+const TemplateManager = lazy(() => import('./components/TemplateManager').then(module => ({ default: module.TemplateManager })));
+const MarketingCampaigns = lazy(() => import('./components/MarketingCampaigns').then(module => ({ default: module.MarketingCampaigns })));
+const Referrals = lazy(() => import('./components/Referrals').then(module => ({ default: module.Referrals })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 const GuidePage = lazy(() => import('./pages/GuidePage').then(module => ({ default: module.GuidePage })));
 export default function App() {
   const vault = useVault(); const { t } = useI18n(); const user = useCloudUser(!!vault.data);
@@ -126,6 +126,7 @@ export default function App() {
   useEffect(() => { document.title = vault.data ? `${t(route)} · Praxisraum` : 'Praxisraum'; }, [vault.data, route, t]);
   if (!vault.data) return <Welcome vault={vault}/>;
   const data = vault.data;
+  const pageLoading = <p className="page-loading" role="status">{t('working')}</p>;
   const selected = data.clients.find(c => c.id === selectedId);
   const backupNag = backupInfo === undefined ? { needed: false, days: 0 } : backupNeeded(backupInfo ?? undefined, latestChange(data), hasRecords(data));
 
@@ -160,7 +161,7 @@ export default function App() {
       {completedNotice && <Notice><span>{t('appointmentCompletedOpen')}</span><button className="text-link" onClick={() => { navigate('finances'); setCompletedNotice(false); }}>{t('goToPayments')}</button><button className="icon-btn" aria-label={t('close')} onClick={() => setCompletedNotice(false)}><X size={18}/></button></Notice>}
       {isMoreRoute(route) && route !== 'more' && <button className="btn btn-ghost back-to-more" onClick={() => navigate('more')}>{t('backToMore')}</button>}
       {route === 'more' && <MorePage navigate={navigate}/>}
-      {route === 'guide' && <Suspense fallback={<p role="status">{t('working')}</p>}><GuidePage onOpen={target => {
+      {route === 'guide' && <Suspense fallback={pageLoading}><GuidePage onOpen={target => {
         navigate(target.route);
         if (target.route === 'settings') setSettingsFocus(target.section);
         if (target.route === 'clients') { setSelectedId(undefined); setClientFilter('all'); }
@@ -176,14 +177,14 @@ export default function App() {
       {route === 'clients' && <ClientsPage vault={vault} selected={selected} search={search} setSearch={setSearch} clientFilter={clientFilter} setClientFilter={setClientFilter} clientLimit={clientLimit} setClientLimit={setClientLimit} documentFocusId={documentFocusId} memoFocusId={memoFocusId} onMemoFocusHandled={() => setMemoFocusId(undefined)} profileTab={profileTab} setProfileTab={setProfileTab} tag={tag} setTag={setTag} onNewClient={() => setForm({ type: 'client' })} onSelect={id => { setSelectedId(id); setTag(''); setProfileTab('overview'); }} actions={selected ? { onBack: () => setSelectedId(undefined), onEditClient: () => setForm({ type: 'client', client: selected }), onNewSession: () => setForm({ type: 'session', clientId: selected.id }), onNewNote: () => setForm({ type: 'note', clientId: selected.id }), onNewAppointment: () => setForm({ type: 'appointment', clientId: selected.id }), onEditSession: session => setForm({ type: 'session', session }), onPhoto: setPhoto, onPayment: markPayment, onDeleteNote: deleteNoteEntry } : undefined}/>}
       {route === 'appointments' && <AppointmentsPage focusWaitlist={waitlistFocus} vault={vault} {...quickProps} onBackfill={() => setForm(data.clients.length ? { type: 'session' } : { type: 'client' })} onNew={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })} onClient={openClient} onComplete={a => setForm({ type: 'session', appointment: a })} onEdit={a => setForm({ type: 'appointment', appointment: a })}/>}
       {route === 'finances' && <FinancesPage key={financeView} initialView={financeView} vault={vault} onPayment={markPayment} onClient={openClient}/>}
-      {route === 'settings' && <SettingsPage vault={vault} focus={settingsFocus} auto={auto} onSync={doSync} syncing={syncing} onRestore={async () => {
+      {route === 'settings' && <Suspense fallback={pageLoading}><SettingsPage vault={vault} focus={settingsFocus} auto={auto} onSync={doSync} syncing={syncing} onRestore={async () => {
         if (!window.confirm(t('restoreConfirm'))) return;
         try { const u = await currentUser(); const remote = await fetchRemote(); if (!remote) throw new Error('noRemote'); await vault.importBackup({ type: 'praxisraum-backup-v1', envelope: remoteEnvelope(remote), blobs: [] }); await setRevision(u.id, remote.vault_id, remote.revision); } catch (err) { setSyncMessage(cloudError(err) as TextKey); }
-      }}/>}
-      {marketingOpened&&<Newsletter vault={vault} marketing={marketing} active={route==='newsletter'} initialTab={newsletterTab} templateId={newsletterTemplate} onTemplateHandled={()=>setNewsletterTemplate(undefined)} onTemplates={()=>navigate('messageTemplates')} onEditClient={id=>{const client=data.clients.find(c=>c.id===id);if(client)setForm({type:'client',client});}}/>}
-      {route==='messageTemplates'&&<TemplateManager vault={vault} onUse={id=>{navigate('newsletter');setNewsletterTemplate(id);}}/>}
-      {route==='marketingCampaigns'&&<MarketingCampaigns vault={vault} marketing={marketing} onTemplates={()=>navigate('messageTemplates')} onArchive={()=>{navigate('newsletter');setNewsletterTab('archive');}}/>}
-      {route==='referrals'&&<Referrals vault={vault}/>}
+      }}/></Suspense>}
+      {marketingOpened&&<Suspense fallback={route === 'newsletter' ? pageLoading : null}><Newsletter vault={vault} marketing={marketing} active={route==='newsletter'} initialTab={newsletterTab} templateId={newsletterTemplate} onTemplateHandled={()=>setNewsletterTemplate(undefined)} onTemplates={()=>navigate('messageTemplates')} onEditClient={id=>{const client=data.clients.find(c=>c.id===id);if(client)setForm({type:'client',client});}}/></Suspense>}
+      {route==='messageTemplates'&&<Suspense fallback={pageLoading}><TemplateManager vault={vault} onUse={id=>{navigate('newsletter');setNewsletterTemplate(id);}}/></Suspense>}
+      {route==='marketingCampaigns'&&<Suspense fallback={pageLoading}><MarketingCampaigns vault={vault} marketing={marketing} onTemplates={()=>navigate('messageTemplates')} onArchive={()=>{navigate('newsletter');setNewsletterTab('archive');}}/></Suspense>}
+      {route==='referrals'&&<Suspense fallback={pageLoading}><Referrals vault={vault}/></Suspense>}
       <footer className="page-footer"><SecurityLine/><span>{t('privacyFooter')}</span></footer></main>
       <div className="sync-bar"><span>{vault.saving ? <LoaderCircle size={15} className="spin"/> : <CheckCheck size={16}/>}<span>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</span></span><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
     </div>

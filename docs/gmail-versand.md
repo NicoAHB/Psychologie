@@ -7,6 +7,8 @@ Die neue Verbindung benötigt keine eigene Domain, keinen Resend-Zugang und kein
 zusätzliches Versandabo. Googles aktuelle Kontingente und die vorhandenen
 Supabase-Free-Tier-Grenzen gelten weiterhin.
 
+Neu in 0.2.0: Drei Prüfschritte führen durch die Einrichtung; einen tatsächlichen Testmail-Empfang bestätigt die Nutzerin selbst. Bei gesperrtem Clipboard hilft **Gmail-Skript anzeigen**. Der Prüfstatus bleibt gerätelokal. [Details und technische Übergabe](optimierungen-2026-10-26.md).
+
 ## Einmalige Einrichtung für die Nutzerin
 
 1. Die sichere Supabase-Verbindung wie unten beschrieben einmal freigeben lassen.

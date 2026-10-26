@@ -5,7 +5,7 @@ import { Download, FilePlus2, FileText, Mail, Paperclip, Reply } from 'lucide-re
 import { translate, useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, today } from '../lib/dates';
 import { DOCUMENT_ACCEPT, downloadDocument, emailConfigured, inspectDocument, prepareDelivery, sendDocumentEmail, validEmail } from '../lib/documents';
-import { EmailSetupButton } from './EmailSetupCard';
+import { EmailSetupButton } from './EmailSetupButton';
 import { uid, type AssessmentKind, type Client, type ClientDocument, type DocumentFile, type Language } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { canRemindInvoice, cancellationOf, invoiceOutstanding, validDay } from '../lib/invoice';

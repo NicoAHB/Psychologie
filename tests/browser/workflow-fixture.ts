@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, type Page } from './fixtures';
 import { addDays, today } from '../../src/lib/dates';
 import { decryptVault, deriveKey, encryptBytes, encryptVault, randomSalt } from '../../src/lib/crypto';
@@ -26,7 +27,7 @@ export async function nav(page: Page, label: string) {
 }
 export async function seedWorkflow(page: Page, data: VaultData) {
   const salt = randomSalt(); const key = await deriveKey('a very strong test passphrase', salt); const vaultId = uid(); const envelope = await encryptVault(key, data, vaultId, salt);
-  const blobs = await Promise.all(data.documents.map(async d => ({ id: d.file.blobId, vaultId, payload: await encryptBytes(key, new TextEncoder().encode('Beispielaufgabe'), `praxisraum-blob:v1:${vaultId}:${d.file.blobId}`) })));
+  const blobs = await Promise.all([...data.documents.map(async d => ({ id: d.file.blobId, vaultId, payload: await encryptBytes(key, new TextEncoder().encode('Beispielaufgabe'), `praxisraum-blob:v1:${vaultId}:${d.file.blobId}`) })), ...data.audioMemos.map(async memo => ({ id: memo.blobId, vaultId, payload: await encryptBytes(key, new Uint8Array(await readFile(new URL(`./assets/memo.${memo.mimeType === 'audio/mp4' ? 'm4a' : 'webm'}`, import.meta.url))), `praxisraum-blob:v1:${vaultId}:${memo.blobId}`) }))]);
   await page.goto('/'); await expect(page.getByRole('button', { name: 'Mit Beispieldaten entdecken' })).toBeVisible();
   await page.evaluate(async ({ envelope, blobs }) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open('praxisraum', 1); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });

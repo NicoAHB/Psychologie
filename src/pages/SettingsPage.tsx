@@ -19,6 +19,7 @@ import { AppearanceCard } from '../components/AppearanceCard';
 import { SaveButton } from '../components/SaveButton';
 import { useSaveStatus } from '../lib/useSaveStatus';
 import { EmailSetupCard } from '../components/EmailSetupCard';
+import { AppVersion } from '../components/AppVersion';
 
 function TemplatesCard({ vault }: { vault: VaultController }) {
   const { t } = useI18n(); const [name, setName] = useState(''); const [body, setBody] = useState(''); const list = vault.data!.templates;
@@ -38,6 +39,7 @@ export function SettingsPage({ vault, auto, onSync, syncing, onRestore, focus }:
   const setting = <K extends keyof typeof settings>(key: K, value: typeof settings[K]) => { void vault.update(d => { d.settings[key] = value; }).catch(() => {}); };
   return <><PageHeading title={t('settingsTitle')} subtitle={t('settingsSubtitle')}/><div className="settings-grid">
     <AppearanceCard/>
+    <AppVersion/>
     <EmailSetupCard demo={vault.demo}/>
     <BackupCard vault={vault} auto={auto}/>
     <section id="settings-cloud" tabIndex={-1} className="card settings-card"><span className="settings-icon tone-blue"><Cloud size={24}/></span><h2>{t('cloudTitle')}</h2><p>{t('cloudText')}</p>{vault.demo ? <Notice>{t('demoNotice')}</Notice> : <CloudAuth><label className="check-label"><input type="checkbox" checked={settings.autoSync} onChange={e => setting('autoSync', e.target.checked)}/><span>{t('autoSync')}</span></label><p className="hint">{t('autoSyncHint')}</p><div className="button-row"><button className="btn btn-primary" disabled={syncing} onClick={() => void onSync()}><Cloud size={17}/>{t(syncing ? 'syncing' : 'sync')}</button><button className="btn btn-secondary" disabled={syncing} onClick={() => void onRestore()}>{t('loadCloud')}</button></div><p className="hint">{t('cloudRestoreHint')}</p></CloudAuth>}<p className="hint">{t('freeTierNote')}</p></section>

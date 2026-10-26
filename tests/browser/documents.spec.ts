@@ -2,6 +2,7 @@ import { test, expect, type Page } from './fixtures';
 import { PDFDocument } from 'pdf-lib';
 import { readFile } from 'node:fs/promises';
 import { today } from '../../src/lib/dates';
+const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import.meta.url), 'utf8')) as Record<string, string>;
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAZElEQVR4nO3PQQ3AIADAQMC/CxJMYG4ieFyW9BS0c98z/mzpgFcNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaA1oDWgNaB+DmAKEfrnO0QAAAABJRU5ErkJggg==', 'base64');
 async function clients(page: Page) {
   const menu = page.getByRole('button', { name: 'Navigation öffnen' }); if (await menu.isVisible()) await menu.click();
@@ -25,7 +26,7 @@ test('patient email, editable DE/UA questionnaire PDFs, document originals and d
   await dialog.getByRole('checkbox', { name: 'Per E-Mail an Klient versenden', exact: true }).check();
   await dialog.getByRole('button', { name: 'Speichern und E-Mail vorbereiten', exact: true }).click();
   await expect(dialog.getByLabel('Empfänger', { exact: true })).toHaveValue('test@example.com');
-  await expect(dialog.getByText(/direkte E-Mail-Versand ist noch nicht eingerichtet/)).toBeVisible();
+  await expect(dialog.getByText(de.emailNotConfigured, { exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'E-Mail jetzt versenden' })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Schließen', exact: true }).last().click(); await expect(dialog).not.toBeVisible();
   await page.getByRole('tab', { name: 'Dokumente', exact: true }).click();

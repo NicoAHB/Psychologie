@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { backupSecretsConfirmed, backupGuideReady } from '../lib/backupGuide';
-import { saveBackupCopy, BackupVerifyDialog } from './backup';
+import { BackupVerifyDialog } from './backup';
+import { saveBackupCopy } from '../lib/backupExport';
 import { SecurityDialog } from './security';
 import type { VaultController } from '../lib/useVault';
 import { Modal, Notice } from './ui';
