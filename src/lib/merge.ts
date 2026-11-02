@@ -18,6 +18,7 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
   const clientIds = new Set(merged.clients.map(c => c.id));
   for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents', 'audioMemos', 'sessionDrafts'] as const)
     (merged[name] as { clientId: string }[]) = (merged[name] as { clientId: string }[]).filter(r => clientIds.has(r.clientId));
+  for (const draft of merged.newsletterDrafts ?? []) draft.payload.clientIds = draft.payload.clientIds.filter(id => clientIds.has(id));
   const sessions = new Map(merged.sessions.map(s => [s.id, s.clientId]));
   for (const newsletter of merged.newsletters ?? []) newsletter.recipients = newsletter.recipients.filter(r => clientIds.has(r.clientId));
   merged.audioMemos = merged.audioMemos.filter(m => sessions.get(m.sessionId) === m.clientId);

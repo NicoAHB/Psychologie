@@ -50,7 +50,7 @@ test('rare pages are deferred, newsletter drafts survive navigation and unopened
   await nav(page, de.newsletter); await page.getByLabel(de.marketingMessageDe, { exact: true }).fill('Ein Entwurf bleibt beim Wechsel erhalten.');
   expect((await loaded()).some(name => /\/Newsletter-/.test(name))).toBe(true);
   await nav(page, de.messageTemplates); await expect(page.getByRole('heading', { name: de.messageTemplates, exact: true })).toBeVisible(); await nav(page, de.newsletter); await expect(page.getByLabel(de.marketingMessageDe, { exact: true })).toHaveValue('Ein Entwurf bleibt beim Wechsel erhalten.');
-  await nav(page, de.settings); const version = page.getByRole('region', { name: de.appVersionTitle, exact: true }); await expect(version).toContainText('0.2.0');
+  await nav(page, de.settings); const version = page.getByRole('region', { name: de.appVersionTitle, exact: true }); await expect(version).toContainText('0.2.1');
   await page.getByRole('button', { name: 'Українська', exact: true }).first().click(); await expect(page.getByRole('region', { name: uk.appVersionTitle, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Deutsch', exact: true }).first().click();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; }); await page.reload(); await unlock(page); await context.setOffline(true);

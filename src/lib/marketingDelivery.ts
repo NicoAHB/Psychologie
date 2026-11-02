@@ -37,6 +37,7 @@ export interface MarketingReceipt {
   channel?: MarketingChannel;
 }
 export interface NewsletterInput {
+  draftId?: string;
   channel: MarketingChannelSelection;
   message: NewsletterMessage;
   clientIds: string[];
@@ -290,6 +291,7 @@ export async function dispatchNewsletter(
     }
   }
   await vault.update((data) => {
+    if (input.draftId) data.newsletterDrafts = data.newsletterDrafts.filter(d => d.id !== input.draftId);
     data.settings.marketingUsed = true;
     let entry = data.newsletters.find((n) => n.id === newsletterId);
     if (!entry) {

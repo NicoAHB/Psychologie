@@ -22,6 +22,7 @@ export function deleteClient(data: VaultData, clientId: string) {
   data.assessments = data.assessments.filter(a => a.clientId !== clientId);
   data.documents = data.documents.filter(d => d.clientId !== clientId);
   data.audioMemos = (data.audioMemos ?? []).filter(m => m.clientId !== clientId);
+  for (const draft of data.newsletterDrafts ?? []) draft.payload.clientIds = draft.payload.clientIds.filter(id => id !== clientId);
   for (const newsletter of data.newsletters ?? []) newsletter.recipients = newsletter.recipients.filter(r => r.clientId !== clientId);
 }
 export function deleteSession(data: VaultData, sessionId: string) {

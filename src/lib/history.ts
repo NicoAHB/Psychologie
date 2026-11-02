@@ -2,6 +2,7 @@
 // Snapshots hold the same ciphertext as the vault itself (no plaintext, images stay shared), at most one per window.
 import { commitTransaction, database, metaDelete, metaGet, metaPut } from './db';
 import type { VaultEnvelope } from './types';
+import { sameEnvelope } from './vaultAccess';
 
 export const SNAPSHOT_WINDOW_MS = 10 * 60 * 1000;
 export const SNAPSHOT_LIMIT = 30;
@@ -24,11 +25,17 @@ export async function recordSnapshot(previous: VaultEnvelope, force = false, now
   await metaPut(indexKey(previous.vaultId), next.filter(e => keep.has(e.at)));
 }
 /** Commit the live ciphertext and its recovery point atomically, including on Safari/iPadOS. No unload timer needed. */
-export async function commitVaultSnapshot(envelope: VaultEnvelope, blobIds: string[], now = Date.now()): Promise<string[]> {
+export async function commitVaultSnapshot(envelope: VaultEnvelope, blobIds: string[], now = Date.now(), expected?: VaultEnvelope | null, journal: Record<string, string[]> = {}): Promise<string[]> {
   const db = await database();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(['vault', 'meta'], 'readwrite'); const meta = tx.objectStore('meta');
-    const request = meta.get(indexKey(envelope.vaultId)); let discarded: string[] = [];
+    let discarded: string[] = [], changed = false;
+    const commit = () => {
+    const additions = Object.entries(journal).filter(([, ids]) => ids.length);
+    let remaining = additions.length + 1;
+    const finish = () => { if (--remaining === 0) commitTransaction(tx); };
+    for (const [key, ids] of additions) { const queued = meta.get(key); queued.onsuccess = () => { meta.put([...new Set([...(queued.result ?? []) as string[], ...ids])], key); finish(); }; }
+    const request = meta.get(indexKey(envelope.vaultId));
     request.onsuccess = () => {
       const entries = (request.result ?? []) as SnapshotEntry[];
       const at = Math.max(now, ...entries.map(entry => entry.at + 1));
@@ -40,11 +47,15 @@ export async function commitVaultSnapshot(envelope: VaultEnvelope, blobIds: stri
       for (const entry of removed) meta.delete(itemKey(envelope.vaultId, entry.at));
       meta.put(envelope, itemKey(envelope.vaultId, at)); meta.put(keep, indexKey(envelope.vaultId));
       tx.objectStore('vault').put(envelope, 'primary');
-      commitTransaction(tx);
-    };
+      finish();
+    }; };
+    if (expected === undefined) commit();
+    else { const read = tx.objectStore('vault').get('primary'); read.onsuccess = () => {
+      if (!sameEnvelope(read.result, expected)) { changed = true; tx.abort(); } else commit();
+    }; }
     tx.oncomplete = () => resolve(discarded);
     tx.onerror = () => reject(tx.error ?? new Error('storageError'));
-    tx.onabort = () => reject(tx.error ?? new Error('storageError'));
+    tx.onabort = () => reject(new Error(changed ? 'vaultChanged' : 'storageError'));
   });
 }
 export async function historyBlobIds(vault: string) { return new Set((await listSnapshots(vault)).flatMap(entry => entry.blobIds ?? [])); }

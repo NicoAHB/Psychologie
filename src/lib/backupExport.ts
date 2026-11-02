@@ -1,6 +1,6 @@
 import { today } from './dates';
 import { downloadText } from './files';
-import { markBackup } from './backupState';
+import { backupSourceId, markBackup } from './backupState';
 import { runSecureTask } from './workerTasks';
 import type { VaultController } from './useVault';
 
@@ -12,6 +12,6 @@ export async function saveBackupCopy(vault: VaultController, preferShare: boolea
   let kind: 'download' | 'share' = 'download';
   if (preferShare && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Praxisraum' }); kind = 'share'; }
   else downloadText(name, text, 'application/json');
-  await markBackup(backup.envelope.vaultId, kind);
+  await markBackup(backup.envelope.vaultId, kind, Date.now(), backupSourceId(backup.envelope));
   return kind;
 }

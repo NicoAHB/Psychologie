@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { metaDelete, metaGet, metaPut } from './db';
-import { markBackup } from './backupState';
+import { backupSourceId, markBackup } from './backupState';
 import type { VaultController } from './useVault';
 import { writeBackupTarget, type BackupTarget, type BackupFile, type BackupDirectory } from './directoryBackup';
 import { runSecureTask } from './workerTasks';
@@ -44,7 +44,7 @@ export function useAutoBackup(vault: VaultController) {
       setStatus('working');
       const backup = await latest.current.exportBackup(); if (!backup || backup.envelope.vaultId !== vaultId) { setStatus('off'); return; }
       await writeBackupTarget(target, backup.envelope.vaultId, await runSecureTask('stringify', backup));
-      const now = Date.now(); setLastAt(now); setStatus('ok'); if (vaultId) await markBackup(vaultId, 'auto', now);
+      const now = Date.now(); setLastAt(now); setStatus('ok'); if (vaultId) await markBackup(vaultId, 'auto', now, backupSourceId(backup.envelope));
     } catch { setStatus('error'); } finally { busy.current = false; const again = queued.current || generation !== latest.current.generation; queued.current = false; if (again && activeTarget.current === target && latest.current.data && latest.current.envelope?.vaultId === vaultId) void writeTarget(target, false); }
   }, [vaultId]);
   // Every change (and every pause in typing) schedules a write; leaving the page flushes immediately.

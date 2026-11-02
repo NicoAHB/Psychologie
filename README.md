@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu in **0.2.1**: Schutz vor überschriebenen Änderungen in mehreren Fenstern, korrekter Bezug aktueller Sicherungen, Wiederaufnahme nach Bereichsfehlern, verschlüsselte Newsletter-Entwürfe und Speicherplatzanzeige. [Bedienung, Datenmodell, Grenzen und Übergabe für Claude](docs/speicherschutz-und-entwuerfe.md).
+
 Neu in **0.2.0**: App-Updates stoppen bei Speicherfehlern, dreistufiger E-Mail-Assistent mit eigener Empfangsbestätigung und Kopierhilfe für das iPad, getrennte Zeitpunkte für Dateiprüfung und tatsächlich bestätigten Wiederherstellungstest, später geladene Seiten/Dialogs sowie sichtbare Versionskennung unter Einstellungen. [Bedienung, Grenzen, Tests und Übergabe für Claude](docs/optimierungen-2026-10-26.md).
 
 Neu: **E-Mail-Versand direkt in der App einrichten** unter **Mehr → Einstellungen → E-Mail-Versand**, mit dauerhaft gespeichertem Absender, geschütztem Anbieter-Schlüssel und freiwilliger Testmail an die eigene Konto-Adresse. Jetzt auch **Gmail ohne eigene Domain**, mit eigener Google-Apps-Script-Freigabe statt Google-Passwort; Resend bleibt auswählbar. Die einmalige Supabase-Freigabe bleibt erforderlich. [Gmail einrichten / Übergabe für Claude](docs/gmail-versand.md). [Einrichtung, Grenzen und technische Übergabe für Claude](docs/email-einrichtung-in-der-app.md).

@@ -14,23 +14,24 @@ export function Welcome({ vault }: { vault: VaultController }) {
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>(); const [restoreOpen, setRestoreOpen] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false); const [recoveryKey, setRecoveryKey] = useState('');
   const exists = !!vault.envelope;
+  const failureKey = (error: unknown, fallback: TextKey): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'vaultInUse', 'vaultChanged'].includes(error.message) ? error.message as TextKey : fallback;
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(undefined);
     if (!exists && (passphrase.length < 12 || passphrase !== confirm)) { setError('passphraseMismatch'); return; }
     setBusy(true);
     try { if (exists) await vault.unlock(passphrase); else await vault.create(passphrase); setPassphrase(''); setConfirm(''); }
-    catch (error) { setError(error instanceof Error && ['workerUnavailable', 'workerFailed'].includes(error.message) ? error.message as TextKey : exists ? 'wrongPassphrase' : 'storageError'); } finally { setBusy(false); }
+    catch (error) { setError(failureKey(error, exists ? 'wrongPassphrase' : 'storageError')); } finally { setBusy(false); }
   }
   async function unlockWith(action: () => Promise<void>, failure: TextKey) {
     setBusy(true); setError(undefined);
-    try { await action(); setRecoveryKey(''); } catch (err) { setError(err instanceof Error && err.message === 'invalidRecoveryKey' ? 'invalidRecoveryKey' : failure); } finally { setBusy(false); }
+    try { await action(); setRecoveryKey(''); } catch (err) { setError(failureKey(err, err instanceof Error && err.message === 'invalidRecoveryKey' ? 'invalidRecoveryKey' : failure)); } finally { setBusy(false); }
   }
   const passkeys = !!vault.envelope?.wraps?.passkeys?.length && passkeysAvailable();
   async function importFile(file?: File) {
     if (!file || (exists && !window.confirm(t('restoreConfirm')))) return;
     setBusy(true); setError(undefined);
     try { if (file.size > 100 * 1024 * 1024) throw new Error(); await vault.importBackup(JSON.parse(await file.text())); }
-    catch { setError('invalidBackup'); } finally { setBusy(false); }
+    catch (error) { setError(failureKey(error, 'invalidBackup')); } finally { setBusy(false); }
   }
   async function restoreCloud() {
     if (exists && !window.confirm(t('restoreConfirm'))) return;
@@ -39,7 +40,7 @@ export function Welcome({ vault }: { vault: VaultController }) {
       const user = await currentUser(); const remote = await fetchRemote(); if (!remote) throw new Error('noRemote');
       await vault.importBackup({ type: 'praxisraum-backup-v1', envelope: remoteEnvelope(remote), blobs: [] });
       await setRevision(user.id, remote.vault_id, remote.revision); setRestoreOpen(false);
-    } catch (err) { setError(cloudError(err) as TextKey); } finally { setBusy(false); }
+    } catch (err) { setError(failureKey(err, cloudError(err) as TextKey)); } finally { setBusy(false); }
   }
   return <div className="welcome-page"><header className="welcome-header"><Logo/><div className="welcome-controls"><ThemeToggle/><LanguageSwitch/></div></header><div className="welcome-update"><UpdateBanner/></div><main className="welcome-main">
     <section className="welcome-intro"><span className="eyebrow">{t('welcomeEyebrow')}</span><h1>{t('welcomeTitle')}</h1><p className="welcome-description">{t('welcomeText')}</p><div className="welcome-art"><div className="art-orbit orbit-one"/><div className="art-orbit orbit-two"/><Botanical/><div className="art-label"><Flower2 size={25}/><span>{t('welcomePreviewTitle')}<small>{t('welcomePreviewText')}</small></span></div></div><div className="security-line"><ShieldCheck size={18}/>{t('welcomeSecurity')}</div></section>

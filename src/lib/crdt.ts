@@ -4,7 +4,7 @@ import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 import { formatPostalAddress } from './clientAddress';
 import type { ClientPostalAddress } from './types';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'newsletterDrafts', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;
@@ -214,10 +214,14 @@ function scrubErasedClients(data: VaultData) {
   for (const [key, fields] of Object.entries(state.entities)) if ((JSON.parse(key) as string[])[0] === 'referralPayouts') for (const v of fields.$snapshot?.values ?? []) {
     if (v.value && typeof v.value === 'object' && !Array.isArray(v.value) && Array.isArray(v.value.allocations)) v.value.allocations = v.value.allocations.filter(a => !a || typeof a !== 'object' || Array.isArray(a) || !erasedReferrals.has(String(a.referralId)));
   }
+  for (const draft of data.newsletterDrafts ?? []) draft.payload.clientIds = draft.payload.clientIds.filter(id => !erased.has(id));
   for (const newsletter of data.newsletters ?? []) newsletter.recipients = newsletter.recipients.filter(r => !erased.has(r.clientId));
   for (const [entity, fields] of Object.entries(state.entities)) {
     const [collection, id] = JSON.parse(entity) as [Collection, string];
     if (collection === 'settings') continue;
+    if (collection === 'newsletterDrafts') for (const version of fields.payload?.values ?? []) {
+      const payload = version.value; if (payload && typeof payload === 'object' && !Array.isArray(payload) && Array.isArray(payload.clientIds)) payload.clientIds = payload.clientIds.filter(id => typeof id === 'string' && !erased.has(id));
+    }
     if (collection === 'newsletters') for (const [field, register] of Object.entries(fields)) if (field.startsWith('recipients:')) {
       register.values = register.values.filter(v => !v.value || typeof v.value !== 'object' || Array.isArray(v.value) || typeof v.value.clientId !== 'string' || !erased.has(v.value.clientId));
       if (!register.values.length) delete fields[field];

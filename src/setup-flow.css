@@ -11,3 +11,13 @@
 .setup-proof .btn { margin-top: .75rem; max-width: 100%; white-space: normal; }
 .app-version code { overflow-wrap: anywhere; }
 .page-loading { padding-block: 2rem; }
+
+.saved-newsletter-drafts { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.saved-newsletter-drafts li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block: .75rem; border-bottom: 1px solid var(--border); }
+.saved-newsletter-drafts li > div:first-child { min-width: 0; flex: 1 1 13rem; overflow-wrap: anywhere; }
+.saved-newsletter-drafts time { display: block; margin-top: .25rem; }
+.newsletter-draft-state { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.newsletter-draft-state p { flex: 1 1 16rem; }
+.storage-health meter { width: 100%; height: 1.5rem; accent-color: var(--primary); }
+.area-recovery { max-width: 52rem; margin: 1rem auto; }
+.area-recovery p { margin-block: 1rem; }

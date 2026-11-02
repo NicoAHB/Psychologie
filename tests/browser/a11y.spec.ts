@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import.meta.url), 'utf8')) as Record<string, string>;
+const uk = JSON.parse(await readFile(new URL('../../src/locales/uk.json', import.meta.url), 'utf8')) as Record<string, string>;
 import { nav } from './workflow-fixture';
 import AxeBuilder from '@axe-core/playwright';
 import { fakeMemoCapture } from './memo-fixture';
@@ -108,16 +111,25 @@ test('keyboard users can skip the navigation and every page has its own title', 
   await expect(page).toHaveTitle('Termine · Praxisraum');
 });
 
-test('an unexpected rendering error shows a bilingual recovery page instead of a blank screen', async ({ page }) => {
+test('an unexpected rendering error preserves the vault area, translates and retries without reloading', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Mit Beispieldaten entdecken' }).click();
-  await expect(page.getByRole('heading', { name: 'Heute', exact: true })).toBeVisible();
-  await page.evaluate(() => { Object.defineProperty(Intl.NumberFormat.prototype, 'format', { get() { throw new Error('simulated failure'); } }); });
-  await page.getByRole('button', { name: 'Українська' }).first().click();
-  const alert = page.getByRole('alert').filter({ hasText: 'Etwas ist schiefgelaufen.' });
-  await expect(alert).toBeVisible();
-  await expect(alert).toContainText('Щось пішло не так.');
-  await expect(alert.getByRole('button', { name: /Neu laden/ })).toBeVisible();
+  await page.getByRole('button', { name: de.demo, exact: true }).click();
+  await expect(page.getByRole('heading', { name: de.overview, exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    (window as unknown as { __originalFormat?: PropertyDescriptor }).__originalFormat = Object.getOwnPropertyDescriptor(Intl.NumberFormat.prototype, 'format');
+    Object.defineProperty(Intl.NumberFormat.prototype, 'format', { get() { throw new Error('simulated failure'); } });
+  });
+  await page.getByRole('button', { name: 'Українська', exact: true }).first().click();
+  const recovery = page.getByRole('region', { name: uk.areaErrorTitle, exact: true });
+  await expect(recovery).toBeVisible(); await expect(page.locator('.app-shell')).toBeVisible();
+  await expect(recovery).toContainText(uk.areaErrorSaveHint);
+  await expect(recovery.getByRole('button', { name: uk.areaErrorRetry, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /App neu laden/ })).toHaveCount(0);
+  await page.evaluate(() => Object.defineProperty(Intl.NumberFormat.prototype, 'format', (window as unknown as { __originalFormat: PropertyDescriptor }).__originalFormat));
+  await recovery.getByRole('button', { name: uk.areaErrorRetry, exact: true }).click();
+  await expect(page.getByRole('heading', { name: uk.overview, exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Deutsch', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: de.overview, exact: true })).toBeVisible();
 });
 
 test('tablet in portrait keeps appointment names readable and the page free of sideways scrolling', async ({ page }) => {

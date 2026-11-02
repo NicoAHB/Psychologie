@@ -7,6 +7,9 @@ import {
   type FormEvent,
 } from "react";
 import { ImagePlus, Mail, Send, X } from "lucide-react";
+import { useNewsletterDraft } from "../lib/useNewsletterDraft";
+import { deleteNewsletterDraft, hasNewsletterDraftContent } from "../lib/newsletterDrafts";
+import type { DocumentFile, NewsletterDraft, NewsletterDraftPayload } from "../lib/types";
 import { compressImage } from "../lib/images";
 import { useI18n, type TextKey } from "../lib/i18n";
 import {
@@ -56,7 +59,7 @@ export function Newsletter({
   onTemplates: () => void;
   onEditClient: (id: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const id = useId(),
     selectAll = useRef<HTMLInputElement>(null),
     alive = useRef(true);
@@ -76,6 +79,11 @@ export function Newsletter({
     [busyImage, setBusyImage] = useState(false),
     [error, setError] = useState<TextKey>(),
     [savedTemplate, setSavedTemplate] = useState(false);
+  const [draftLimit, setDraftLimit] = useState(30);
+  const [draftId, setDraftId] = useState<string>(() => uid()), [imageFile, setImageFile] = useState<DocumentFile>(), [restoring, setRestoring] = useState(false);
+  const draftPayload = useMemo<NewsletterDraftPayload>(() => ({ channel, title, titleUk, content, contentUk, clientIds: selected, ...(imageFile && { image: imageFile }) }), [channel, title, titleUk, content, contentUk, selected, imageFile]);
+  const draft = useNewsletterDraft(vault, draftId, draftPayload);
+  const savedDrafts = useMemo(() => [...(vault.data?.newsletterDrafts ?? [])].filter(d => d.id !== draftId).sort((a,b) => b.savedAt.localeCompare(a.savedAt)), [vault.data?.newsletterDrafts, draftId]);
   const fileInput = useRef<HTMLInputElement>(null),
     savingTemplate = useRef(false),
     draftRevision = useRef("");
@@ -113,7 +121,7 @@ export function Newsletter({
     content.length <= max &&
     contentUk.length <= max &&
     !marketing.busy &&
-    !busyImage &&
+    !busyImage && !restoring &&
     !vault.demo &&
     checked.every((c) =>
       clientMarketingChannels(c, channel).every(
@@ -168,6 +176,35 @@ export function Newsletter({
         return next.length === old.length ? old : next;
       });
   }, [allowed, active]);
+  function clearDraft() {
+    setSelected([]); setContent(""); setContentUk(""); setTitle(""); setTitleUk(""); setImage(undefined); setImageFile(undefined); setDraftId(uid()); setSavedTemplate(false);
+  }
+  async function resumeDraft(saved: NewsletterDraft) {
+    if (restoring || busyImage || marketing.busy) return;
+    setRestoring(true); setError(undefined);
+    try {
+      await draft.flush();
+      const p = saved.payload, picture = p.image ? await vault.file(p.image.blobId, p.image.mimeType) : undefined;
+      if (!alive.current || !vault.getData()) return;
+      setDraftId(saved.id); setChannel(p.channel); setTitle(p.title); setTitleUk(p.titleUk); setContent(p.content); setContentUk(p.contentUk); setImage(picture); setImageFile(p.image);
+      const current = vault.getData()!;
+      setSelected(p.clientIds.filter(id => { const client = current.clients.find(c => c.id === id); return client && clientMarketingChannels(client,p.channel).length > 0; }));
+      setUkOpen(!!p.contentUk); setSavedTemplate(false); setTab("create");
+    } catch { if (alive.current) setError("storageError"); }
+    finally { if (alive.current) setRestoring(false); }
+  }
+  async function discardDraft(id: string) {
+    if (!window.confirm(t("newsletterDraftDiscardConfirm"))) return;
+    setRestoring(true); setError(undefined);
+    try {
+      if (id === draftId) await draft.stop();
+      const files = vault.getData()?.newsletterDrafts.find(d => d.id === id)?.payload.image;
+      await vault.update(data => deleteNewsletterDraft(data,id));
+      if (files) await vault.purgeUnused([files.blobId]);
+      if (id === draftId && alive.current) clearDraft();
+    } catch { draft.resume(); if (alive.current) setError("storageError"); }
+    finally { if (alive.current) setRestoring(false); }
+  }
   async function pickImage(file: File | undefined) {
     if (!file) return;
     setBusyImage(true);
@@ -181,7 +218,13 @@ export function Newsletter({
       const bytes = await compressImage(file);
       try {
         if (bytes.length > 2 * 1024 * 1024) throw new Error("invalidImage");
-        if (alive.current) setImage(new Blob([bytes], { type: "image/webp" }));
+        if (alive.current) {
+          if (vault.demo) { setImage(new Blob([bytes], { type: "image/webp" })); return; }
+          const blobId = await vault.addFile(bytes);
+          const file = { blobId, fileName: "newsletter.webp", mimeType: "image/webp", size: bytes.length };
+          await draft.flush({ image: file });
+          if (alive.current) { setImageFile(file); setImage(new Blob([bytes], { type: "image/webp" })); }
+        }
       } finally {
         bytes.fill(0);
       }
@@ -232,7 +275,10 @@ export function Newsletter({
       contentUk: contentUk.trim() || undefined,
     };
     try {
+      await draft.flush();
+      await draft.stop();
       await marketing.send({
+        draftId,
         channel,
         message,
         clientIds: [...selected],
@@ -240,15 +286,11 @@ export function Newsletter({
       });
       if (alive.current) {
         setReview(false);
-        setSelected([]);
-        setContent("");
-        setContentUk("");
-        setTitle("");
-        setTitleUk("");
-        setImage(undefined);
+        clearDraft();
         setTab("archive");
       }
     } catch (e) {
+      draft.resume();
       if (
         alive.current &&
         !(e instanceof DOMException && e.name === "AbortError")
@@ -264,6 +306,8 @@ export function Newsletter({
         title={t("newsletter")}
         subtitle={t("marketingNewsletterSubtitle")}
       />
+      {tab === "create" && savedDrafts.length > 0 && <section className="card" aria-label={t("newsletterDrafts")}><h2>{t("newsletterDrafts")}</h2><p className="hint">{t("newsletterDraftResumeHint")}</p><ul className="saved-newsletter-drafts">{savedDrafts.slice(0,draftLimit).map(saved => <li key={saved.id}><div><strong>{saved.payload.title || saved.payload.titleUk || t("newsletterUntitledDraft")}</strong><time dateTime={saved.savedAt}>{new Date(saved.savedAt).toLocaleString(language === "de" ? "de-DE" : "uk-UA")}</time></div><div className="button-row"><button type="button" className="btn btn-secondary" disabled={restoring || busyImage || marketing.busy} onClick={() => void resumeDraft(saved)}>{t("newsletterDraftResume")}</button><button type="button" className="btn btn-ghost" disabled={restoring || busyImage || marketing.busy} onClick={() => void discardDraft(saved.id)}>{t("newsletterDraftDiscard")}</button></div></li>)}</ul>{savedDrafts.length > draftLimit && <button type="button" className="text-link" onClick={() => setDraftLimit(n => n + 30)}>{t("followUpShowMore")}</button>}</section>}
+      {tab === "create" && <div className="newsletter-draft-state"><p role="status">{t(draft.status === "error" ? "storageError" : draft.status === "saving" ? "saving" : draft.status === "saved" ? "newsletterDraftSaved" : "newsletterDraftAutoHint")}</p>{hasNewsletterDraftContent(draftPayload) && <button type="button" className="btn btn-ghost" disabled={restoring || busyImage || marketing.busy} onClick={() => void discardDraft(draftId)}>{t("newsletterDraftDiscard")}</button>}</div>}
       <MarketingSetup marketing={marketing} demo={vault.demo} />
       <div
         className="profile-tabs"
@@ -337,7 +381,7 @@ export function Newsletter({
               <Field label={t("marketingTemplate")}>
                 <select
                   value=""
-                  disabled={marketing.busy}
+                  disabled={marketing.busy || restoring}
                   onChange={(e) => {
                     const template = data.messageTemplates.find(
                       (t) => t.id === e.target.value,
@@ -355,14 +399,14 @@ export function Newsletter({
               </Field>
               <MarketingChannelPicker
                 value={channel}
-                disabled={marketing.busy}
+                disabled={marketing.busy || restoring}
                 onChange={setChannel}
               />
               <Field label={t("marketingSubjectOptional")}>
                 <input
                   value={title}
                   maxLength={180}
-                  disabled={marketing.busy}
+                  disabled={marketing.busy || restoring}
                   placeholder={t("marketingSubjectPlaceholder")}
                   onChange={(e) => {
                     setTitle(e.target.value);
@@ -380,7 +424,7 @@ export function Newsletter({
                   rows={7}
                   maxLength={max}
                   value={content}
-                  disabled={marketing.busy}
+                  disabled={marketing.busy || restoring}
                   placeholder={t("marketingMessagePlaceholder")}
                   onChange={(e) => {
                     setContent(e.target.value);
@@ -399,7 +443,7 @@ export function Newsletter({
                     lang="uk"
                     maxLength={180}
                     value={titleUk}
-                    disabled={marketing.busy}
+                    disabled={marketing.busy || restoring}
                     onChange={(e) => {
                       setTitleUk(e.target.value);
                       setSavedTemplate(false);
@@ -415,7 +459,7 @@ export function Newsletter({
                     rows={7}
                     maxLength={max}
                     value={contentUk}
-                    disabled={marketing.busy}
+                    disabled={marketing.busy || restoring}
                     placeholder={t("marketingMessagePlaceholderUk")}
                     onChange={(e) => {
                       setContentUk(e.target.value);
@@ -454,8 +498,8 @@ export function Newsletter({
                     <button
                       type="button"
                       className="btn btn-secondary mt-2"
-                      disabled={marketing.busy}
-                      onClick={() => setImage(undefined)}
+                      disabled={marketing.busy || restoring}
+                      onClick={() => { setImage(undefined); setImageFile(undefined); }}
                     >
                       <X size={16} />
                       {t("marketingRemoveImage")}
@@ -599,7 +643,7 @@ export function Newsletter({
                         <button
                           type="button"
                           className="text-link"
-                          disabled={marketing.busy}
+                          disabled={marketing.busy || restoring}
                           aria-label={`${t("editClient")}: ${client.name}`}
                           onClick={() => onEditClient(client.id)}
                         >
@@ -708,7 +752,7 @@ export function Newsletter({
           <div className="form-actions">
             <button
               className="btn btn-secondary"
-              disabled={marketing.busy}
+              disabled={marketing.busy || restoring}
               onClick={() => setReview(false)}
             >
               {t("cancel")}

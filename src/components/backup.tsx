@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Download, HardDriveDownload, History, Share2, ShieldCheck } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { downloadText } from '../lib/files';
-import { markBackup } from '../lib/backupState';
 import type { SnapshotEntry } from '../lib/history';
 import type { AutoBackup } from '../lib/useAutoBackup';
 import type { VaultController } from '../lib/useVault';
@@ -51,7 +50,7 @@ export function HistoryCard({ vault }: { vault: VaultController }) {
   const label = (e: SnapshotEntry) => `${new Date(e.at).toLocaleString(language === 'de' ? 'de-DE' : 'uk-UA')} · ${t(e.reason === 'delete' ? 'historyReasonDelete' : e.reason === 'checkpoint' ? 'historyReasonCheckpoint' : 'historyReasonAuto')}`;
   async function download(at: number) {
     setBusy(true); setError(false);
-    try { const backup = await vault.exportSnapshot(at); downloadText(`praxisraum-${new Date(at).toISOString().replaceAll(':', '-')}.encrypted.json`, await runSecureTask('stringify', backup), 'application/json'); await markBackup(backup.envelope.vaultId, 'download'); }
+    try { const backup = await vault.exportSnapshot(at); downloadText(`praxisraum-${new Date(at).toISOString().replaceAll(':', '-')}.encrypted.json`, await runSecureTask('stringify', backup), 'application/json'); }
     catch { setError(true); } finally { setBusy(false); }
   }
   return <section className="card settings-card"><span className="settings-icon tone-beige"><History size={24}/></span><h2>{t('history')}</h2><p>{t('historyText')}</p>

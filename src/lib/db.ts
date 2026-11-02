@@ -1,4 +1,5 @@
 import type { EncryptedBlob, VaultEnvelope } from './types';
+import { sameEnvelope } from './vaultAccess';
 let pending: Promise<IDBDatabase> | undefined;
 /** Finish once every request has been queued. Safari can postpone implicit
  * completion while media/dialogs are active; never commit before a read handler
@@ -28,6 +29,23 @@ async function operation<T>(store: string, mode: IDBTransactionMode, action: (s:
 }
 export const readVault = () => operation<VaultEnvelope | undefined>('vault', 'readonly', s => s.get('primary'));
 export const writeVault = (value: VaultEnvelope) => operation('vault', 'readwrite', s => s.put(value, 'primary'));
+/** Compare and replace in one transaction. A stale page cannot overwrite newer
+ * ciphertext or access wraps. Imported files are committed with their envelope. */
+export async function writeVaultChecked(value: VaultEnvelope, expected: VaultEnvelope | null, blobs: EncryptedBlob[] = []) {
+  const db = await database();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(['vault', 'blobs'], 'readwrite'), store = tx.objectStore('vault'), request = store.get('primary');
+    let changed = false;
+    request.onsuccess = () => {
+      if (!sameEnvelope(request.result, expected)) { changed = true; tx.abort(); return; }
+      for (const blob of blobs) tx.objectStore('blobs').put(blob, blob.id);
+      store.put(value, 'primary'); commitTransaction(tx);
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('storageError'));
+    tx.onabort = () => reject(new Error(changed ? 'vaultChanged' : 'storageError'));
+  });
+}
 export const readBlob = (id: string) => operation<EncryptedBlob | undefined>('blobs', 'readonly', s => s.get(id));
 export const writeBlob = (blob: EncryptedBlob) => operation('blobs', 'readwrite', s => s.put(blob, blob.id));
 export const allBlobs = () => operation<EncryptedBlob[]>('blobs', 'readonly', s => s.getAll());
@@ -39,9 +57,20 @@ const removalKey = (vault: string) => `removals:${vault}`;
 export const getRemovals = async (vault: string) => new Set((await operation<string[] | undefined>('meta', 'readonly', s => s.get(removalKey(vault)))) ?? []);
 export const setRemovals = (vault: string, ids: Set<string>) => operation('meta', 'readwrite', s => s.put([...ids], removalKey(vault)));
 /** Erase files locally; the cloud copy follows on the next sync. The removal is recorded first so a crash cannot strand a remote copy. */
-export async function purgeBlobs(vault: string, ids: string[]) {
-  await setRemovals(vault, new Set([...await getRemovals(vault), ...ids]));
-  for (const id of ids) await deleteBlob(id);
+export async function purgeBlobs(vault: string, ids: string[], expected?: VaultEnvelope | null) {
+  const db = await database();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(['vault', 'blobs', 'meta'], 'readwrite'); let changed = false;
+    const purge = () => { const store = tx.objectStore('meta'), read = store.get(removalKey(vault)); read.onsuccess = () => {
+      store.put([...new Set([...(read.result ?? []) as string[], ...ids])], removalKey(vault));
+      for (const id of ids) tx.objectStore('blobs').delete(id);
+      commitTransaction(tx);
+    }; };
+    if (expected === undefined) purge();
+    else { const read = tx.objectStore('vault').get('primary'); read.onsuccess = () => { if (!sameEnvelope(read.result, expected)) { changed = true; tx.abort(); } else purge(); }; }
+    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error ?? new Error('storageError'));
+    tx.onabort = () => reject(new Error(changed ? 'vaultChanged' : 'storageError'));
+  });
 }
 export const metaGet = <T>(key: string) => operation<T | undefined>('meta', 'readonly', s => s.get(key));
 export const metaPut = (key: string, value: unknown) => operation('meta', 'readwrite', s => s.put(value, key));

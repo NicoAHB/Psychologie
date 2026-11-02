@@ -1,3 +1,5 @@
+import { StorageHealthProvider, StorageWarning } from './components/StorageHealth';
+import { VaultAreaBoundary } from './components/VaultAreaBoundary';
 import { ClientsPage } from './pages/ClientsPage';
 import { FinancesPage } from './pages/FinancesPage';
 import { MorePage } from './pages/MorePage';
@@ -35,7 +37,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import type { ProfileTab } from './components/client-profile';
 import { PassphraseReset } from './components/security';
 import { useAutoBackup } from './lib/useAutoBackup';
-import { backupNeeded, hasRecords, latestChange, markBackup, readBackupState, type BackupState } from './lib/backupState';
+import { backupSourceId, backupNeeded, hasRecords, latestChange, markBackup, readBackupState, type BackupState } from './lib/backupState';
 import { saveBackupCopy } from './lib/backupExport';
 import { AppointmentForm, ClientForm, NoteForm, PaymentForm, SessionForm } from './components/forms';
 import { Welcome } from './components/Welcome';
@@ -101,7 +103,7 @@ export default function App() {
       }
       const synced = snapshot.generation; const envelope = snapshot.envelope;
       setLastSyncedGeneration(synced); setSyncMessage('synced');
-      const archiveKey=v.getKey();if(archiveKey)try{await syncMarketingArchive(snapshot.data,archiveKey,envelope.vaultId,()=>v.getKey()===archiveKey);}catch{setSyncMessage('marketingIndexPending');} void markBackup(envelope.vaultId, 'cloud').catch(() => {});
+      const archiveKey=v.getKey();if(archiveKey)try{await syncMarketingArchive(snapshot.data,archiveKey,envelope.vaultId,()=>v.getKey()===archiveKey);}catch{setSyncMessage('marketingIndexPending');} void markBackup(envelope.vaultId, 'cloud', Date.now(), backupSourceId(envelope)).catch(() => {});
     } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); if (syncAlive.current && currentVault.current.data?.settings.autoSync && currentVault.current.getGeneration() !== coveredGeneration) syncRetry.current = window.setTimeout(() => void syncNow(), 2500); }
   }, [user]);
   useEffect(() => {
@@ -128,7 +130,7 @@ export default function App() {
   const data = vault.data;
   const pageLoading = <p className="page-loading" role="status">{t('working')}</p>;
   const selected = data.clients.find(c => c.id === selectedId);
-  const backupNag = backupInfo === undefined ? { needed: false, days: 0 } : backupNeeded(backupInfo ?? undefined, latestChange(data), hasRecords(data));
+  const backupNag = backupInfo === undefined ? { needed: false, days: 0 } : backupNeeded(backupInfo ?? undefined, latestChange(data), hasRecords(data), Date.now(), vault.envelope ? backupSourceId(vault.envelope) : undefined);
 
   const deleteNoteEntry = (note: PhotoNote) => {
     if (window.confirm(t('deleteNoteConfirm'))) void vault.remove(d => deleteNote(d, note.id)).catch(() => {});
@@ -152,13 +154,15 @@ export default function App() {
     else if (item.kind === 'appointment') setForm({ type: 'session', appointment: data.appointments.find(a => a.id === item.id) });
     else { const draft = data.sessionDrafts.find(d => d.id === item.id); if (draft) setForm({ type: 'session', restored: draft, clientId: draft.clientId, session: data.sessions.find(s => s.id === draft.originalSessionId), appointment: data.appointments.find(a => a.id === draft.appointmentId) }); }
   }
-  return <div className="app-shell"><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>{mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label={t('close')}/>}
+  return <StorageHealthProvider generation={vault.generation}><div className="app-shell"><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>{mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label={t('close')}/>}
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><Logo/><button className="icon-btn mobile-only" aria-label={t('close')} onClick={() => setMobileNav(false)}><X size={20}/></button></div><p className="sidebar-tagline">{t('tagline')}</p><span className="nav-eyebrow">{t('workspace')}</span><nav aria-label={t('workspace')}>{mainNavigation.map(item => { const active = item.id === 'more' ? isMoreRoute(route) : route === item.id; return <button className={`nav-item ${active ? 'active' : ''}`} key={item.id} aria-current={active ? 'page' : undefined} onClick={() => navigate(item.id)}><item.icon size={20}/><span>{t(item.id)}</span>{item.id === 'clients' && data.clients.length > 0 && <small aria-hidden="true">{data.clients.length}</small>}</button>; })}</nav><div className="sidebar-bottom"><div className="privacy-card"><ShieldCheck size={23}/><h3>{t('helpTitle')}</h3><p>{t('helpText')}</p><span className="privacy-dot"/></div><div className="practitioner"><span className="practitioner-avatar"><Leaf size={20}/></span><div><strong>{t('workspace')}</strong><small>{t(vault.demo ? 'demoBadge' : 'localOnly')}</small></div><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></div></aside>
     <div className="main-shell"><header className="topbar"><div className="breadcrumb"><button className="icon-btn mobile-only" aria-label={t('openNav')} onClick={() => setMobileNav(true)}><Menu size={22}/></button><span className="desktop-only">{t('workspace')}</span><ChevronRight className="desktop-only" size={14}/><strong>{t(route)}</strong></div><div className="header-actions"><span className="header-status desktop-only">{online ? <span className="status-dot"/> : <WifiOff size={14}/>} {t(online ? 'localSecure' : 'offline')}</span><button className="icon-btn" aria-label={t('searchEverything')} title={`${t('searchEverything')} (Ctrl+K)`} onClick={() => setSearching(true)}><Search size={19}/></button><ThemeToggle/><LanguageSwitch/><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></header>
-      <main className="page-content" id="main-content" tabIndex={-1}><UpdateBanner beforeApply={async () => { await flushBeforeLock(); await vault.flush(); }}/><SyncConflicts vault={vault}/>{vault.demo && <Notice>{t('demoNotice')}</Notice>}{route === 'overview' && !vault.demo && backupNag.needed && <Notice error>{t(backupInfo ? 'backupBannerOld' : 'backupBannerNever').replace('{days}', String(backupNag.days))}<button className="text-link" onClick={() => void saveBackupCopy(vault, typeof navigator.canShare === 'function').catch(() => {})}>{t('backupNow')}</button></Notice>}{vault.storageError && <Notice error>{t('storageError')}<button className="text-link" onClick={() => void vault.retry().catch(() => {})}>{t('retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
+      <main className="page-content" id="main-content" tabIndex={-1}><UpdateBanner beforeApply={async () => { await flushBeforeLock(); await vault.flush(); }}/><SyncConflicts vault={vault}/>{vault.demo && <Notice>{t('demoNotice')}</Notice>}{route === 'overview' && !vault.demo && backupNag.needed && <Notice error>{t(backupInfo ? 'backupBannerOld' : 'backupBannerNever').replace('{days}', String(backupNag.days))}<button className="text-link" onClick={() => void saveBackupCopy(vault, typeof navigator.canShare === 'function').catch(() => {})}>{t('backupNow')}</button></Notice>}{vault.storageError && <Notice error>{t(vault.writeConflict ? 'vaultChanged' : 'storageError')}<button className="text-link" onClick={() => void (vault.writeConflict ? vault.mergeLocal() : vault.retry()).catch(() => {})}>{t(vault.writeConflict ? 'vaultMergeLocal' : 'retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
       {flowError && <Notice error>{t(flowError)}</Notice>}
       {quickNotice && <Notice><span>{t('quickPaymentSaved')}</span><button className="text-link" onClick={() => { const session = data.sessions.find(s => s.id === quickNotice); if (session) setForm({ type: 'session', session }); }}>{t('workDocument')}</button><button className="icon-btn" aria-label={t('close')} onClick={() => setQuickNotice(undefined)}><X size={18}/></button></Notice>}
       {completedNotice && <Notice><span>{t('appointmentCompletedOpen')}</span><button className="text-link" onClick={() => { navigate('finances'); setCompletedNotice(false); }}>{t('goToPayments')}</button><button className="icon-btn" aria-label={t('close')} onClick={() => setCompletedNotice(false)}><X size={18}/></button></Notice>}
+      {!vault.demo && <StorageWarning onBackup={() => { navigate('settings'); setSettingsFocus('backup'); }}/>}
+      <VaultAreaBoundary vault={vault} resetKey={route}>
       {isMoreRoute(route) && route !== 'more' && <button className="btn btn-ghost back-to-more" onClick={() => navigate('more')}>{t('backToMore')}</button>}
       {route === 'more' && <MorePage navigate={navigate}/>}
       {route === 'guide' && <Suspense fallback={pageLoading}><GuidePage onOpen={target => {
@@ -185,14 +189,17 @@ export default function App() {
       {route==='messageTemplates'&&<Suspense fallback={pageLoading}><TemplateManager vault={vault} onUse={id=>{navigate('newsletter');setNewsletterTemplate(id);}}/></Suspense>}
       {route==='marketingCampaigns'&&<Suspense fallback={pageLoading}><MarketingCampaigns vault={vault} marketing={marketing} onTemplates={()=>navigate('messageTemplates')} onArchive={()=>{navigate('newsletter');setNewsletterTab('archive');}}/></Suspense>}
       {route==='referrals'&&<Suspense fallback={pageLoading}><Referrals vault={vault}/></Suspense>}
+      </VaultAreaBoundary>
       <footer className="page-footer"><SecurityLine/><span>{t('privacyFooter')}</span></footer></main>
       <div className="sync-bar"><span>{vault.saving ? <LoaderCircle size={15} className="spin"/> : <CheckCheck size={16}/>}<span>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</span></span><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
     </div>
+    <VaultAreaBoundary vault={vault} resetKey={form?.type ?? 'none'}>
     {form?.type === 'client' && <ClientForm vault={vault} onOpenExisting={id => { setForm(undefined); openClient(id); }} client={form.client} onClose={() => setForm(undefined)} onSaved={id => { setForm(undefined); if(route!=='newsletter')openClient(id); }} onDeleted={() => { setForm(undefined); setSelectedId(undefined); setTag(''); }}/>} {form?.type === 'appointment' && <AppointmentForm vault={vault} clientId={form.clientId} appointment={form.appointment} onClose={() => setForm(undefined)}/>} {form?.type === 'session' && <SessionForm vault={vault} clientId={form.clientId} appointment={form.appointment} session={form.session} restored={form.restored} onClose={() => setForm(undefined)} onSaved={() => { if (form.appointment && !form.session) setCompletedNotice(true); }}/>} {form?.type === 'note' && <NoteForm vault={vault} clientId={form.clientId} onClose={() => setForm(undefined)}/>} {form?.type === 'payment' && <PaymentForm vault={vault} session={form.session} onClose={() => setForm(undefined)}/>}
     {workInvoiceClient && <InvoiceForm vault={vault} clientId={workInvoiceClient} onClose={() => setWorkInvoiceClient(undefined)} onCreated={invoice => { setWorkInvoiceClient(undefined); setFollowInvoiceId(invoice.id); }}/>}
     {followInvoiceId && data.invoices.find(i => i.id === followInvoiceId) && <InvoiceView key={followInvoiceId} vault={vault} invoice={data.invoices.find(i => i.id === followInvoiceId)!} onClose={() => setFollowInvoiceId(undefined)}/>}
     {vault.passphraseReset && <PassphraseReset vault={vault}/>}
     {searching && <SearchModal vault={vault} onClose={() => setSearching(false)} onOpen={hit => { setSearching(false); if (hit.kind === 'invoice') navigate('finances'); else { openClient(hit.clientId); if (hit.kind === 'audioMemo') { setProfileTab('discussed'); setMemoFocusId(hit.id); } } }}/>}
     {photo && <Modal title={t('photoNote')} onClose={() => setPhoto(undefined)} wide><ImageView id={photo} vault={vault} alt={t('photoNote')} className="note-full-image"/></Modal>}
-  </div>;
+    </VaultAreaBoundary>
+  </div></StorageHealthProvider>;
 }

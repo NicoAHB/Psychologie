@@ -159,6 +159,14 @@ export type NewsletterStatus = 'sending' | 'sent' | 'partial' | 'failed' | 'unkn
 export interface NewsletterMessage {
   id: string; title: string; content: string; titleUk?: string; contentUk?: string; image?: DocumentFile;
 }
+/** Unsent work stays encrypted; recipients are revalidated before every send. */
+export interface NewsletterDraftPayload {
+  channel: MarketingChannelSelection; title: string; titleUk: string; content: string; contentUk: string;
+  clientIds: string[]; image?: DocumentFile;
+}
+export interface NewsletterDraft extends Stamped {
+  id: string; createdAt: string; savedAt: string; payload: NewsletterDraftPayload;
+}
 export interface NewsletterRecipient {
   id: string; clientId: string; consentId: string; messageId: string; language: Language;
   channel: MarketingChannel;
@@ -212,7 +220,7 @@ export interface VaultData {
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
   availability: CalendarAbsence[]; audioMemos: AudioMemo[]; waitlist: WaitlistEntry[]; followUps: FollowUpTask[];
   sessionDrafts: SessionDraft[];
-  messageTemplates: MessageTemplate[]; marketingCampaigns: MarketingCampaign[]; newsletters: Newsletter[];
+  messageTemplates: MessageTemplate[]; marketingCampaigns: MarketingCampaign[]; newsletters: Newsletter[]; newsletterDrafts: NewsletterDraft[];
   referralCodes: ReferralCode[]; referrals: Referral[]; referralPayouts: ReferralPayout[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
   deleted: Record<string, number>;
@@ -232,14 +240,14 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], waitlist: [], followUps: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
+  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], waitlist: [], followUps: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], newsletterDrafts: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
   const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
-    documents: value.documents ?? [], waitlist: value.waitlist ?? [], followUps: value.followUps ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
+    documents: value.documents ?? [], waitlist: value.waitlist ?? [], followUps: value.followUps ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], newsletterDrafts: value.newsletterDrafts ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   result.clients = value.clients.map(client => normalizeClientAddress(client, value.crdt?.entities[JSON.stringify(['clients', client.id])]?.postalAddress?.values.at(-1)?.value));
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.

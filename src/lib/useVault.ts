@@ -1,6 +1,5 @@
-import { queueShareRevocations } from './documentShares';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { allBlobs, finishBlobCleanup as completeBlobCleanup, pendingBlobCleanup, purgeBlobs, queueBlobCleanup, readBlob, readVault, setRevision, writeBlob, writeVault } from './db';
+import { allBlobs, finishBlobCleanup as completeBlobCleanup, pendingBlobCleanup, purgeBlobs, queueBlobCleanup, readBlob, readVault, setRevision, writeBlob, writeVaultChecked } from './db';
 import {
   deriveBits, deriveKey, importDataKey, passphraseSalt, randomKeyBytes, secretKek,
   unwrapDataKey, validateEnvelope, wrapDataKey, wrapWithPassphrase,
@@ -12,7 +11,9 @@ import { downloadBlob } from './cloud';
 import { fetchMerged } from './syncMerge';
 import { referencedBlobs } from './blobs';
 import { orphanedBlobs } from './records';
-import { stampChanges } from './merge';
+import { mergeEnvelopes, stampChanges } from './merge';
+import { announceStorageWrite } from './storageHealth';
+import { sameEnvelope, VaultWindowAccess } from './vaultAccess';
 import { reconcileReferralStarts, restoreReferralPayouts } from './referrals';
 import { formatRecoveryKey, newRecoveryBytes, parseRecoveryKey } from './recovery';
 import { createPasskey, unlockWithPasskey as assertPasskey } from './passkey';
@@ -20,13 +21,15 @@ import { clearSnapshots, commitVaultSnapshot, historyBlobIds, listSnapshots, rea
 import { erasedAudioMemoIds, erasedDraftIds, redactAudioMemos, redactSessionDrafts } from './crdt';
 import { flushBeforeLock, stopMemoMedia } from './autoLock';
 import { changedMarketingRevocations } from './marketing';
-import { queueMarketingRevocations } from './marketingDelivery';
 
 export function useVault() {
   const [envelope, setEnvelope] = useState<VaultEnvelope | null | undefined>(undefined);
   const [data, setData] = useState<VaultData | null>(null);
   const [saving, setSaving] = useState(false);
   const [storageError, setStorageError] = useState(false);
+  const [writeConflict, setWriteConflict] = useState(false);
+  const access = useRef(new VaultWindowAccess());
+  const mergingLocal = useRef(false);
   const [loadError, setLoadError] = useState(false);
   const [demo, setDemo] = useState(false);
   const [generation, setGeneration] = useState(0);
@@ -48,12 +51,19 @@ export function useVault() {
   const locking = useRef(false), preparingLock = useRef(false), unattachedFiles = useRef(new Set<string>());
   useEffect(() => { readVault().then(v => { setEnvelope(v ?? null); info.current = v ?? null; }).catch(() => setLoadError(true)); }, []);
 
+  useEffect(() => () => { void queue.current.catch(() => {}).finally(() => access.current.release()); }, []);
+  const refreshEnvelope = async () => { const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null); return stored; };
+  const withAccess = async (action: () => Promise<void>) => {
+    await access.current.acquire();
+    try { await action(); } catch (error) { access.current.release(); throw error; }
+  };
+
   /** Everything that writes to storage goes through one queue so envelope changes and data saves never interleave. */
   const enqueue = useCallback((work: () => Promise<void>) => {
     setSaving(true);
     const task = queue.current.catch(() => {}).then(work);
     queue.current = task;
-    task.then(() => { if (queue.current === task) { failure.current = false; setSaving(false); setStorageError(false); } }, () => { failure.current = true; setStorageError(true); setSaving(false); });
+    task.then(() => { if (queue.current === task) { setSaving(false); if (persisted.current === current.current) { failure.current = false; setStorageError(false); setWriteConflict(false); } } }, error => { if (error instanceof Error && error.message === 'vaultChanged') setWriteConflict(true); failure.current = true; setStorageError(true); setSaving(false); });
     return task;
   }, []);
   const persist = useCallback((value: VaultData, wraps?: Partial<VaultEnvelope>) => {
@@ -71,11 +81,14 @@ export function useVault() {
       const removedFileIds = beforeIds.filter(id => !keptFileIds.has(id));
       const remainingShares = new Set(value.documents.flatMap(d => d.shares?.map(s => s.id) ?? []));
       const removedShares = (previous?.documents ?? []).flatMap(d => d.shares ?? []).filter(s => !s.revokedAt && !remainingShares.has(s.id)).map(s => s.id);
-      await queueShareRevocations(base.vaultId, removedShares);
-      if (previous) await queueMarketingRevocations(base.vaultId, changedMarketingRevocations(previous, value));
+      const marketingRevocations = previous ? changedMarketingRevocations(previous, value) : [];
       const encrypted = await encryptVault(activeKey, value, base.vaultId, base.salt, { format: base.format, wraps: base.wraps, ...wraps });
-      if (erased.size || erasedDrafts.size) await queueBlobCleanup(base.vaultId, removedFileIds);
-      const discarded = await commitVaultSnapshot(encrypted, fileIds);
+      const discarded = await commitVaultSnapshot(encrypted, fileIds, Date.now(), base, {
+        [`share-revocations:${base.vaultId}`]: removedShares,
+        [`marketing-revocations:${base.vaultId}`]: marketingRevocations,
+        [`blob-cleanup:${base.vaultId}`]: erased.size || erasedDrafts.size ? removedFileIds : [],
+      });
+      if (marketingRevocations.length) window.dispatchEvent(new Event('praxisraum-marketing-revocations'));
       info.current = encrypted;
       if (erased.size || erasedDrafts.size) {
         await redactMemoHistory(activeKey, base.vaultId, erased, erasedDrafts);
@@ -83,14 +96,14 @@ export function useVault() {
       }
       persisted.current = value; setEnvelope(encrypted);
       await finishBlobCleanup(base.vaultId);
-      if (discarded.length) await purgeBlobs(base.vaultId, discarded).catch(() => {});
+      if (discarded.length) await purgeBlobs(base.vaultId, discarded, info.current).catch(() => {});
     });
   }, [enqueue]);
   /** Change only the key wraps (recovery key, passkeys, passphrase); the encrypted data stays as it is. */
   const changeEnvelope = useCallback((change: (envelope: VaultEnvelope) => Partial<VaultEnvelope>) => enqueue(async () => {
     if (demoRef.current) throw new Error('demo');
     const next = { ...info.current!, ...change(info.current!) };
-    await writeVault(next); info.current = next; setEnvelope(next); bump();
+    await writeVaultChecked(next, info.current); info.current = next; setEnvelope(next); bump();
   }), [enqueue]);
 
   const update = useCallback((change: (value: VaultData) => void): Promise<void> => {
@@ -135,17 +148,18 @@ export function useVault() {
       setData(value);
     } catch (error) { key.current = null; current.current = null; persisted.current = null; stopSecureWorker(); throw error; }
   };
-  const create = async (passphrase: string) => {
+  const create = async (passphrase: string) => withAccess(async () => {
+    if (await refreshEnvelope()) throw new Error('vaultChanged');
     const raw = randomKeyBytes(); const vaultId = uid();
     const { salt, wrap } = await wrapWithPassphrase(passphrase, raw, vaultId);
     const dataKey = await importDataKey(raw); raw.fill(0);
     const value = emptyVault();
     const encrypted = await encryptVault(dataKey, value, vaultId, salt, { format: 'praxisraum-v2', wraps: { passphrase: wrap } });
-    await writeVault(encrypted);
+    await writeVaultChecked(encrypted, null);
     key.current = dataKey; current.current = value; persisted.current = value; info.current = encrypted;
     demoRef.current = false; setDemo(false); setEnvelope(encrypted); setData(value);
-    void navigator.storage?.persist?.();
-  };
+    void navigator.storage?.persist?.().catch(() => {});
+  });
   /** The raw data key for this envelope, from the passphrase; throws when the passphrase is wrong. */
   const rawFromPassphrase = async (passphrase: string, envelopeValue: VaultEnvelope) => {
     if (envelopeValue.format === 'praxisraum-v2') return unwrapDataKey(await deriveKey(passphrase, passphraseSalt(envelopeValue)), envelopeValue.wraps!.passphrase, envelopeValue.vaultId, 'passphrase');
@@ -153,21 +167,24 @@ export function useVault() {
     await decryptVault(await importDataKey(raw), envelopeValue); // v1 has no wrap to fail, so prove the passphrase on the data
     return raw;
   };
-  const unlock = async (passphrase: string) => {
-    if (!info.current) return;
+  const unlock = async (passphrase: string) => withAccess(async () => {
+    await refreshEnvelope();
+    if (!info.current) throw new Error('storageError');
     const raw = await rawFromPassphrase(passphrase, info.current);
     const dataKey = await importDataKey(raw); raw.fill(0);
     await open(dataKey, info.current);
-  };
-  const unlockWithRecovery = async (text: string) => {
+  });
+  const unlockWithRecovery = async (text: string) => withAccess(async () => {
+    await refreshEnvelope();
     const env = info.current;
     if (!env?.wraps?.recovery) throw new Error('noRecoveryKey');
     const bytes = await parseRecoveryKey(text);
     const raw = await unwrapDataKey(await secretKek(bytes, 'recovery'), env.wraps.recovery, env.vaultId, 'recovery');
     await open(await importDataKey(raw), env);
     recoveredKey.current = raw; setPassphraseReset(true);
-  };
-  const unlockWithPasskey = async () => {
+  });
+  const unlockWithPasskey = async () => withAccess(async () => {
+    await refreshEnvelope();
     const env = info.current; const passkeys = env?.wraps?.passkeys ?? [];
     if (!env || !passkeys.length) throw new Error('noPasskey');
     const { credentialId, secret } = await assertPasskey(passkeys);
@@ -175,7 +192,7 @@ export function useVault() {
     const raw = await unwrapDataKey(await secretKek(secret, 'passkey'), wrap, env.vaultId, `passkey:${credentialId}`);
     const dataKey = await importDataKey(raw); raw.fill(0);
     await open(dataKey, env);
-  };
+  });
   const openDemo = async () => {
     key.current = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
     demoRef.current = true; setDemo(true); memoryBlobs.current.clear();
@@ -194,7 +211,7 @@ export function useVault() {
     key.current = null; current.current = null; persisted.current = null; setData(null); generationRef.current = 0; setGeneration(0);
     memoryBlobs.current.clear(); demoRef.current = false; setDemo(false);
     try { const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null); }
-    finally { locking.current = false; unattachedFiles.current.clear(); }
+    finally { locking.current = false; unattachedFiles.current.clear(); access.current.release(); }
   }, [flush]);
 
   // ---- unlock methods and the passphrase (format v2) ----
@@ -235,6 +252,7 @@ export function useVault() {
     const id = uid(); const activeKey = key.current;
     const vaultId = demoRef.current ? 'demo' : info.current!.vaultId;
     unattachedFiles.current.add(id);
+    announceStorageWrite(Math.ceil(bytes.byteLength * 1.5) + 1024);
     await enqueue(async () => {
       const blob: EncryptedBlob = { id, vaultId, payload: await encryptBytes(activeKey, bytes, `praxisraum-blob:v1:${vaultId}:${id}`) };
       if (key.current !== activeKey) throw new Error('locked');
@@ -256,10 +274,12 @@ export function useVault() {
   }, []);
   // Images nobody references any more are erased locally and queued for removal from the cloud. Callers run this only
   // after the vault write that dropped the references succeeded, so a failed save can never cost an image.
+  const assertCurrentEnvelope = async () => { if (!demoRef.current && !sameEnvelope(await readVault(), info.current)) { setWriteConflict(true); throw new Error('vaultChanged'); } };
   const purge = async (ids: string[]) => {
     if (!ids.length) return;
     if (demoRef.current) { ids.forEach(id => memoryBlobs.current.delete(id)); return; }
-    await purgeBlobs(info.current!.vaultId, ids);
+    await assertCurrentEnvelope();
+    await purgeBlobs(info.current!.vaultId, ids, info.current);
     ids.forEach(id => unattachedFiles.current.delete(id));
   };
   const purgeUnused = async (before: string[]) => {
@@ -337,6 +357,7 @@ export function useVault() {
 
   // ---- backups, merging ----
   const exportBackup = async () => {
+    await flushBeforeLock();
     await flush();
     if (demoRef.current || !info.current || !current.current) return;
     const snapshot = info.current;
@@ -351,10 +372,19 @@ export function useVault() {
     if (backup.type !== 'praxisraum-backup-v1' || !Array.isArray(backup.blobs)) throw new Error('invalidBackup');
     validateEnvelope(backup.envelope);
     if (backup.blobs.some(b => b.vaultId !== backup.envelope.vaultId || typeof b.id !== 'string' || !b.payload?.iv || !b.payload?.ciphertext)) throw new Error('invalidBackup');
-    await flush();
-    for (const blob of backup.blobs) await writeBlob(blob);
-    await writeVault(backup.envelope);
-    await lock();
+    await access.current.acquire();
+    try {
+      await flushBeforeLock(); await flush();
+      await writeVaultChecked(backup.envelope, info.current, backup.blobs);
+      info.current = backup.envelope;
+      // All pending drafts were flushed before replacement. Do not write the old data again.
+      current.current = null; persisted.current = null;
+      await lock();
+    } catch (error) {
+      if (!current.current) access.current.release();
+      else if (error instanceof Error && error.message === 'vaultChanged') { setWriteConflict(true); setStorageError(true); failure.current = true; }
+      throw error;
+    }
   };
   /**
    * The cloud holds a newer revision (another device saved): fold its changes into this vault instead of failing.
@@ -387,18 +417,37 @@ export function useVault() {
     await purgeUnused(before);
     return { data: merged, generation: installedGeneration };
   };
+  const mergeLocal = async () => {
+    if (mergingLocal.current) return; mergingLocal.current = true;
+    try {
+    const activeKey = key.current; if (!activeKey || !current.current || demoRef.current) throw new Error('locked');
+    await queue.current.catch(() => {});
+    const stored = await readVault(); if (!stored || stored.vaultId !== info.current?.vaultId) throw new Error('differentVault');
+    const remote = await decryptVault(activeKey, stored);
+    let merged;
+    for (;;) {
+      const queued = queue.current; await queued.catch(() => {});
+      const generation = generationRef.current; merged = await runSecureTask('merge', { local: current.current!, remote });
+      if (key.current !== activeKey || !current.current) throw new Error('locked');
+      if (generation === generationRef.current && queued === queue.current) break;
+    }
+    const wraps = mergeEnvelopes(info.current!, stored);
+    info.current = stored; current.current = merged; setData(merged); bump();
+    await persist(merged, { wraps: wraps.wraps, salt: wraps.salt, format: wraps.format });
+    } finally { mergingLocal.current = false; }
+  };
   const retry = () => current.current ? persist(current.current) : Promise.resolve();
   /** Replace the vault contents by an earlier version (undo of a deletion); stamped like a normal edit so other devices follow. */
   const restoreData = (value: VaultData) => update(next => {
     const payouts = restoreReferralPayouts(next.referralPayouts,value.referralPayouts);
     next.settings = structuredClone(value.settings);
-    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps'] as const) (next[name] as unknown[]) = value[name] ?? [];
+    for (const name of ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'newsletterDrafts', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps'] as const) (next[name] as unknown[]) = value[name] ?? [];
     next.sessionDrafts = (value.sessionDrafts ?? []).filter(d => !Object.hasOwn(next.deleted, d.id));
     next.audioMemos = (value.audioMemos ?? []).filter(m => !Object.hasOwn(next.deleted, m.id));
     next.referralPayouts = payouts;
-    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability, ...(value.messageTemplates??[]), ...(value.marketingCampaigns??[]), ...(value.newsletters??[]), ...(value.referralCodes??[]), ...(value.referrals??[]), ...(value.referralPayouts??[]), ...(value.waitlist??[]), ...(value.followUps??[])].some(r => r.id === id)) delete next.deleted[id];
+    for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability, ...(value.messageTemplates??[]), ...(value.marketingCampaigns??[]), ...(value.newsletters??[]), ...(value.newsletterDrafts??[]), ...(value.referralCodes??[]), ...(value.referrals??[]), ...(value.referralPayouts??[]), ...(value.waitlist??[]), ...(value.followUps??[])].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
-  return { envelope, data, saving, storageError, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, getData: () => current.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
+  return { envelope, data, saving, storageError, writeConflict, mergeLocal, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, getData: () => current.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
 }
 export type VaultController = ReturnType<typeof useVault>;
