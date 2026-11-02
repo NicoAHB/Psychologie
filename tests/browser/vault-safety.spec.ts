@@ -52,11 +52,19 @@ test('newsletter text and image restore after locking; explicit discard stays di
   expect(info.project.name).toBeTruthy();
 });
 test('storage warning and estimates work in both languages and fit a dark portrait tablet',async({page},info)=>{
-  await page.addInitScript(()=>{Object.defineProperty(navigator.storage,'estimate',{configurable:true,value:async()=>({usage:96*1048576,quota:100*1048576})});Object.defineProperty(navigator.storage,'persisted',{configurable:true,value:async()=>false});});
+  await page.addInitScript(()=>Object.defineProperty(navigator,'storage',{configurable:true,value:{estimate:async()=>({usage:96*1048576,quota:100*1048576}),persisted:async()=>false,persist:async()=>false}}));
   await page.setViewportSize({width:/mobile|iphone/.test(info.project.name)?390:820,height:1180});const {data}=workflowData();await seedWorkflow(page,data);await expect(page.getByText(de.storageCritical,{exact:true})).toBeVisible();
   await page.getByRole('button',{name:de.storageOpenBackup,exact:true}).click();await expect(page.locator('#settings-backup')).toBeFocused();
   const card=page.getByRole('region',{name:de.storageHealthTitle,exact:true});await expect(card.getByRole('meter')).toBeVisible();await expect(card).toContainText(de.storageNotPersistent);
   await page.getByLabel(de.colorScheme,{exact:true}).selectOption('dark');await page.getByLabel(de.fontSize,{exact:true}).selectOption('extraLarge');
   expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.getByRole('button',{name:'Українська',exact:true}).first().click();await expect(page.getByRole('region',{name:uk.storageHealthTitle,exact:true})).toBeVisible();await expect(page.getByText(uk.storageCritical,{exact:true})).toBeVisible();
+});
+test('missing storage APIs remain understandable and never block encrypted work',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(()=>Object.defineProperty(navigator,'storage',{configurable:true,value:undefined}));
+  const {data}=workflowData();await seedWorkflow(page,data);await nav(page,de.settings);
+  const card=page.getByRole('region',{name:de.storageHealthTitle,exact:true});
+  await expect(card).toContainText(de.storageEstimateUnavailable);await expect(card).toContainText(de.storagePersistenceUnknown);await expect(card.getByRole('meter')).toHaveCount(0);
+  expect(errors).toEqual([]);
 });
