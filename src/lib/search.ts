@@ -1,6 +1,6 @@
 import type { VaultData } from './types';
 
-export type HitKind = 'client' | 'session' | 'note' | 'invoice' | 'assessment' | 'audioMemo';
+export type HitKind = 'client' | 'session' | 'note' | 'invoice' | 'assessment' | 'audioMemo' | 'homework';
 export interface Hit { kind: HitKind; id: string; clientId: string; title: string; text: string; /** [start, end) ranges in `text` that matched */ marks: [number, number][]; date?: string }
 
 /** Lowercase, ignore accents (ä→a, é→e, й→и) and treat ß as ss. `map[i]` is the index in the original text of folded char i. */
@@ -54,6 +54,7 @@ export function searchVault(data: VaultData, query: string, limit = 40): Hit[] {
   for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.homework ?? '', s.tags.map(t => `#${t}`).join(' '), s.date], s.date, s);
   for (const n of data.notes) consider('note', n.id, n.clientId, nameOf(n.clientId), [n.caption, n.tags.map(t => `#${t}`).join(' ')], n.createdAt.slice(0, 10), n);
   for (const m of data.audioMemos ?? []) consider('audioMemo', m.id, m.clientId, nameOf(m.clientId), [m.label, m.summary, m.createdAt.slice(0, 10)], m.createdAt.slice(0, 10), m);
+  for(const a of data.homeworkAssignments??[]) consider('homework',a.id,a.clientId,nameOf(a.clientId),[a.snapshot.content.title,a.snapshot.content.steps,a.feedback,a.assignedAt??''],a.assignedAt?.slice(0,10),a);
   for (const i of data.invoices) consider('invoice', i.id, i.clientId, nameOf(i.clientId), [i.number, i.recipient.name], i.issuedAt);
   return hits.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)).slice(0, limit);
 }

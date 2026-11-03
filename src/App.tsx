@@ -13,6 +13,7 @@ import { Today } from './pages/TodayPage';
 import { useMarketingAutomation } from './lib/useMarketingAutomation';
 import { syncMarketingArchive } from './lib/marketingArchive';
 import './marketing.css';
+import './homework.css';
 import './calm-dashboard.css';
 import { flushShareRevocations } from './lib/documentShares';
 import type { WorkItem } from './lib/workItems';
@@ -77,11 +78,12 @@ export default function App() {
   const [conversation,setConversation] = useState(false);
   const conversationExit = useRef<HTMLButtonElement>(null);
   useEffect(() => { if (conversation) conversationExit.current?.focus(); },[conversation]);
+  const [homeworkFocusId,setHomeworkFocusId]=useState<string>();
   const [memoFocusId, setMemoFocusId] = useState<string>();
   useEffect(() => { if (vault.data && !vault.demo && online && user && vault.envelope) void flushShareRevocations(vault.envelope.vaultId).catch(() => {}); }, [!!vault.data, vault.demo, vault.envelope, online, user]);
   const syncBusy = useRef(false); const syncAlive = useRef(true); const syncRetry = useRef<number | undefined>(undefined);
   useEffect(() => { syncAlive.current = true; return () => { syncAlive.current = false; clearTimeout(syncRetry.current); }; }, []); const currentVault = useRef(vault); currentVault.current = vault;
-  const navigate = (next: AppRoute) => { setConversation(false); setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setCompletedNotice(false); if(next==='newsletter'){setMarketingOpened(true);setNewsletterTemplate(undefined);setNewsletterTab('create');}setRoute(next); setDocumentFocusId(undefined); setMemoFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
+  const navigate = (next: AppRoute) => { setConversation(false); setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setCompletedNotice(false); if(next==='newsletter'){setMarketingOpened(true);setNewsletterTemplate(undefined);setNewsletterTab('create');}setRoute(next); setDocumentFocusId(undefined); setMemoFocusId(undefined); setHomeworkFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
   const openClient = (id: string) => { setClientFilter('all'); setSelectedId(id); setProfileTab('overview'); navigate('clients'); };
   useEffect(() => {
     const id = vault.envelope?.vaultId; if (!vault.data || vault.demo || !id) { setBackupInfo(undefined); return; }
@@ -131,7 +133,7 @@ export default function App() {
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('pageshow', check); window.removeEventListener('pointerdown', touch); window.removeEventListener('keydown', touch); window.removeEventListener('beforeunload', warn); };
   }, [!!vault.data]);
   // Clear plaintext form drafts and image object URLs when the vault locks.
-  useEffect(() => { if (!vault.data) { setConversation(false); setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setQuickMethod('transfer'); setMarketingOpened(false);setNewsletterTemplate(undefined);setCompletedNotice(false);setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setWorkInvoiceClient(undefined); setDocumentFocusId(undefined); setMemoFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);
+  useEffect(() => { if (!vault.data) { setConversation(false); setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setQuickMethod('transfer'); setMarketingOpened(false);setNewsletterTemplate(undefined);setCompletedNotice(false);setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setWorkInvoiceClient(undefined); setDocumentFocusId(undefined); setMemoFocusId(undefined); setHomeworkFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);
   // Each page names itself in the window/tab title, which also helps screen-reader users and browser history.
   useEffect(() => { document.title = vault.data ? `${t(route)} · Praxisraum` : 'Praxisraum'; }, [vault.data, route, t]);
   if (!vault.data) return <Welcome vault={vault}/>;
@@ -186,7 +188,7 @@ export default function App() {
         onAppointments={() => navigate('appointments')} onComplete={a => setForm({ type: 'session', appointment: a })}
         onPayments={view => { navigate('finances'); setFinanceView(view); }} onInvoice={setFollowInvoiceId}
         onDocument={(clientId, documentId) => { openClient(clientId); setProfileTab('documents'); setDocumentFocusId(documentId); }} onWork={openWorkItem}/>}
-      {route === 'clients' && <ClientsPage conversation={conversation} onConversation={()=>setConversation(true)} vault={vault} selected={selected} search={search} setSearch={setSearch} clientFilter={clientFilter} setClientFilter={setClientFilter} clientLimit={clientLimit} setClientLimit={setClientLimit} documentFocusId={documentFocusId} memoFocusId={memoFocusId} onMemoFocusHandled={() => setMemoFocusId(undefined)} profileTab={profileTab} setProfileTab={setProfileTab} tag={tag} setTag={setTag} onNewClient={() => setForm({ type: 'client' })} onSelect={id => { setSelectedId(id); setTag(''); setProfileTab('overview'); }} actions={selected ? { onBack: () => setSelectedId(undefined), onEditClient: () => setForm({ type: 'client', client: selected }), onNewSession: () => setForm({ type: 'session', clientId: selected.id }), onNewNote: () => setForm({ type: 'note', clientId: selected.id }), onNewAppointment: () => setForm({ type: 'appointment', clientId: selected.id }), onEditSession: session => setForm({ type: 'session', session }), onPhoto: setPhoto, onPayment: markPayment, onDeleteNote: deleteNoteEntry } : undefined}/>}
+      {route === 'clients' && <ClientsPage homeworkFocusId={homeworkFocusId} conversation={conversation} onConversation={()=>setConversation(true)} vault={vault} selected={selected} search={search} setSearch={setSearch} clientFilter={clientFilter} setClientFilter={setClientFilter} clientLimit={clientLimit} setClientLimit={setClientLimit} documentFocusId={documentFocusId} memoFocusId={memoFocusId} onMemoFocusHandled={() => setMemoFocusId(undefined)} profileTab={profileTab} setProfileTab={setProfileTab} tag={tag} setTag={setTag} onNewClient={() => setForm({ type: 'client' })} onSelect={id => { setSelectedId(id); setTag(''); setProfileTab('overview'); }} actions={selected ? { onBack: () => setSelectedId(undefined), onEditClient: () => setForm({ type: 'client', client: selected }), onNewSession: () => setForm({ type: 'session', clientId: selected.id }), onNewNote: () => setForm({ type: 'note', clientId: selected.id }), onNewAppointment: () => setForm({ type: 'appointment', clientId: selected.id }), onEditSession: session => setForm({ type: 'session', session }), onPhoto: setPhoto, onPayment: markPayment, onDeleteNote: deleteNoteEntry } : undefined}/>}
       {route === 'appointments' && <AppointmentsPage focusWaitlist={waitlistFocus} vault={vault} {...quickProps} onBackfill={() => setForm(data.clients.length ? { type: 'session' } : { type: 'client' })} onNew={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })} onClient={openClient} onComplete={a => setForm({ type: 'session', appointment: a })} onEdit={a => setForm({ type: 'appointment', appointment: a })}/>}
       {route === 'finances' && <FinancesPage key={financeView} initialView={financeView} vault={vault} onPayment={markPayment} onClient={openClient}/>}
       {route === 'settings' && <Suspense fallback={pageLoading}><SettingsPage vault={vault} focus={settingsFocus} focusRequest={settingsRequest} auto={auto} onSync={doSync} syncing={syncing} onRestore={async () => {
@@ -206,7 +208,7 @@ export default function App() {
     {workInvoiceClient && <InvoiceForm vault={vault} clientId={workInvoiceClient} onClose={() => setWorkInvoiceClient(undefined)} onCreated={invoice => { setWorkInvoiceClient(undefined); setFollowInvoiceId(invoice.id); }}/>}
     {followInvoiceId && data.invoices.find(i => i.id === followInvoiceId) && <InvoiceView key={followInvoiceId} vault={vault} invoice={data.invoices.find(i => i.id === followInvoiceId)!} onClose={() => setFollowInvoiceId(undefined)}/>}
     {vault.passphraseReset && <PassphraseReset vault={vault}/>}
-    {searching && <SearchModal vault={vault} onClose={() => setSearching(false)} onOpen={hit => { setSearching(false); if (hit.kind === 'invoice') navigate('finances'); else { openClient(hit.clientId); if (hit.kind === 'audioMemo') { setProfileTab('discussed'); setMemoFocusId(hit.id); } } }}/>}
+    {searching && <SearchModal vault={vault} onClose={() => setSearching(false)} onOpen={hit => { setSearching(false); if (hit.kind === 'invoice') navigate('finances'); else { openClient(hit.clientId); if(hit.kind==='homework'){setProfileTab('homework');setHomeworkFocusId(hit.id);} if (hit.kind === 'audioMemo') { setProfileTab('discussed'); setMemoFocusId(hit.id); } } }}/>}
     {photo && <Modal title={t('photoNote')} onClose={() => setPhoto(undefined)} wide><ImageView id={photo} vault={vault} alt={t('photoNote')} className="note-full-image"/></Modal>}
     </VaultAreaBoundary>
   </div></StorageHealthProvider>;

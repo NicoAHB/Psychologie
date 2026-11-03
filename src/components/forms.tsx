@@ -1,3 +1,6 @@
+import { HomeworkPicker } from './homework';
+import { assignHomework, clientHomework, reviewHomeworkFromSession, reviewLegacyHomework } from '../lib/homework';
+import type { HomeworkSelection } from '../lib/homeworkTypes';
 import { ClientDuplicateNotice } from './ClientDuplicateNotice';
 import { DuplicateClientReviewRequired, requireClientDuplicateReview, type ClientDuplicateMatch } from '../lib/clientDuplicates';
 import { releaseSlot } from '../lib/waitlist';
@@ -240,6 +243,8 @@ export function SessionForm(props: SessionFormProps) {
 function SessionEditor({ vault, clientId, appointment, session, restored, onClose, onSaved }: SessionFormProps) {
   const { t, language } = useI18n(); const data = vault.data!;
   const initial = restored?.payload;
+  const [homeworkSelections,setHomeworkSelections]=useState<HomeworkSelection[]>(initial?.homeworkSelections??[]),[homeworkPicker,setHomeworkPicker]=useState(false);
+  const [homeworkReviewIds,setHomeworkReviewIds]=useState<string[]>(initial?.homeworkReviewIds??[]);
   const [draftId] = useState(() => restored?.id ?? uid());
   const [sessionId] = useState(() => restored?.sessionId ?? session?.id ?? (appointment ? completedSessionId(appointment.id) : uid()));
   const [memoDrafts, setMemoDrafts] = useState<AudioMemo[]>(initial?.memos ?? []), [removedMemos, setRemovedMemos] = useState<string[]>(initial?.removedMemos ?? []);
@@ -267,11 +272,13 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
   const previous = selected ? pendingHomework(data, selected, session?.id) : undefined;
   const attached = session ? data.notes.filter(n => n.sessionId === session.id && !removedPhotos.includes(n.id)) : [];
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
-  const payload = useMemo<SessionDraftValues>(() => ({ date, time, fee, inputCurrency, rate, paid, paymentDate, paymentMethod, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, photos: files, removedPhotos, memos: memoDrafts, removedMemos, editedMemos }), [date, time, fee, inputCurrency, rate, paid, paymentDate, paymentMethod, notes, tags, homework, homeworkDone, nextTopics, nextTouched, reviewPrevious, pricingChanged, files, removedPhotos, memoDrafts, removedMemos, editedMemos]);
+  const pendingHomeworkTasks=useMemo(()=>clientHomework(data,selected).filter(a=>a.state.value==='open'&&!a.snapshot.legacySessionId),[data,selected]);
+  const [homeworkReviewLimit,setHomeworkReviewLimit]=useState(20);
+  const payload = useMemo<SessionDraftValues>(() => ({ date, time, fee, inputCurrency, rate, paid, paymentDate, paymentMethod, notes, tags, homework, homeworkDone, ...(homeworkSelections.length&&{homeworkSelections}), ...(homeworkReviewIds.length&&{homeworkReviewIds}), nextTopics, nextTouched, reviewPrevious, pricingChanged, photos: files, removedPhotos, memos: memoDrafts, removedMemos, editedMemos }), [date, time, fee, inputCurrency, rate, paid, paymentDate, paymentMethod, notes, tags, homework, homeworkDone, homeworkSelections, homeworkReviewIds, nextTopics, nextTouched, reviewPrevious, pricingChanged, files, removedPhotos, memoDrafts, removedMemos, editedMemos]);
   const draft = useSessionDraft(vault, { id: draftId, clientId: selected, sessionId, originalSessionId: session?.id, appointmentId: appointment?.id }, payload);
   async function closeDraft() { if (busy) return; try { await draft.flush(); onClose(); } catch { setError('storageError'); } }
   async function discardDraft() { if (!window.confirm(t('draftDiscardConfirm'))) return; setBusy(true); try { draft.stop(); await vault.update(d => deleteSessionDraft(d, draftId)); await vault.purgeUnused([...files.map(f => f.blobId), ...memoDrafts.map(m => m.blobId)]); onClose(); } catch { draft.resume(); setError('storageError'); setBusy(false); } }
-  function choose(id: string) { if (inputCurrency === 'UAH') { try { setFee(feeText(convertWhole(parseMoney(fee), 'UAH', 'EUR', rate))); } catch { setFee(feeText(suggestedFee(data, id))); } } setInputCurrency('EUR'); setPricingChanged(true); setSelected(id); setReviewPrevious(false); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); if (!nextTouched) setNextTopics(data.clients.find(c => c.id === id)?.preparation ?? ''); }
+  function choose(id: string) { if((homeworkSelections.length||homeworkReviewIds.length)&&!window.confirm(t('hwClientChangeConfirm')))return;setHomeworkSelections([]);setHomeworkReviewIds([]); if (inputCurrency === 'UAH') { try { setFee(feeText(convertWhole(parseMoney(fee), 'UAH', 'EUR', rate))); } catch { setFee(feeText(suggestedFee(data, id))); } } setInputCurrency('EUR'); setPricingChanged(true); setSelected(id); setReviewPrevious(false); if (!feeTouched && id) setFee(feeText(suggestedFee(data, id))); if (!nextTouched) setNextTopics(data.clients.find(c => c.id === id)?.preparation ?? ''); }
   // Copy the files out at once: the input's FileList is emptied as soon as its value is reset.
   const addFiles = async (list: FileList | null) => {
     const picked = Array.from(list ?? []).slice(0, 12 - files.length); if (!picked.length) return;
@@ -320,17 +327,20 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
           d.sessions.push(result);
           if (appointment) d.appointments.find(a => a.id === appointment.id)!.status = 'completed';
         }
+        reviewHomeworkFromSession(d,selected,homeworkReviewIds);
+        if(session&&!!session.homeworkDone!==homeworkDone&&session.homework?.trim()===text)reviewLegacyHomework(d,session.id,homeworkDone);
+        for(const selection of homeworkSelections)assignHomework(d,selected,selection,sessionId);
         d.notes = d.notes.filter(n => !removedPhotos.includes(n.id));
         for (const blobId of photoIds) d.notes.push({ id: uid(), clientId: selected, blobId, sessionId: result.id, caption: '', tags: result.tags, createdAt: new Date().toISOString() });
         d.audioMemos = d.audioMemos.filter(m => !removedMemos.includes(m.id) && !savedMemos.some(saved => saved.id === m.id));
         for (const memo of d.audioMemos) if (memo.sessionId === sessionId) { if (editedMemos[memo.id]) editMemoMetadata(d, memo.id, editedMemos[memo.id]); memo.clientId = selected; }
         d.audioMemos.push(...savedMemos);
         for (const memo of savedMemos) rememberMemoLabel(d, memo.label);
-        if (reviewPrevious && previous) { const earlier = d.sessions.find(s => s.id === previous.id); if (earlier) earlier.homeworkDone = true; }
+        if (reviewPrevious && previous) { const earlier = d.sessions.find(s => s.id === previous.id); if (earlier) reviewLegacyHomework(d,earlier.id,true); }
         const owner = d.clients.find(c => c.id === selected); if (owner && nextTouched && owner.preparation !== nextTopics) owner.preparation = nextTopics;
       });
       await vault.purgeUnused([...before, ...added]); onSaved?.(result); onClose();
-    } catch (err) { draft.resume(); await vault.purgeUnused(added).catch(() => {}); setError(err instanceof Error && ['invalidAmount', 'rateRequired'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
+    } catch (err) { draft.resume(); await vault.purgeUnused(added).catch(() => {}); setError(err instanceof Error && ['invalidAmount', 'rateRequired', 'hwRepeatRequired', 'hwInvalid'].includes(err.message) ? err.message as TextKey : err instanceof Error && err.message === 'invalidImage' ? 'invalidImage' : 'storageError'); } finally { setBusy(false); }
   }
   async function remove() {
     if (!session || !window.confirm(`${t('deleteSessionConfirm')}${session.invoiceId ? `\n\n${t('deleteInvoicedSessionNote')}` : ''}${data.notes.some(n => n.sessionId === session.id) ? `\n\n${t('deleteSessionPhotosNote')}` : ''}${data.audioMemos.some(m => m.sessionId === session.id) ? `\n\n${t('memoDeleteSessionNote')}` : ''}`)) return;
@@ -338,6 +348,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
     try { draft.stop(); await vault.remove(d => { deleteSession(d, session.id); deleteSessionDraft(d, draftId); }); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
   return <Modal title={t(completing ? 'completeAppointment' : session ? 'editSession' : 'addSession')} onClose={() => void closeDraft()} wide><form onSubmit={submit} noValidate>
+    {homeworkPicker&&data.clients.find(c=>c.id===selected)&&<HomeworkPicker vault={vault} client={data.clients.find(c=>c.id===selected)!} staged={homeworkSelections} onClose={()=>setHomeworkPicker(false)} onSelected={selection=>{setHomeworkSelections(values=>values.some(x=>x.id===selection.id)?values:[...values,selection]);setHomeworkPicker(false);}}/>}
     <Notice>{t('draftHint')}</Notice>{draft.status !== 'idle' && <p className="hint" role="status" aria-live="polite">{t(draft.status === 'pending' ? 'savePending' : draft.status === 'saving' ? 'draftSaving' : draft.status === 'error' ? 'storageError' : 'draftSaved')}</p>}
     <Field label={t('client')}><select value={selected} disabled={!!appointment || lockedPricing} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
@@ -358,7 +369,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
         }}/>
       {memoDrafts.length > 0 && <p className="hint">{t('memoSaveSessionHint')}</p>}
       <Field label={t('tags')} hint={t('tagsHelp')}><input value={tags} maxLength={500} placeholder={t('tagsPlaceholder')} onChange={e => setTags(e.target.value)}/></Field></div>
-    <div className="form-section"><h3>{t('homework')}</h3>
+    <div className="form-section"><h3>{t('homework')}</h3>{pendingHomeworkTasks.length>0&&<div className="hw-pending-review"><h4>{t('hwPendingReview')}</h4>{pendingHomeworkTasks.slice(0,homeworkReviewLimit).map(a=><label className="check-label" key={a.id}><input type="checkbox" checked={homeworkReviewIds.includes(a.id)} disabled={!homeworkReviewIds.includes(a.id)&&homeworkReviewIds.length>=100} onChange={e=>setHomeworkReviewIds(ids=>e.target.checked?[...ids,a.id]:ids.filter(id=>id!==a.id))}/><span>{a.snapshot.content.title} · {t('homeworkReviewed')}</span></label>)}{pendingHomeworkTasks.length>homeworkReviewLimit&&<button type="button" className="btn btn-secondary" onClick={()=>setHomeworkReviewLimit(n=>n+20)}>{t('showMoreRows')}</button>}</div>}<div className="hw-stage-actions"><button type="button" className="btn btn-secondary" disabled={!selected||homeworkSelections.length>=30} onClick={()=>setHomeworkPicker(true)}>{t('hwChoose')}</button><p className="hint">{t('hwSessionStageHint')}</p></div>{homeworkSelections.length>0&&<ul className="hw-staged" aria-label={t('hwPlanned')}>{homeworkSelections.map(item=><li key={item.id}><span>{item.snapshot.content.title}</span><button type="button" className="btn btn-secondary" aria-label={`${t('hwStageRemove')}: ${item.snapshot.content.title}`} onClick={()=>setHomeworkSelections(values=>values.filter(x=>x.id!==item.id))}>{t('hwStageRemove')}</button></li>)}</ul>}
       {previous && <div className="previous-homework"><strong>{t('homeworkPrevious')} · {dateLabel(previous.date, language, { day: 'numeric', month: 'short' })}</strong><p className="pre-line">{previous.homework}</p><label className="check-label"><input type="checkbox" checked={reviewPrevious} onChange={e => setReviewPrevious(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label></div>}
       <Field label={t('homeworkFor')}><textarea rows={3} value={homework} maxLength={4000} placeholder={t('homeworkPlaceholder')} onChange={e => setHomework(e.target.value)}/></Field>
       {session && homework.trim() && <label className="check-label"><input type="checkbox" checked={homeworkDone} onChange={e => setHomeworkDone(e.target.checked)}/><span>{t('homeworkReviewed')}</span></label>}

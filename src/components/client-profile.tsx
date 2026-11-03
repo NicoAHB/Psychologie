@@ -1,3 +1,4 @@
+import { HomeworkOverview, HomeworkSection } from './homework';
 import { CurrencyTotals } from './CurrencyTotals';
 import { currencyTotals } from '../lib/paymentOverview';
 import { VaultTextEditor } from './VaultTextEditor';
@@ -6,16 +7,15 @@ import { FollowUpBoard } from './FollowUpBoard';
 import { clientStatus } from '../lib/clientStatus';
 import { BillingMoney } from './money';
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, Copy, History, FileImage, Home, Images, Leaf, Mic, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ClipboardList, History, FileImage, Home, Images, Leaf, Mic, Pencil as PencilIcon, Plus, Sparkles, Trash2, Wallet } from 'lucide-react';
 import { useI18n, type TextKey } from '../lib/i18n';
 import { dateLabel, money } from '../lib/dates';
 import { INSTRUMENTS, history, scoreOf, severityOf } from '../lib/assessments';
-import { daysSince, excerpt, homeworkMessage, overviewOf } from '../lib/discussion';
-import { copyText } from '../lib/files';
+import { daysSince, excerpt, overviewOf } from '../lib/discussion';
 import { appointmentView } from '../lib/zones';
 import type { AssessmentKind, Client, PhotoNote, Session } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
-import { Avatar, Empty, ImageView, Notice, PaymentBadge } from './ui';
+import { Avatar, Empty, ImageView, PaymentBadge } from './ui';
 import { AssessmentsSection } from './assessments';
 import { DocumentsSection } from './documents';
 import { InvoiceForm, InvoiceView } from './invoices';
@@ -31,7 +31,7 @@ import { editMemoMetadata, rememberMemoLabel } from '../lib/memoLabels';
 
 const VideoConsultation = lazy(() => import('./VideoConsultation').then(m => ({ default: m.VideoConsultation })));
 
-export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances' | 'contact';
+export type ProfileTab = 'overview' | 'discussed' | 'questionnaires' | 'documents' | 'finances' | 'contact' | 'homework';
 export interface ProfileActions {
   onBack: () => void; onEditClient: () => void; onNewSession: () => void; onNewNote: () => void; onNewAppointment: () => void;
   onEditSession: (session: Session) => void; onPhoto: (blobId: string) => void; onPayment: (session: Session) => void; onDeleteNote: (note: PhotoNote) => void;
@@ -39,14 +39,14 @@ export interface ProfileActions {
 function PreparationEditor({ vault, client }: { vault: VaultController; client: Client }) { const { t } = useI18n(); return <VaultTextEditor vault={vault} clientId={client.id} stored={client.preparation} label={t('preparation')} placeholder={t('preparationPlaceholder')}/>; }
 function Tile({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) { return <div className="glance-tile"><span className="glance-label">{icon}{label}</span>{children}</div>; }
 
-function Overview({ vault, client, actions, openTab }: { vault: VaultController; client: Client; actions: ProfileActions; openTab: (tab: ProfileTab, tag?: string) => void }) {
-  const { t, language } = useI18n(); const data = vault.data!; const o = overviewOf(data, client.id); const [message, setMessage] = useState<string>();
+function Overview({ vault, client, actions, openTab, onHomework }: { onHomework:(id?:string)=>void; vault: VaultController; client: Client; actions: ProfileActions; openTab: (tab: ProfileTab, tag?: string) => void }) {
+  const { t, language } = useI18n(); const data = vault.data!; const o = overviewOf(data, client.id);
   const next = o.nextAppointment && appointmentView(o.nextAppointment, client, data.settings, language);
   const latest = (['phq9', 'gad7'] as AssessmentKind[]).map(kind => ({ kind, entries: history(data.assessments, client.id, kind) })).filter(g => g.entries.length).sort((a, b) => b.entries.at(-1)!.date.localeCompare(a.entries.at(-1)!.date))[0];
   const photoCount = (s: Session) => data.notes.filter(n => n.sessionId === s.id).length;
   const memoCount = (s: Session) => data.audioMemos.filter(m => m.sessionId === s.id).length;
   const ago = (date: string) => { const days = daysSince(date); return days === 0 ? t('today') : days === 1 ? t('daysAgoOne') : t('daysAgo').replace('{n}', String(days)); };
-  async function copyHomework(s: Session) { setMessage(await copyText(homeworkMessage(client, s, o.nextAppointment, data.settings)) ? t('copiedHomework') : t('copyFailed')); }
+
   return <>
     <section className="preparation-card"><div className="section-heading"><div><span className="eyebrow"><Sparkles size={15}/>{t('privateNote')}</span><h2>{t('preparation')}</h2></div></div><p>{t('preparationHint')}</p><PreparationEditor key={client.id} vault={vault} client={client}/></section>
     {clientStatus(client) !== 'active' && <ClientStatusCard vault={vault} client={client}/>}
@@ -59,13 +59,7 @@ function Overview({ vault, client, actions, openTab }: { vault: VaultController;
       </div></section>
 
     <FollowUpBoard vault={vault} clientId={client.id}/>
-    <section className="card"><div className="section-heading"><h2><Home size={17}/> {t('homeworkOpen')}</h2></div>
-      {o.openHomework.length ? <ul className="homework-list">{o.openHomework.map(s => <li key={s.id}>
-        <div><small>{dateLabel(s.date, language, { day: 'numeric', month: 'long' })}</small><p className="pre-line">{s.homework}</p></div>
-        <div className="homework-actions"><label className="check-label"><input type="checkbox" checked={false} onChange={() => { void vault.update(d => { const x = d.sessions.find(y => y.id === s.id); if (x) x.homeworkDone = true; }).catch(() => {}); }}/><span>{t('homeworkReviewed')}</span></label>
-          <button className="btn btn-secondary btn-small" onClick={() => void copyHomework(s)}><Copy size={15}/>{t('homeworkCopy')}</button><button className="btn btn-ghost btn-small" onClick={() => actions.onEditSession(s)}>{t('editSession')}</button></div></li>)}</ul>
-        : <p className="hint">{t('homeworkNone')}</p>}
-      {message && <Notice>{message}</Notice>}</section>
+    <HomeworkOverview vault={vault} client={client} onOpen={onHomework}/>
     <section className="card"><div className="section-heading"><h2>{t('recentDiscussed')}</h2>{o.sessions.length > 0 && <button className="text-link" onClick={() => openTab('discussed')}>{t('viewAll')}<ArrowRight size={15}/></button>}</div>
       {o.recent.length ? <ul className="recent-list">{o.recent.map(s => <li key={s.id}><button onClick={() => actions.onEditSession(s)} aria-label={`${t('editThisSession')}: ${dateLabel(s.date, language, { day: 'numeric', month: 'long' })}`}>
         <span className="recent-head"><strong>{dateLabel(s.date, language, { day: 'numeric', month: 'long', year: 'numeric' })}</strong>{photoCount(s) > 0 && <span className="tag-chip"><FileImage size={12}/> {t('photoCount').replace('{n}', String(photoCount(s)))}</span>}{memoCount(s) > 0 && <span className="tag-chip"><Mic size={12}/> {t('memoCount').replace('{n}', String(memoCount(s)))}</span>}{s.tags.slice(0, 3).map(tag => <span className="tag-chip" key={tag}>#{tag}</span>)}</span>
@@ -142,9 +136,9 @@ function ClientFinances({ vault, client, actions }: { vault: VaultController; cl
   </section>;
 }
 
-export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId, focusMemoId, onMemoFocusHandled, conversation = false, onConversation }: { conversation?: boolean; onConversation?: () => void; vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
-  const { t } = useI18n(); const [videoOpen, setVideoOpen] = useState(false); const [contactDocumentId, setContactDocumentId] = useState<string>(); const [contactInvoiceId, setContactInvoiceId] = useState<string>();
-  const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }, { id: 'contact', label: t('contactHistoryTitle'), icon: <History size={15}/> }];
+export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions, focusDocumentId, focusMemoId, onMemoFocusHandled, focusHomeworkId, conversation = false, onConversation }: { focusHomeworkId?:string; conversation?: boolean; onConversation?: () => void; vault: VaultController; client: Client; tab: ProfileTab; setTab: (tab: ProfileTab) => void; tag: string; setTag: (tag: string) => void; actions: ProfileActions; focusDocumentId?: string; focusMemoId?: string; onMemoFocusHandled?: () => void }) {
+  const { t } = useI18n(); const [homeworkFocus,setHomeworkFocus]=useState<string>(); const [videoOpen, setVideoOpen] = useState(false); const [contactDocumentId, setContactDocumentId] = useState<string>(); const [contactInvoiceId, setContactInvoiceId] = useState<string>();
+  const tabs: { id: ProfileTab; label: string; icon: ReactNode }[] = [{ id: 'overview', label: t('tabOverview'), icon: <Sparkles size={15}/> }, { id: 'discussed', label: t('tabDiscussed'), icon: <Images size={15}/> }, {id:'homework',label:t('homework'),icon:<ClipboardList size={15}/>}, { id: 'questionnaires', label: t('questionnaires'), icon: <ClipboardList size={15}/> }, { id: 'documents', label: t('clientDocuments'), icon: <FileImage size={15}/> }, { id: 'finances', label: t('finances'), icon: <Wallet size={15}/> }, { id: 'contact', label: t('contactHistoryTitle'), icon: <History size={15}/> }];
   if (conversation) return <ConversationView vault={vault} client={client}/>;
   return <div className="profile-content">{videoOpen && <Suspense fallback={<p role="status">…</p>}><VideoConsultation vault={vault} client={client} onClose={() => setVideoOpen(false)}/></Suspense>}
     <button className="text-link mobile-only" onClick={actions.onBack}><ChevronLeft size={16}/>{t('allClients')}</button>
@@ -153,8 +147,9 @@ export function ClientProfile({ vault, client, tab, setTab, tag, setTag, actions
     <div className="profile-tabs" role="tablist" aria-label={t('profileSections')}>{tabs.map(x => <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls="profile-panel" className={tab === x.id ? 'active' : ''} onClick={() => setTab(x.id)}>{x.icon}{x.label}</button>)}</div>
     {contactInvoiceId && vault.data!.invoices.find(i => i.id === contactInvoiceId && i.clientId === client.id) && <InvoiceView vault={vault} invoice={vault.data!.invoices.find(i => i.id === contactInvoiceId)!} onClose={() => setContactInvoiceId(undefined)}/>}
     <div role="tabpanel" id="profile-panel" aria-labelledby={`tab-${tab}`} className="profile-panel">
-      {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
+      {tab === 'overview' && <Overview vault={vault} client={client} actions={actions} onHomework={id=>{setHomeworkFocus(id);setTab('homework');}} openTab={(next, nextTag) => { setTag(nextTag ?? ''); setTab(next); }}/>}
       {tab === 'discussed' && <Discussed vault={vault} client={client} tag={tag} setTag={setTag} actions={actions} focusMemoId={focusMemoId} onMemoFocusHandled={onMemoFocusHandled}/>}
+      {tab === 'homework'&&<HomeworkSection vault={vault} client={client} focusId={focusHomeworkId??homeworkFocus} onDocument={id=>{setContactDocumentId(id);setTab('documents');}}/>}
       {tab === 'questionnaires' && <AssessmentsSection vault={vault} clientId={client.id}/>}
       {tab === 'documents' && <DocumentsSection vault={vault} client={client} focusId={contactDocumentId ?? focusDocumentId}/>}
       {tab === 'contact' && <ContactHistory vault={vault} clientId={client.id} onDocument={id => { setContactDocumentId(id); setTab('documents'); }} onInvoice={setContactInvoiceId}/>}

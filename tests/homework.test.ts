@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { unzipSync, strFromU8 } from 'fflate';
 import { emptyVault, normalizeVault, uid, type ClientDocument, type Session } from '../src/lib/types';
 import { builtinHomework, homeworkCatalog } from '../src/lib/homeworkCatalog';
-import { assignHomework, attachHomeworkDocument, clientHomework, homeworkDocumentId, homeworkReceipts, homeworkReturns, legacyHomework, materializeLegacyHomework, previousHomework, recordHomeworkHandover, saveHomeworkTemplate, updateHomework } from '../src/lib/homework';
+import { assignHomework, attachHomeworkDocument, clientHomework, homeworkDocumentId, homeworkReceipts, homeworkReturns, legacyHomework, materializeLegacyHomework, previousHomework, recordHomeworkHandover, reviewHomeworkFromSession, reviewLegacyHomework, saveHomeworkTemplate, updateHomework } from '../src/lib/homework';
 import { normalizeHomeworkRecords, validHomeworkContent, type HomeworkSelection, type HomeworkTemplate } from '../src/lib/homeworkTypes';
 import { mergeVaults, stampChanges } from '../src/lib/merge';
 import { deleteClient, deleteSession, orphanedBlobs } from '../src/lib/records';
@@ -57,4 +57,8 @@ test('session deletion detaches a separately assigned task; documents, returned 
 });
 test('invalid assignments and staged snapshots fail import instead of accepting malformed dates or oversized content',()=>{
   const data=setup(),task=assignHomework(data,'c',selection());assert.throws(()=>normalizeHomeworkRecords([], [{...task,dueOn:'2026-02-30'}]),/invalidBackup/);assert.throws(()=>normalizeHomeworkRecords([], [{...task,snapshot:{...task.snapshot,content:{...task.snapshot.content,steps:'x'.repeat(8001)}}}]),/invalidBackup/);
+});
+test('appointment reviews use the same history, preserve private notes and reject another client’s task',()=>{
+  const data=setup();data.sessions.push(structuredClone(session));const task=assignHomework(data,'c',selection());task.feedback='Private Rückmeldung';reviewHomeworkFromSession(data,'c',[task.id],'2026-01-05T12:00:00Z');assert.equal(task.state.value,'discussed');assert.equal(task.state.at,'2026-01-05T12:00:00Z');assert.equal(task.feedback,'Private Rückmeldung');assert.throws(()=>reviewHomeworkFromSession(data,'other',[task.id]),/hwInvalid/);
+  const legacy=legacyHomework(data,'c')[0];materializeLegacyHomework(data,legacy.id);reviewLegacyHomework(data,session.id,true,'2026-01-06T12:00:00Z');assert.equal(clientHomework(data,'c').find(a=>a.id===legacy.id)?.state.value,'discussed');assert.equal(data.sessions[0].homeworkDone,true);
 });

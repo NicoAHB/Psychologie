@@ -41,7 +41,7 @@ export function excerpt(text: string, max = 200): string {
  * Message to paste into a messenger: the homework in the client's language, plus the next appointment in the client's
  * local time (with the practice time for orientation when the zones differ).
  */
-export function homeworkMessage(client: Client, session: Session, next: Appointment | undefined, settings: Pick<Settings, 'timeZone'>): string {
+export function homeworkMessage(client: Client, session: Pick<Session,'homework'>, next: Appointment | undefined, settings: Pick<Settings, 'timeZone'>): string {
   const language = client.language; const lead = `${translate(language, 'homeworkMessageLead')}:\n${session.homework?.trim() ?? ''}`;
   if (!next) return lead;
   const instant = appointmentInstant(next); const zone = clientZone(client, settings);

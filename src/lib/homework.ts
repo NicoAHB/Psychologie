@@ -25,7 +25,7 @@ export function assignHomework(data:VaultData,clientId:string,selection:Homework
   validateHomeworkSelection(selection);
   if (!data.clients.some(c=>c.id===clientId)||sessionId&&!data.sessions.some(s=>s.id===sessionId&&s.clientId===clientId)||!Number.isFinite(Date.parse(now))) throw new Error('hwInvalid');
   const existing=data.homeworkAssignments.find(a=>a.id===selection.id);
-  if(existing){if(existing.clientId!==clientId||JSON.stringify(existing.snapshot)!==JSON.stringify(selection.snapshot))throw new Error('hwInvalid');return existing;}
+  if(existing){if(existing.clientId!==clientId||JSON.stringify(existing.snapshot)!==JSON.stringify(selection.snapshot)||existing.returnExpected!==selection.returnExpected||existing.dueOn!==selection.dueOn)throw new Error('hwInvalid');return existing;}
   const history=previousHomework(data,clientId,selection.snapshot);
   if(history.length&&(!selection.repeatConfirmed||history.some(a=>!selection.acknowledgedAssignmentIds?.includes(a.id))))throw new Error('hwRepeatRequired');
   const assignment:HomeworkAssignment={id:selection.id,clientId,...sessionId&&{sessionId},snapshot:structuredClone(selection.snapshot),assignedAt:now,recordedAt:now,...selection.dueOn&&{dueOn:selection.dueOn},returnExpected:selection.returnExpected,state:{value:'open',at:now},feedback:'',handovers:[],...history.length&&{repeatAcknowledgedAt:now}};
@@ -65,4 +65,13 @@ export function attachHomeworkDocument(data:VaultData,id:string,document:ClientD
   const assignment=materializeLegacyHomework(data,id);
   if(document.homeworkAssignmentId!==id||document.clientId!==assignment.clientId||document.id!==homeworkDocumentId(id))throw new Error('hwInvalid');
   if(!data.documents.some(d=>d.id===document.id))data.documents.push(document);
+}
+
+/** Explicit review during a completed appointment updates the same task history. */
+export function reviewHomeworkFromSession(data:VaultData,clientId:string,ids:readonly string[],now=new Date().toISOString()) {
+  for(const id of new Set(ids)){const row=data.homeworkAssignments.find(a=>a.id===id&&a.clientId===clientId);if(!row)throw new Error('hwInvalid');updateHomework(data,id,'discussed',row.feedback,row.dueOn??'',now);}
+}
+export function reviewLegacyHomework(data:VaultData,sessionId:string,done:boolean,now=new Date().toISOString()) {
+  const session=data.sessions.find(s=>s.id===sessionId);if(!session)return;session.homeworkDone=done;
+  for(const row of data.homeworkAssignments)if(row.snapshot.legacySessionId===sessionId&&row.snapshot.content.steps===session.homework?.trim())row.state={value:done?'discussed':'open',at:now};
 }

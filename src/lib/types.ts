@@ -90,7 +90,7 @@ export interface SessionDraftValues {
   date: string; time: string; fee: string; inputCurrency: Currency; rate?: ExchangeRate;
   paid: boolean; paymentDate: string; notes: string; tags: string; homework: string; homeworkDone: boolean;
   paymentMethod?: PaymentMethod;
-  homeworkSelections?: HomeworkSelection[];
+  homeworkSelections?: HomeworkSelection[]; homeworkReviewIds?: string[];
   nextTopics: string; nextTouched: boolean; reviewPrevious: boolean; pricingChanged: boolean;
   photos: DocumentFile[]; removedPhotos: string[]; memos: AudioMemo[]; removedMemos: string[];
   editedMemos: Record<string, { label: string; summary: string }>;
@@ -256,6 +256,7 @@ export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData
     documents: value.documents ?? [], waitlist: value.waitlist ?? [], followUps: value.followUps ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], newsletterDrafts: value.newsletterDrafts ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   result.clients = value.clients.map(client => normalizeClientAddress(client, value.crdt?.entities[JSON.stringify(['clients', client.id])]?.postalAddress?.values.at(-1)?.value));
   for (const draft of result.sessionDrafts) if (draft.payload.homeworkSelections !== undefined) { if (!Array.isArray(draft.payload.homeworkSelections) || draft.payload.homeworkSelections.length > 30) throw new Error('invalidBackup'); draft.payload.homeworkSelections.forEach(validateHomeworkSelection); }
+  for (const draft of result.sessionDrafts) if (draft.payload.homeworkReviewIds !== undefined && (!Array.isArray(draft.payload.homeworkReviewIds) || draft.payload.homeworkReviewIds.length > 100 || draft.payload.homeworkReviewIds.some(id => typeof id !== 'string' || !id || id.length > 240))) throw new Error('invalidBackup');
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.
