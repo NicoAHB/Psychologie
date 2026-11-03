@@ -69,7 +69,9 @@ Keine rechtliche oder datenschutzrechtliche Prüfung behauptet. Transportgrenzen
 - Sechs isolierte Sicherheits-/Hook-Tests bestanden.
 - Simulierter E-Mail-/Telegram-Versand: beide neuen Tests und die sechs bestehenden E-Mail-Tests bestanden. Keine echten Nachrichten.
 
-Der Produktionspfad und die GitHub-Workflows werden für den veröffentlichten Commit zusätzlich geprüft.
+Alle acht lokalen Produktionspfad-/Offline-Prüfungen sind bestanden, einschließlich erstmaliger PDF-Erstellung auf Ukrainisch ohne Internet. Die GitHub-Workflows prüfen den veröffentlichten Commit zusätzlich.
+
+Safari-Hinweis für künftige Tests: Die Aufgabensuche verwendet bewusst `useDeferredValue`. Vor einem Klick auf die einzige gefilterte Aufgabe mit `expect(...).toHaveCount(1)` auf das tatsächlich gerenderte Ergebnis warten. Eine unmittelbar anschließende strikte Mehrfach-Locator-Aktion kann sonst noch die zwölf ungefilterten Karten finden. Dies änderte nur den Test, nicht die App.
 
 ## Vollständige Dateiliste dieser Erweiterung
 

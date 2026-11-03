@@ -6,7 +6,7 @@ import { addDays, today } from '../../src/lib/dates';
 const de=JSON.parse(await readFile(new URL('../../src/locales/de.json',import.meta.url),'utf8')) as Record<string,string>;
 const uk=JSON.parse(await readFile(new URL('../../src/locales/uk.json',import.meta.url),'utf8')) as Record<string,string>;
 async function openHomework(page:Page){await nav(page,de.clients);await page.locator('.directory-list button').first().click();await page.getByRole('tab',{name:de.homework,exact:true}).click();}
-async function chooseFirst(page:Page){await page.getByRole('button',{name:de.hwChoose,exact:true}).click();const picker=page.getByRole('dialog',{name:de.hwChoose,exact:true});await picker.getByLabel(de.hwSearch,{exact:true}).fill(de.hw01Title);await picker.locator('.hw-choice-open').click();return page.getByRole('dialog',{name:de.hwAssign,exact:true});}
+async function chooseFirst(page:Page){await page.getByRole('button',{name:de.hwChoose,exact:true}).click();const picker=page.getByRole('dialog',{name:de.hwChoose,exact:true});await picker.getByLabel(de.hwSearch,{exact:true}).fill(de.hw01Title);await expect(picker.locator('.hw-choice-open')).toHaveCount(1);await picker.locator('.hw-choice-open').click();return page.getByRole('dialog',{name:de.hwAssign,exact:true});}
 test('assignment history survives closure, repeated use warns even after discussion, and handover dates are explicit',async({page})=>{
   const {data}=workflowData();data.clients[0].language='de';const read=await seedWorkflow(page,data);await openHomework(page);
   let form=await chooseFirst(page);await form.getByLabel(de.hwGoal,{exact:true}).fill('PRIVATE INDIVIDUAL GOAL');await form.getByRole('button',{name:de.hwAssign,exact:true}).click();
