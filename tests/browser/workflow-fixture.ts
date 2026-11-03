@@ -11,7 +11,7 @@ export function workflowData() {
   const issuedAt = addDays(today(), -40); const invoice: Invoice = { id: uid(), number: `${issuedAt.slice(0,4)}-001`, clientId: client.id, issuedAt, dueOn: addDays(issuedAt, 14), language: 'uk', currency: 'UAH', recipient: { name: client.name, address: client.address }, sender: structuredClone(data.settings.practice), paymentAccount: { holder: '', iban: 'UA-TEST', bank: 'Банк України', bic: '' }, lines: data.sessions.map(s => ({ sessionId: s.id, date: s.date, description: 'Консультаційна зустріч', amountCents: 409100, euroCents: 8500, rate: data.settings.exchangeRate })), totalCents: 818200, totalEuroCents: 17000 };
   data.invoices.push(invoice); for (const s of data.sessions) { s.invoiceId = invoice.id; s.billing = { currency: 'UAH', amountCents: 409100, rate: data.settings.exchangeRate }; } return { data, client, invoice };
 }
-export async function nav(page: Page, label: string) {
+export async function nav(page: Page, label: string, grouped = false) {
   // Demo entry/unlock completes asynchronously. isVisible() alone can return
   // false before the mobile menu is mounted and leave navigation off-screen.
   await expect(page.locator('.app-shell')).toBeVisible({ timeout: 15000 });
@@ -24,6 +24,9 @@ export async function nav(page: Page, label: string) {
     await page.locator('.sidebar nav').getByRole('button', { name: ukrainian ? 'Ще' : 'Mehr', exact: true }).click();
     await page.locator('.more-navigation').getByRole('button', { name: label, exact: true }).click();
   }
+  // Older end-to-end workflows exercise many tools on one page. Use the
+  // explicit All sections control; grouped=true tests the compact default.
+  if (!grouped && ['Einstellungen','Налаштування'].includes(label)) await page.getByRole('button', {name: ukrainian ? 'Усі розділи' : 'Alle Bereiche',exact:true}).click();
 }
 export async function seedWorkflow(page: Page, data: VaultData) {
   const salt = randomSalt(); const key = await deriveKey('a very strong test passphrase', salt); const vaultId = uid(); const envelope = await encryptVault(key, data, vaultId, salt);
@@ -48,5 +51,11 @@ export async function unlock(page: Page) {
   catch (error) {
     const alerts = await page.getByRole('alert').allTextContents().catch(() => []);
     throw new Error(`${error instanceof Error ? error.message : String(error)}\nUnlock alerts (synthetic fixture): ${JSON.stringify(alerts)}`);
+  }
+}
+
+export async function openTodayTools(page:Page) {
+  for (const selector of ['.today-appointments','.today-tasks','.today-clients','.today-payments details','.today-setup']) {
+    const panel=page.locator(selector); if (await panel.count() && !await panel.evaluate(node=>node.hasAttribute('open'))) await panel.locator(':scope > summary').click();
   }
 }

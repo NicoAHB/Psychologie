@@ -1,0 +1,74 @@
+/* Quiet overview, grouped tools and a distraction-free conversation. All
+   surfaces inherit the existing light/dark appearance and glass controls. */
+.calm-details { margin-top: 20px; }
+.calm-details > summary { cursor: pointer; min-height: 48px; padding: 10px 0; font-weight: 600; overflow-wrap: anywhere; }
+.calm-details > summary:focus-visible { outline: 3px solid var(--sage); outline-offset: 4px; border-radius: 6px; }
+.details-body { padding-top: 16px; }
+.details-body > * + * { margin-top: 16px; }
+.today-next, .today-priorities, .today-payments { margin-bottom: 20px; }
+.today-next .appointment-row { flex-wrap: wrap; }
+.today-next .button-row { margin-top: 16px; }
+.today-priorities .section-heading { flex-wrap: wrap; }
+.today-money-grid, .native-income-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.today-money-grid .stat-card { min-height: 110px; padding: 18px; }
+.currency-totals { display: flex; flex-wrap: wrap; gap: 12px 24px; font-variant-numeric: tabular-nums; }
+.currency-totals > span { display: flex; flex-direction: column; gap: 3px; }
+.currency-totals small { color: var(--muted); font-size: 12px; }
+.currency-totals strong { font-size: 1.3rem; }
+.today-subheading { margin-top: 20px; }
+.finance-quick-filters, .settings-groups { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.finance-quick-filters .btn, .settings-groups .btn { min-height: 48px; }
+.finance-quick-filters .btn[aria-pressed=true], .settings-groups .btn[aria-pressed=true] { border-color: var(--sage); box-shadow: inset 0 0 0 1px var(--sage); font-weight: 700; }
+.payments-income-title { margin: 24px 0 16px; }
+.native-income-card { display: flex; flex-direction: column; gap: 10px; }
+.native-income-card > strong { font-size: 1.9rem; font-variant-numeric: tabular-nums; }
+.finance-comparison { margin-bottom: 20px; }
+.finance-chart-currency { max-width: 360px; margin-top: 20px; }
+.settings-navigation { margin-bottom: 24px; }
+.settings-navigation .settings-groups { margin-bottom: 0; }
+.settings-entry:not([hidden]) { display: contents; }
+.settings-entry[hidden], .conversation-mode [hidden] { display: none !important; }
+.settings-wide { grid-column: 1 / -1; margin-top: 0; }
+.settings-wide .settings-grid { margin-top: 0; }
+.profile-more { flex: 1 1 100%; }
+.profile-more > summary { display: inline-flex; cursor: pointer; }
+.profile-more > summary::after { content: '⌄'; }
+.profile-more[open] > summary::after { content: '⌃'; }
+.profile-more > .button-row { padding-top: 12px; }
+.conversation-mode .main-shell { margin-left: 0; width: 100%; }
+.conversation-mode .clients-layout { grid-template-columns: minmax(0, 1fr); }
+.conversation-mode .page-content { max-width: 1100px; margin-inline: auto; width: 100%; }
+.conversation-mode .topbar { gap: 12px; flex-wrap: wrap; }
+.conversation-mode .sync-bar { left: 0; }
+.conversation-content { display: grid; gap: 20px; min-width: 0; }
+.conversation-exit { max-width: 100%; }
+.storage-status-button { text-align: left; gap: 8px; }
+.app-shell .sync-bar { min-height: 52px; height: auto; flex-wrap: wrap; padding-block: 4px; }
+.sync-bar .storage-status-button { min-height: 44px; max-width: 100%; white-space: normal; }
+.sync-bar .storage-status-button > span { overflow-wrap: anywhere; }
+.app-shell .page-content { padding-bottom: 110px; }
+.storage-status-list { display: grid; gap: 20px; margin: 0 0 20px; }
+.storage-status-list dt { font-weight: 600; margin-bottom: 5px; }
+.storage-status-list dd { margin: 0; overflow-wrap: anywhere; }
+.autosave { flex-wrap: wrap; min-height: 24px; }
+@media(max-width:600px) {
+  .today-money-grid, .native-income-cards { grid-template-columns: minmax(0, 1fr); }
+  .finance-quick-filters .btn, .settings-groups .btn { flex: 1 1 140px; }
+  .today-payments .section-heading { flex-wrap: wrap; }
+  .conversation-mode .topbar { padding: 12px; }
+  .conversation-mode .header-actions { margin-left: auto; }
+  .conversation-mode .page-content { padding-inline: 14px; }
+}
+
+.app-shell .finance-chart-currency > span { color: inherit; }
+.today-core { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.today-core > section { margin-bottom: 0; }
+.today-priorities .waiting-notice { margin: 0 0 16px; padding: 16px; box-shadow: none; }
+.card.calm-details:not(.settings-wide) { padding: 16px 24px; }
+@media(min-width:1280px) {
+  .today-core { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .today-core > .today-next { grid-column: 1 / -1; }
+}
+
+.conversation-mode .topbar { height: auto; min-height: 80px; }
+.profile-actions .btn { min-height: 44px; }

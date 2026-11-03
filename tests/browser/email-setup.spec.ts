@@ -7,7 +7,7 @@ const de = JSON.parse(await readFile(new URL('../../src/locales/de.json', import
 const uk = JSON.parse(await readFile(new URL('../../src/locales/uk.json', import.meta.url), 'utf8')) as Record<string, string>;
 
 test('email setup explains prerequisites, offers a real migration and is linked from the guide', async ({ page }) => {
-  const { data } = workflowData(); const read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(de.saved); const before = await read(); await nav(page, de.guide);
+  const { data } = workflowData(); const read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(new RegExp(`${de.saved}|${de.savedAtTime.split('{time}')[0]}`)); const before = await read(); await nav(page, de.guide);
   await page.getByRole('button', { name: de.guideMessagesTitle, exact: true }).click();
   await page.locator('#guide-body-messages').getByRole('button', { name: de.emailSetupOpen, exact: true }).click();
   const card = page.locator('#settings-email'); await expect(card).toBeFocused(); await expect(card.getByRole('heading', { name: de.emailSetupTitle, exact: true })).toBeVisible();

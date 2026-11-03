@@ -56,7 +56,7 @@ test('storage warning and estimates work in both languages and fit a dark portra
   await page.setViewportSize({width:/mobile|iphone/.test(info.project.name)?390:820,height:1180});const {data}=workflowData();await seedWorkflow(page,data);await expect(page.getByText(de.storageCritical,{exact:true})).toBeVisible();
   await page.getByRole('button',{name:de.storageOpenBackup,exact:true}).click();await expect(page.locator('#settings-backup')).toBeFocused();
   const card=page.getByRole('region',{name:de.storageHealthTitle,exact:true});await expect(card.getByRole('meter')).toBeVisible();await expect(card).toContainText(de.storageNotPersistent);
-  await page.getByLabel(de.colorScheme,{exact:true}).selectOption('dark');await page.getByLabel(de.fontSize,{exact:true}).selectOption('extraLarge');
+  await page.getByRole('button',{name:'Alle Bereiche',exact:true}).click(); await page.getByLabel(de.colorScheme,{exact:true}).selectOption('dark');await page.getByLabel(de.fontSize,{exact:true}).selectOption('extraLarge');
   expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.getByRole('button',{name:'Українська',exact:true}).first().click();await expect(page.getByRole('region',{name:uk.storageHealthTitle,exact:true})).toBeVisible();await expect(page.getByText(uk.storageCritical,{exact:true})).toBeVisible();
 });

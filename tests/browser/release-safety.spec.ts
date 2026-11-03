@@ -12,7 +12,7 @@ test('a verified encrypted backup restores a document and playable memo in a sep
   const mp4 = info.project.name.includes('webkit');
   const bytes = await readFile(new URL(mp4 ? './assets/memo.m4a' : './assets/memo.webm', import.meta.url));
   data.audioMemos.push({ id: uid(), clientId: client.id, sessionId: data.sessions[0].id, blobId: uid(), createdAt: new Date().toISOString(), mimeType: mp4 ? 'audio/mp4' : 'audio/webm', size: bytes.length, durationMs: 3000, label: 'Testmemo', summary: 'Manuelle Testnotiz' });
-  const read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(de.saved); const before = await read(); await nav(page, de.settings);
+  const read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(new RegExp(`${de.saved}|${de.savedAtTime.split('{time}')[0]}`)); const before = await read(); await nav(page, de.settings);
   const card = page.locator('#settings-backup'); await expect(card.locator('.backup-proof')).toContainText(de.backupProofNever);
   const [download] = await Promise.all([page.waitForEvent('download'), card.getByRole('button', { name: de.exportBackup, exact: true }).click()]); const file = await readFile((await download.path())!);
   expect(file.toString()).not.toContain('Manuelle Testnotiz');
@@ -50,7 +50,7 @@ test('rare pages are deferred, newsletter drafts survive navigation and unopened
   await nav(page, de.newsletter); await page.getByLabel(de.marketingMessageDe, { exact: true }).fill('Ein Entwurf bleibt beim Wechsel erhalten.');
   expect((await loaded()).some(name => /\/Newsletter-/.test(name))).toBe(true);
   await nav(page, de.messageTemplates); await expect(page.getByRole('heading', { name: de.messageTemplates, exact: true })).toBeVisible(); await nav(page, de.newsletter); await expect(page.getByLabel(de.marketingMessageDe, { exact: true })).toHaveValue('Ein Entwurf bleibt beim Wechsel erhalten.');
-  await nav(page, de.settings); const version = page.getByRole('region', { name: de.appVersionTitle, exact: true }); await expect(version).toContainText('0.2.1');
+  await nav(page, de.settings); const version = page.getByRole('region', { name: de.appVersionTitle, exact: true }); await expect(version).toContainText('0.3.0');
   await page.getByRole('button', { name: 'Українська', exact: true }).first().click(); await expect(page.getByRole('region', { name: uk.appVersionTitle, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Deutsch', exact: true }).first().click();
   await page.evaluate(async () => { await navigator.serviceWorker.ready; }); await page.reload(); await unlock(page); await context.setOffline(true);

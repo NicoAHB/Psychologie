@@ -1,3 +1,4 @@
+import { openTodayTools } from './workflow-fixture';
 import { nav } from './workflow-fixture';
 import { test, expect, type Page } from './fixtures';
 import { readFile } from 'node:fs/promises';
@@ -29,10 +30,10 @@ test('dashboard links match totals across years; discussed notes have no money a
   await expect(page.getByRole('button', { name: /Zahlungseingänge dieses Monats anzeigen/ })).toContainText('85');
   await page.getByRole('button', { name: /Zahlungseingänge dieses Monats anzeigen/ }).click();
   await expect(page.locator('.finance-records tbody tr')).toHaveCount(1); await expect(page.locator('.finance-records')).toContainText('85');
-  await nav(page, 'Heute'); await page.getByRole('button', { name: /Alle offenen Zahlungen anzeigen/ }).click();
+  await nav(page, 'Heute'); await openTodayTools(page); await page.getByRole('button', { name: /Alle offenen Zahlungen anzeigen/ }).click();
   await expect(page.locator('.finance-records tbody tr')).toHaveCount(2); await expect(page.locator('.finance-records')).toContainText('2024');
-  await nav(page, 'Heute'); await page.getByRole('button', { name: /Anstehende Termine öffnen/ }).click(); await expect(page.locator('.segmented-tabs button.active').first()).toHaveText('Anstehend');
-  await nav(page, 'Heute'); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click();
+  await nav(page, 'Heute'); await openTodayTools(page); await page.getByRole('button', { name: /Anstehende Termine öffnen/ }).click(); await expect(page.locator('.segmented-tabs button.active').first()).toHaveText('Anstehend');
+  await nav(page, 'Heute'); await openTodayTools(page); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click();
   await expect(page.locator('.directory-list')).toBeVisible(); await page.locator('.directory-list .client-summary').first().click();
   await page.getByRole('tab', { name: 'Besprochen', exact: true }).click();
   await expect(page.locator('.timeline')).not.toContainText(/€|грн|₴|Bezahlt|Unbezahlt/); await expect(page.locator('.timeline')).toContainText('11:30');
@@ -41,7 +42,7 @@ test('dashboard links match totals across years; discussed notes have no money a
   await expect(page.locator('.timeline')).toContainText('Текст українською');
   await page.getByRole('tab', { name: 'Zahlungen', exact: true }).click(); await expect(page.locator('.client-finances tbody tr')).toHaveCount(3);
   await expect(page.locator('.client-finances')).toContainText('90'); await expect(page.locator('.client-finances .payment-badge')).toHaveCount(3);
-  await nav(page, 'Heute'); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click(); await expect(page.locator('.profile-content')).toHaveCount(0);
+  await nav(page, 'Heute'); await openTodayTools(page); await page.getByRole('button', { name: /Klientenliste öffnen/ }).click(); await expect(page.locator('.profile-content')).toHaveCount(0);
 });
 test('invoice PDF is archived and both composers use client language independently of the UI', async ({ page }) => {
   await seed(page); const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));

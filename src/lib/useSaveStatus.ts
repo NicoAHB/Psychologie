@@ -1,4 +1,5 @@
-import { useState, useSyncExternalStore } from 'react';
+import { registerEditStatus } from './editStatus';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 export interface SaveStatus {
   saving: boolean;
@@ -23,6 +24,7 @@ export class SaveTracker {
     this.state = state;
     for (const listener of this.listeners) listener();
   }
+  isDirty = () => this.revision > 0 && this.state.savedAt === undefined;
   changed = () => {
     this.revision++;
     this.publish({ saving: this.state.saving, failed: false });
@@ -46,6 +48,7 @@ export class SaveTracker {
 
 export function useSaveStatus() {
   const [tracker] = useState(() => new SaveTracker());
+  useEffect(() => { const entry = registerEditStatus(); const update = () => { const state = tracker.getSnapshot(); entry.set(state.failed ? 'error' : state.saving ? 'saving' : tracker.isDirty() ? 'pending' : 'clean'); }; update(); const unsubscribe = tracker.subscribe(update); return () => { unsubscribe(); entry.close(); }; }, [tracker]);
   const state = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
   return { ...state, changed: tracker.changed, save: tracker.save };
 }

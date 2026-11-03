@@ -36,7 +36,7 @@ test('More opens an understandable guide with keyboard topics and bilingual sear
 
 test('guide shortcuts focus exact settings and open clients or waitlist without changing records', async ({ page }) => {
   test.setTimeout(90000); const { data, client } = workflowData(); data.clients.push({ ...client, id: uid(), name: 'Pausierte Beispielperson', status: 'paused' });
-  const read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(de.saved); const before = await read();
+  const read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(new RegExp(`${de.saved}|${de.savedAtTime.split('{time}')[0]}`)); const before = await read();
   const targets = [
     ['setup', 'guideSetupTitle', 'guidePracticeAction', 'practice'], ['setup', 'guideSetupTitle', 'guideBanksAction', 'banks'],
     ['backups', 'guideBackupsTitle', 'guideBackupAction', 'backup'], ['backups', 'guideBackupsTitle', 'guideSecurityAction', 'security'],

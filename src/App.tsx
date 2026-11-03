@@ -1,3 +1,5 @@
+import { StorageStatus } from './components/StorageStatus';
+import { hasUnsavedEdits } from './lib/editStatus';
 import { StorageHealthProvider, StorageWarning } from './components/StorageHealth';
 import { VaultAreaBoundary } from './components/VaultAreaBoundary';
 import { ClientsPage } from './pages/ClientsPage';
@@ -11,6 +13,7 @@ import { Today } from './pages/TodayPage';
 import { useMarketingAutomation } from './lib/useMarketingAutomation';
 import { syncMarketingArchive } from './lib/marketingArchive';
 import './marketing.css';
+import './calm-dashboard.css';
 import { flushShareRevocations } from './lib/documentShares';
 import type { WorkItem } from './lib/workItems';
 import type { SessionDraft } from './lib/types';
@@ -18,7 +21,7 @@ import { flushBeforeLock } from './lib/autoLock';
 import type { ClientStatus } from './lib/types';
 import { SyncConflicts } from './components/SyncConflicts';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCheck, ChevronRight, Cloud, Leaf, LoaderCircle, LockKeyhole, Menu, Search, ShieldCheck, WifiOff, X } from 'lucide-react';
+import { ChevronRight, Cloud, Leaf, LockKeyhole, Menu, Search, ShieldCheck, WifiOff, X } from 'lucide-react';
 import { LanguageSwitch, useI18n, type TextKey } from './lib/i18n';
 import { autoLockMinutes } from './lib/autoLock';
 import { ThemeToggle } from './lib/theme';
@@ -37,7 +40,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import type { ProfileTab } from './components/client-profile';
 import { PassphraseReset } from './components/security';
 import { useAutoBackup } from './lib/useAutoBackup';
-import { backupSourceId, backupNeeded, hasRecords, latestChange, markBackup, readBackupState, type BackupState } from './lib/backupState';
+import { backupSourceId, backupNeeded, hasRecords, latestChange, markBackup, markCloudSync, readBackupState, type BackupState } from './lib/backupState';
 import { saveBackupCopy } from './lib/backupExport';
 import { AppointmentForm, ClientForm, NoteForm, PaymentForm, SessionForm } from './components/forms';
 import { Welcome } from './components/Welcome';
@@ -54,6 +57,7 @@ export default function App() {
   useAppointmentEmails(vault,user ?? undefined);
   const [waitlistFocus,setWaitlistFocus] = useState(false);
   const [settingsFocus, setSettingsFocus] = useState<SettingsSection>();
+  const [settingsRequest,setSettingsRequest] = useState(0);
   const [quickMethod, setQuickMethod] = useState<PaymentMethod>('transfer');
   const [quickBusy, setQuickBusy] = useState(false); const [quickNotice, setQuickNotice] = useState<string>(); const [flowError, setFlowError] = useState<TextKey>();
   const [workInvoiceClient, setWorkInvoiceClient] = useState<string>();
@@ -70,11 +74,14 @@ export default function App() {
   const [backupInfo, setBackupInfo] = useState<BackupState | null>(); // undefined = not read yet, null = no copy yet
   const [followInvoiceId, setFollowInvoiceId] = useState<string>(); const [documentFocusId, setDocumentFocusId] = useState<string>();
   const [profileTab, setProfileTab] = useState<ProfileTab>('overview'); const [searching, setSearching] = useState(false); const [search, setSearch] = useState(''); const [tag, setTag] = useState(''); const [photo, setPhoto] = useState<string>();
+  const [conversation,setConversation] = useState(false);
+  const conversationExit = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (conversation) conversationExit.current?.focus(); },[conversation]);
   const [memoFocusId, setMemoFocusId] = useState<string>();
   useEffect(() => { if (vault.data && !vault.demo && online && user && vault.envelope) void flushShareRevocations(vault.envelope.vaultId).catch(() => {}); }, [!!vault.data, vault.demo, vault.envelope, online, user]);
   const syncBusy = useRef(false); const syncAlive = useRef(true); const syncRetry = useRef<number | undefined>(undefined);
   useEffect(() => { syncAlive.current = true; return () => { syncAlive.current = false; clearTimeout(syncRetry.current); }; }, []); const currentVault = useRef(vault); currentVault.current = vault;
-  const navigate = (next: AppRoute) => { setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setCompletedNotice(false); if(next==='newsletter'){setMarketingOpened(true);setNewsletterTemplate(undefined);setNewsletterTab('create');}setRoute(next); setDocumentFocusId(undefined); setMemoFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
+  const navigate = (next: AppRoute) => { setConversation(false); setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setCompletedNotice(false); if(next==='newsletter'){setMarketingOpened(true);setNewsletterTemplate(undefined);setNewsletterTab('create');}setRoute(next); setDocumentFocusId(undefined); setMemoFocusId(undefined); setFinanceView('year'); setMobileNav(false); setSearch(''); setTag(''); };
   const openClient = (id: string) => { setClientFilter('all'); setSelectedId(id); setProfileTab('overview'); navigate('clients'); };
   useEffect(() => {
     const id = vault.envelope?.vaultId; if (!vault.data || vault.demo || !id) { setBackupInfo(undefined); return; }
@@ -89,7 +96,7 @@ export default function App() {
   const doSync = useCallback(async function syncNow() {
     const v = currentVault.current;
     if (!v.data || v.demo || syncBusy.current) return;
-    if (!cloudConfigured || !user) { setSyncMessage('cloudMissing'); setRoute('settings'); return; }
+    if (!cloudConfigured || !user) { setSyncMessage('cloudMissing'); setConversation(false); setSettingsRequest(value=>value+1); setSettingsFocus('cloud'); setRoute('settings'); return; }
     syncBusy.current = true; setSyncing(true); setSyncMessage(undefined);
     let coveredGeneration = v.getGeneration();
     try {
@@ -102,6 +109,7 @@ export default function App() {
         await syncVault(snapshot.envelope, snapshot.data);
       }
       const synced = snapshot.generation; const envelope = snapshot.envelope;
+      await markCloudSync(envelope.vaultId, user, backupSourceId(envelope)).catch(() => {});
       setLastSyncedGeneration(synced); setSyncMessage('synced');
       const archiveKey=v.getKey();if(archiveKey)try{await syncMarketingArchive(snapshot.data,archiveKey,envelope.vaultId,()=>v.getKey()===archiveKey);}catch{setSyncMessage('marketingIndexPending');} void markBackup(envelope.vaultId, 'cloud', Date.now(), backupSourceId(envelope)).catch(() => {});
     } catch (err) { setSyncMessage(cloudError(err) as TextKey); } finally { syncBusy.current = false; setSyncing(false); if (syncAlive.current && currentVault.current.data?.settings.autoSync && currentVault.current.getGeneration() !== coveredGeneration) syncRetry.current = window.setTimeout(() => void syncNow(), 2500); }
@@ -112,7 +120,7 @@ export default function App() {
   }, [vault.generation, vault.data?.settings.autoSync, vault.demo, online, user, lastSyncedGeneration, doSync]);
   useEffect(() => {
     if (!vault.data) return;
-    const warn = (e: BeforeUnloadEvent) => { if (currentVault.current.saving || currentVault.current.storageError) { e.preventDefault(); } };
+    const warn = (e: BeforeUnloadEvent) => { if (currentVault.current.saving || currentVault.current.storageError || hasUnsavedEdits()) { e.preventDefault(); } };
     let active = Date.now(); let wasLocking = false;
     const check = () => { if (Date.now() - active >= autoLockMinutes(currentVault.current.data?.settings.autoLockMinutes) * 60 * 1000 && !wasLocking) { wasLocking = true; void currentVault.current.lock().catch(() => { wasLocking = false; }); } };
     const touch = () => { check(); if (!wasLocking) active = Date.now(); };
@@ -123,7 +131,7 @@ export default function App() {
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('pageshow', check); window.removeEventListener('pointerdown', touch); window.removeEventListener('keydown', touch); window.removeEventListener('beforeunload', warn); };
   }, [!!vault.data]);
   // Clear plaintext form drafts and image object URLs when the vault locks.
-  useEffect(() => { if (!vault.data) { setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setQuickMethod('transfer'); setMarketingOpened(false);setNewsletterTemplate(undefined);setCompletedNotice(false);setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setWorkInvoiceClient(undefined); setDocumentFocusId(undefined); setMemoFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);
+  useEffect(() => { if (!vault.data) { setConversation(false); setWaitlistFocus(false); setQuickNotice(undefined); setFlowError(undefined); setSettingsFocus(undefined); setQuickMethod('transfer'); setMarketingOpened(false);setNewsletterTemplate(undefined);setCompletedNotice(false);setForm(undefined); setPhoto(undefined); setSelectedId(undefined); setSyncMessage(undefined); setLastSyncedGeneration(-1); setFollowInvoiceId(undefined); setWorkInvoiceClient(undefined); setDocumentFocusId(undefined); setMemoFocusId(undefined); setRoute('overview'); } }, [!!vault.data]);
   // Each page names itself in the window/tab title, which also helps screen-reader users and browser history.
   useEffect(() => { document.title = vault.data ? `${t(route)} · Praxisraum` : 'Praxisraum'; }, [vault.data, route, t]);
   if (!vault.data) return <Welcome vault={vault}/>;
@@ -154,10 +162,10 @@ export default function App() {
     else if (item.kind === 'appointment') setForm({ type: 'session', appointment: data.appointments.find(a => a.id === item.id) });
     else { const draft = data.sessionDrafts.find(d => d.id === item.id); if (draft) setForm({ type: 'session', restored: draft, clientId: draft.clientId, session: data.sessions.find(s => s.id === draft.originalSessionId), appointment: data.appointments.find(a => a.id === draft.appointmentId) }); }
   }
-  return <StorageHealthProvider generation={vault.generation}><div className="app-shell"><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>{mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label={t('close')}/>}
-    <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><Logo/><button className="icon-btn mobile-only" aria-label={t('close')} onClick={() => setMobileNav(false)}><X size={20}/></button></div><p className="sidebar-tagline">{t('tagline')}</p><span className="nav-eyebrow">{t('workspace')}</span><nav aria-label={t('workspace')}>{mainNavigation.map(item => { const active = item.id === 'more' ? isMoreRoute(route) : route === item.id; return <button className={`nav-item ${active ? 'active' : ''}`} key={item.id} aria-current={active ? 'page' : undefined} onClick={() => navigate(item.id)}><item.icon size={20}/><span>{t(item.id)}</span>{item.id === 'clients' && data.clients.length > 0 && <small aria-hidden="true">{data.clients.length}</small>}</button>; })}</nav><div className="sidebar-bottom"><div className="privacy-card"><ShieldCheck size={23}/><h3>{t('helpTitle')}</h3><p>{t('helpText')}</p><span className="privacy-dot"/></div><div className="practitioner"><span className="practitioner-avatar"><Leaf size={20}/></span><div><strong>{t('workspace')}</strong><small>{t(vault.demo ? 'demoBadge' : 'localOnly')}</small></div><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></div></aside>
-    <div className="main-shell"><header className="topbar"><div className="breadcrumb"><button className="icon-btn mobile-only" aria-label={t('openNav')} onClick={() => setMobileNav(true)}><Menu size={22}/></button><span className="desktop-only">{t('workspace')}</span><ChevronRight className="desktop-only" size={14}/><strong>{t(route)}</strong></div><div className="header-actions"><span className="header-status desktop-only">{online ? <span className="status-dot"/> : <WifiOff size={14}/>} {t(online ? 'localSecure' : 'offline')}</span><button className="icon-btn" aria-label={t('searchEverything')} title={`${t('searchEverything')} (Ctrl+K)`} onClick={() => setSearching(true)}><Search size={19}/></button><ThemeToggle/><LanguageSwitch/><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></header>
-      <main className="page-content" id="main-content" tabIndex={-1}><UpdateBanner beforeApply={async () => { await flushBeforeLock(); await vault.flush(); }}/><SyncConflicts vault={vault}/>{vault.demo && <Notice>{t('demoNotice')}</Notice>}{route === 'overview' && !vault.demo && backupNag.needed && <Notice error>{t(backupInfo ? 'backupBannerOld' : 'backupBannerNever').replace('{days}', String(backupNag.days))}<button className="text-link" onClick={() => void saveBackupCopy(vault, typeof navigator.canShare === 'function').catch(() => {})}>{t('backupNow')}</button></Notice>}{vault.storageError && <Notice error>{t(vault.writeConflict ? 'vaultChanged' : 'storageError')}<button className="text-link" onClick={() => void (vault.writeConflict ? vault.mergeLocal() : vault.retry()).catch(() => {})}>{t(vault.writeConflict ? 'vaultMergeLocal' : 'retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
+  return <StorageHealthProvider generation={vault.generation}><div className={`app-shell ${conversation ? 'conversation-mode' : ''}`}><a className="skip-link" href="#main-content" onClick={e => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}>{t('skipToContent')}</a>{mobileNav && <button className="nav-backdrop" onClick={() => setMobileNav(false)} aria-label={t('close')}/>}
+    <aside hidden={conversation} className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}><div className="sidebar-brand"><Logo/><button className="icon-btn mobile-only" aria-label={t('close')} onClick={() => setMobileNav(false)}><X size={20}/></button></div><p className="sidebar-tagline">{t('tagline')}</p><span className="nav-eyebrow">{t('workspace')}</span><nav aria-label={t('workspace')}>{mainNavigation.map(item => { const active = item.id === 'more' ? isMoreRoute(route) : route === item.id; return <button className={`nav-item ${active ? 'active' : ''}`} key={item.id} aria-current={active ? 'page' : undefined} onClick={() => navigate(item.id)}><item.icon size={20}/><span>{t(item.id)}</span>{item.id === 'clients' && data.clients.length > 0 && <small aria-hidden="true">{data.clients.length}</small>}</button>; })}</nav><div className="sidebar-bottom"><div className="privacy-card"><ShieldCheck size={23}/><h3>{t('helpTitle')}</h3><p>{t('helpText')}</p><span className="privacy-dot"/></div><div className="practitioner"><span className="practitioner-avatar"><Leaf size={20}/></span><div><strong>{t('workspace')}</strong><small>{t(vault.demo ? 'demoBadge' : 'localOnly')}</small></div><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></div></aside>
+    <div className="main-shell"><header className="topbar">{conversation&&<button ref={conversationExit} className="btn btn-secondary conversation-exit" onClick={()=>{setConversation(false);requestAnimationFrame(()=>document.getElementById('conversation-start')?.focus());}}>{t('conversationExit')}</button>}<div className="breadcrumb" hidden={conversation}><button className="icon-btn mobile-only" aria-label={t('openNav')} onClick={() => setMobileNav(true)}><Menu size={22}/></button><span className="desktop-only">{t('workspace')}</span><ChevronRight className="desktop-only" size={14}/><strong>{t(route)}</strong></div><div className="header-actions"><span hidden={conversation} className="header-status desktop-only">{online ? <span className="status-dot"/> : <WifiOff size={14}/>} {t(online ? 'localSecure' : 'offline')}</span><button hidden={conversation} className="icon-btn" aria-label={t('searchEverything')} title={`${t('searchEverything')} (Ctrl+K)`} onClick={() => setSearching(true)}><Search size={19}/></button><ThemeToggle/><LanguageSwitch/><button className="icon-btn" aria-label={t('lock')} title={t('lock')} onClick={() => void vault.lock().catch(() => {})}><LockKeyhole size={18}/></button></div></header>
+      <main className="page-content" id="main-content" tabIndex={-1}><UpdateBanner beforeApply={async () => { await flushBeforeLock(); await vault.flush(); if(hasUnsavedEdits()) throw new Error('unsaved'); }}/><SyncConflicts vault={vault}/>{vault.demo && <Notice>{t('demoNotice')}</Notice>}{route === 'overview' && !vault.demo && backupNag.needed && <Notice error>{t(backupInfo ? 'backupBannerOld' : 'backupBannerNever').replace('{days}', String(backupNag.days))}<button className="text-link" onClick={() => void saveBackupCopy(vault, typeof navigator.canShare === 'function').catch(() => {})}>{t('backupNow')}</button></Notice>}{vault.storageError && <Notice error>{t(vault.writeConflict ? 'vaultChanged' : 'storageError')}<button className="text-link" onClick={() => void (vault.writeConflict ? vault.mergeLocal() : vault.retry()).catch(() => {})}>{t(vault.writeConflict ? 'vaultMergeLocal' : 'retry')}</button></Notice>}{syncMessage && syncMessage !== 'synced' && <Notice error>{t(syncMessage)}</Notice>}
       {flowError && <Notice error>{t(flowError)}</Notice>}
       {quickNotice && <Notice><span>{t('quickPaymentSaved')}</span><button className="text-link" onClick={() => { const session = data.sessions.find(s => s.id === quickNotice); if (session) setForm({ type: 'session', session }); }}>{t('workDocument')}</button><button className="icon-btn" aria-label={t('close')} onClick={() => setQuickNotice(undefined)}><X size={18}/></button></Notice>}
       {completedNotice && <Notice><span>{t('appointmentCompletedOpen')}</span><button className="text-link" onClick={() => { navigate('finances'); setCompletedNotice(false); }}>{t('goToPayments')}</button><button className="icon-btn" aria-label={t('close')} onClick={() => setCompletedNotice(false)}><X size={18}/></button></Notice>}
@@ -178,10 +186,10 @@ export default function App() {
         onAppointments={() => navigate('appointments')} onComplete={a => setForm({ type: 'session', appointment: a })}
         onPayments={view => { navigate('finances'); setFinanceView(view); }} onInvoice={setFollowInvoiceId}
         onDocument={(clientId, documentId) => { openClient(clientId); setProfileTab('documents'); setDocumentFocusId(documentId); }} onWork={openWorkItem}/>}
-      {route === 'clients' && <ClientsPage vault={vault} selected={selected} search={search} setSearch={setSearch} clientFilter={clientFilter} setClientFilter={setClientFilter} clientLimit={clientLimit} setClientLimit={setClientLimit} documentFocusId={documentFocusId} memoFocusId={memoFocusId} onMemoFocusHandled={() => setMemoFocusId(undefined)} profileTab={profileTab} setProfileTab={setProfileTab} tag={tag} setTag={setTag} onNewClient={() => setForm({ type: 'client' })} onSelect={id => { setSelectedId(id); setTag(''); setProfileTab('overview'); }} actions={selected ? { onBack: () => setSelectedId(undefined), onEditClient: () => setForm({ type: 'client', client: selected }), onNewSession: () => setForm({ type: 'session', clientId: selected.id }), onNewNote: () => setForm({ type: 'note', clientId: selected.id }), onNewAppointment: () => setForm({ type: 'appointment', clientId: selected.id }), onEditSession: session => setForm({ type: 'session', session }), onPhoto: setPhoto, onPayment: markPayment, onDeleteNote: deleteNoteEntry } : undefined}/>}
+      {route === 'clients' && <ClientsPage conversation={conversation} onConversation={()=>setConversation(true)} vault={vault} selected={selected} search={search} setSearch={setSearch} clientFilter={clientFilter} setClientFilter={setClientFilter} clientLimit={clientLimit} setClientLimit={setClientLimit} documentFocusId={documentFocusId} memoFocusId={memoFocusId} onMemoFocusHandled={() => setMemoFocusId(undefined)} profileTab={profileTab} setProfileTab={setProfileTab} tag={tag} setTag={setTag} onNewClient={() => setForm({ type: 'client' })} onSelect={id => { setSelectedId(id); setTag(''); setProfileTab('overview'); }} actions={selected ? { onBack: () => setSelectedId(undefined), onEditClient: () => setForm({ type: 'client', client: selected }), onNewSession: () => setForm({ type: 'session', clientId: selected.id }), onNewNote: () => setForm({ type: 'note', clientId: selected.id }), onNewAppointment: () => setForm({ type: 'appointment', clientId: selected.id }), onEditSession: session => setForm({ type: 'session', session }), onPhoto: setPhoto, onPayment: markPayment, onDeleteNote: deleteNoteEntry } : undefined}/>}
       {route === 'appointments' && <AppointmentsPage focusWaitlist={waitlistFocus} vault={vault} {...quickProps} onBackfill={() => setForm(data.clients.length ? { type: 'session' } : { type: 'client' })} onNew={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })} onClient={openClient} onComplete={a => setForm({ type: 'session', appointment: a })} onEdit={a => setForm({ type: 'appointment', appointment: a })}/>}
       {route === 'finances' && <FinancesPage key={financeView} initialView={financeView} vault={vault} onPayment={markPayment} onClient={openClient}/>}
-      {route === 'settings' && <Suspense fallback={pageLoading}><SettingsPage vault={vault} focus={settingsFocus} auto={auto} onSync={doSync} syncing={syncing} onRestore={async () => {
+      {route === 'settings' && <Suspense fallback={pageLoading}><SettingsPage vault={vault} focus={settingsFocus} focusRequest={settingsRequest} auto={auto} onSync={doSync} syncing={syncing} onRestore={async () => {
         if (!window.confirm(t('restoreConfirm'))) return;
         try { const u = await currentUser(); const remote = await fetchRemote(); if (!remote) throw new Error('noRemote'); await vault.importBackup({ type: 'praxisraum-backup-v1', envelope: remoteEnvelope(remote), blobs: [] }); await setRevision(u.id, remote.vault_id, remote.revision); } catch (err) { setSyncMessage(cloudError(err) as TextKey); }
       }}/></Suspense>}
@@ -191,7 +199,7 @@ export default function App() {
       {route==='referrals'&&<Suspense fallback={pageLoading}><Referrals vault={vault}/></Suspense>}
       </VaultAreaBoundary>
       <footer className="page-footer"><SecurityLine/><span>{t('privacyFooter')}</span></footer></main>
-      <div className="sync-bar"><span>{vault.saving ? <LoaderCircle size={15} className="spin"/> : <CheckCheck size={16}/>}<span>{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</span></span><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
+      <div className="sync-bar"><StorageStatus vault={vault} userId={user ?? undefined} onSettings={section=>{navigate('settings');setSettingsRequest(value=>value+1);setSettingsFocus(section);}}/><button disabled={syncing || vault.demo} onClick={() => void doSync()}><Cloud size={16} className={syncing ? 'pulse' : ''}/><span>{t(syncing ? 'syncing' : lastSyncedGeneration === vault.generation ? 'synced' : 'sync')}</span></button></div>
     </div>
     <VaultAreaBoundary vault={vault} resetKey={form?.type ?? 'none'}>
     {form?.type === 'client' && <ClientForm vault={vault} onOpenExisting={id => { setForm(undefined); openClient(id); }} client={form.client} onClose={() => setForm(undefined)} onSaved={id => { setForm(undefined); if(route!=='newsletter')openClient(id); }} onDeleted={() => { setForm(undefined); setSelectedId(undefined); setTag(''); }}/>} {form?.type === 'appointment' && <AppointmentForm vault={vault} clientId={form.clientId} appointment={form.appointment} onClose={() => setForm(undefined)}/>} {form?.type === 'session' && <SessionForm vault={vault} clientId={form.clientId} appointment={form.appointment} session={form.session} restored={form.restored} onClose={() => setForm(undefined)} onSaved={() => { if (form.appointment && !form.session) setCompletedNotice(true); }}/>} {form?.type === 'note' && <NoteForm vault={vault} clientId={form.clientId} onClose={() => setForm(undefined)}/>} {form?.type === 'payment' && <PaymentForm vault={vault} session={form.session} onClose={() => setForm(undefined)}/>}

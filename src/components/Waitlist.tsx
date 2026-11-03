@@ -6,13 +6,13 @@ import { useI18n } from '../lib/i18n';
 import { uid, type WaitlistEntry } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 import { Field, Modal, Notice } from './ui';
-function FreeSlots({ vault }: { vault: VaultController }) {
+function FreeSlots({ vault, limit = 3 }: { vault: VaultController; limit?: number }) {
   const {t,language}=useI18n(); const slots=freedSlots(vault.data!);
-  return <><p>{t('waitlistFreeHint')}</p><ul>{slots.slice(0,3).map(s=><li key={s.id}><time dateTime={new Date(appointmentStart(s)).toISOString()}>{new Intl.DateTimeFormat(language==='de'?'de-DE':'uk-UA',{timeZone:vault.data!.settings.timeZone,dateStyle:'medium',timeStyle:'short'}).format(appointmentStart(s))}</time> · {s.duration} {t('minutes')}</li>)}</ul><p className="hint">{t('practiceTime')} · {vault.data!.settings.timeZone}</p></>;
+  return <><p>{t('waitlistFreeHint')}</p><ul>{slots.slice(0,limit).map(s=><li key={s.id}><time dateTime={new Date(appointmentStart(s)).toISOString()}>{new Intl.DateTimeFormat(language==='de'?'de-DE':'uk-UA',{timeZone:vault.data!.settings.timeZone,dateStyle:'medium',timeStyle:'short'}).format(appointmentStart(s))}</time> · {s.duration} {t('minutes')}</li>)}</ul><p className="hint">{t('practiceTime')} · {vault.data!.settings.timeZone}</p></>;
 }
-export function WaitingNotice({vault,onOpen}:{vault:VaultController;onOpen:()=>void}) {
+export function WaitingNotice({vault,onOpen,compact=false}:{vault:VaultController;onOpen:()=>void;compact?:boolean}) {
   const {t}=useI18n(); if(!vault.data!.waitlist.length || !freedSlots(vault.data!).length)return null;
-  return <section className="card waiting-notice"><h2>{t('waitlistFreeTitle')}</h2><FreeSlots vault={vault}/><button type="button" className="btn btn-secondary" onClick={onOpen}>{t('waitlistOpen')}</button></section>;
+  return <section className="card waiting-notice"><h2>{t('waitlistFreeTitle')}</h2><FreeSlots vault={vault} limit={compact?1:3}/><button type="button" className="btn btn-secondary" onClick={onOpen}>{t('waitlistOpen')}</button></section>;
 }
 export function WaitlistPanel({vault}:{vault:VaultController}) {
   const {t}=useI18n(); const data=vault.data!, [editing,setEditing]=useState<WaitlistEntry|'new'>(),[limit,setLimit]=useState(30),[error,setError]=useState(false);

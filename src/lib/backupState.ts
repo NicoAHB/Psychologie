@@ -7,8 +7,12 @@ export interface BackupState { at: number; kind: BackupKind; sourceId?: string }
 export const backupSourceId = (envelope: VaultEnvelope) => Array.from(sha256(new TextEncoder().encode(JSON.stringify([envelope.vaultId, envelope.payload.iv, envelope.format, envelope.salt, envelope.wraps]))), b => b.toString(16).padStart(2, '0')).join('');
 const key = (vault: string) => `backup:${vault}`;
 export const readBackupState = (vault: string) => metaGet<BackupState>(key(vault));
+export async function readExternalBackupState(vault: string) { const state = await metaGet<BackupState>(`external-backup:${vault}`); if (state) return state; const legacy = await readBackupState(vault); return legacy?.kind !== 'cloud' ? legacy : undefined; }
+export const readCloudSyncState = (vault: string, user: string) => metaGet<BackupState>(`cloud-sync:${vault}:${user}`);
+export async function markCloudSync(vault: string, user: string, sourceId: string, at = Date.now()) { await metaPut(`cloud-sync:${vault}:${user}`, { at, kind: 'cloud', sourceId } satisfies BackupState); if (typeof window !== 'undefined') window.dispatchEvent(new Event('praxisraum-backup')); }
 export async function markBackup(vault: string, kind: BackupKind, at = Date.now(), sourceId?: string) {
   await metaPut(key(vault), { at, kind, ...(sourceId && { sourceId }) } satisfies BackupState);
+  if (kind !== 'cloud') await metaPut(`external-backup:${vault}`, { at, kind, ...(sourceId && { sourceId }) } satisfies BackupState);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('praxisraum-backup')); // lets the reminder banner refresh itself
 }
 export const BACKUP_MAX_AGE_DAYS = 7;

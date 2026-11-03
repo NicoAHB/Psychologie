@@ -1,5 +1,7 @@
 # Weiterarbeit am Tablet
 
+Neu in **0.3.0**: ruhigere Heute-Seite, Vorbereitung zuerst und Gesprächsmodus, gruppierte Einstellungen mit Suche, getrennte EUR-/UAH-Zahlungen mit Schnellfiltern sowie präziser Speicherstatus. [Bedienung, Grenzen und Übergabe für Claude](docs/ruhiger-praxisalltag.md).
+
 Neu in **0.2.1**: Schutz vor überschriebenen Änderungen in mehreren Fenstern, korrekter Bezug aktueller Sicherungen, Wiederaufnahme nach Bereichsfehlern, verschlüsselte Newsletter-Entwürfe und Speicherplatzanzeige. [Bedienung, Datenmodell, Grenzen und Übergabe für Claude](docs/speicherschutz-und-entwuerfe.md).
 
 Neu in **0.2.0**: App-Updates stoppen bei Speicherfehlern, dreistufiger E-Mail-Assistent mit eigener Empfangsbestätigung und Kopierhilfe für das iPad, getrennte Zeitpunkte für Dateiprüfung und tatsächlich bestätigten Wiederherstellungstest, später geladene Seiten/Dialogs sowie sichtbare Versionskennung unter Einstellungen. [Bedienung, Grenzen, Tests und Übergabe für Claude](docs/optimierungen-2026-10-26.md).

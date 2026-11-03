@@ -45,6 +45,7 @@ test('full local workflow: encrypted persistence, photo avatar, bilingual form, 
   await expect(dialog.locator('img')).toBeVisible(); await dialog.getByRole('button', { name: 'Schließen' }).click();
   await nav(page, 'Zahlungen');
   await expect(page.getByRole('heading', { name: 'Zahlungen' })).toBeVisible();
+  await page.getByRole('combobox', {name: 'Währung im Diagramm',exact:true}).selectOption('comparison');
   await expect(page.getByRole('button', { name: /Jan.*96/ })).toBeVisible();
   await page.getByRole('button', { name: 'Українська' }).click();
   await expect(page.getByRole('heading', { name: 'Оплати' })).toBeVisible();

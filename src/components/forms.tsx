@@ -338,7 +338,7 @@ function SessionEditor({ vault, clientId, appointment, session, restored, onClos
     try { draft.stop(); await vault.remove(d => { deleteSession(d, session.id); deleteSessionDraft(d, draftId); }); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
   return <Modal title={t(completing ? 'completeAppointment' : session ? 'editSession' : 'addSession')} onClose={() => void closeDraft()} wide><form onSubmit={submit} noValidate>
-    <Notice>{t('draftHint')}</Notice>{draft.status !== 'idle' && <p className="hint" role="status" aria-live="polite">{t(draft.status === 'saving' ? 'draftSaving' : draft.status === 'error' ? 'storageError' : 'draftSaved')}</p>}
+    <Notice>{t('draftHint')}</Notice>{draft.status !== 'idle' && <p className="hint" role="status" aria-live="polite">{t(draft.status === 'pending' ? 'savePending' : draft.status === 'saving' ? 'draftSaving' : draft.status === 'error' ? 'storageError' : 'draftSaved')}</p>}
     <Field label={t('client')}><select value={selected} disabled={!!appointment || lockedPricing} onChange={e => choose(e.target.value)}><option value="">{t('chooseClient')}</option>{data.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
     <div className="form-grid"><Field label={t('date')}><input type="date" value={date} onChange={e => setDate(e.target.value)}/></Field><Field label={t('time')}><input type="time" value={time} onChange={e => setTime(e.target.value)}/></Field></div>
     <div className="form-section"><h3>{t('discussedTitle')}</h3>

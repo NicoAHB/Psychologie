@@ -87,6 +87,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('tab', { name: 'Überblick', exact: true }).click();
     await expect(page.locator('.client-status-card')).toBeVisible();
     await scan(page, found, 'paused client status and reactivation');
+    await page.locator('.profile-more > summary').click();
     await page.getByRole('button', { name: /Videosprechstunde/ }).first().click();
     await expect(page.getByRole('dialog', { name: /Videosprechstunde/ })).toBeVisible(); // a dialog announces its title to screen readers
     await scan(page, found, 'video consultation');

@@ -26,6 +26,7 @@ export function useVault() {
   const [envelope, setEnvelope] = useState<VaultEnvelope | null | undefined>(undefined);
   const [data, setData] = useState<VaultData | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number>();
   const [storageError, setStorageError] = useState(false);
   const [writeConflict, setWriteConflict] = useState(false);
   const access = useRef(new VaultWindowAccess());
@@ -63,7 +64,7 @@ export function useVault() {
     setSaving(true);
     const task = queue.current.catch(() => {}).then(work);
     queue.current = task;
-    task.then(() => { if (queue.current === task) { setSaving(false); if (persisted.current === current.current) { failure.current = false; setStorageError(false); setWriteConflict(false); } } }, error => { if (error instanceof Error && error.message === 'vaultChanged') setWriteConflict(true); failure.current = true; setStorageError(true); setSaving(false); });
+    task.then(() => { if (queue.current === task) { setSaving(false); if (persisted.current === current.current) { failure.current = false; setStorageError(false); setWriteConflict(false); if (!demoRef.current) setSavedAt(Date.now()); } } }, error => { if (error instanceof Error && error.message === 'vaultChanged') setWriteConflict(true); failure.current = true; setStorageError(true); setSaving(false); });
     return task;
   }, []);
   const persist = useCallback((value: VaultData, wraps?: Partial<VaultEnvelope>) => {
@@ -137,7 +138,7 @@ export function useVault() {
 
   const open = async (dataKey: CryptoKey, envelopeValue: VaultEnvelope) => {
     const { value, migrated } = await runSecureTask('openVault', { key: dataKey, envelope: envelopeValue });
-    key.current = dataKey; current.current = value; persisted.current = migrated ? null : value; generationRef.current = 0; setGeneration(0);
+    setSavedAt(undefined); key.current = dataKey; current.current = value; persisted.current = migrated ? null : value; generationRef.current = 0; setGeneration(0);
     try {
       // Finish interrupted erasures before exposing the unlocked UI to new edits.
       const erased = erasedAudioMemoIds(value);
@@ -155,7 +156,7 @@ export function useVault() {
     const dataKey = await importDataKey(raw); raw.fill(0);
     const value = emptyVault();
     const encrypted = await encryptVault(dataKey, value, vaultId, salt, { format: 'praxisraum-v2', wraps: { passphrase: wrap } });
-    await writeVaultChecked(encrypted, null);
+    await writeVaultChecked(encrypted, null); setSavedAt(Date.now());
     key.current = dataKey; current.current = value; persisted.current = value; info.current = encrypted;
     demoRef.current = false; setDemo(false); setEnvelope(encrypted); setData(value);
     void navigator.storage?.persist?.().catch(() => {});
@@ -208,7 +209,7 @@ export function useVault() {
     catch (error) { locking.current = false; throw error; }
     recoveredKey.current?.fill(0); recoveredKey.current = null; setPassphraseReset(false);
     stopSecureWorker();
-    key.current = null; current.current = null; persisted.current = null; setData(null); generationRef.current = 0; setGeneration(0);
+    key.current = null; current.current = null; persisted.current = null; setSavedAt(undefined); setData(null); generationRef.current = 0; setGeneration(0);
     memoryBlobs.current.clear(); demoRef.current = false; setDemo(false);
     try { const stored = await readVault(); info.current = stored ?? null; setEnvelope(stored ?? null); }
     finally { locking.current = false; unattachedFiles.current.clear(); access.current.release(); }
@@ -448,6 +449,6 @@ export function useVault() {
     for (const id of Object.keys(next.deleted)) if ([...value.clients, ...value.appointments, ...value.sessions, ...value.notes, ...value.invoices, ...value.assessments, ...value.templates, ...value.documents, ...value.availability, ...(value.messageTemplates??[]), ...(value.marketingCampaigns??[]), ...(value.newsletters??[]), ...(value.newsletterDrafts??[]), ...(value.referralCodes??[]), ...(value.referrals??[]), ...(value.referralPayouts??[]), ...(value.waitlist??[]), ...(value.followUps??[])].some(r => r.id === id)) delete next.deleted[id];
   });
   const getKey = () => key.current;
-  return { envelope, data, saving, storageError, writeConflict, mergeLocal, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, getData: () => current.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
+  return { envelope, data, saving, savedAt, storageError, writeConflict, mergeLocal, loadError, demo, generation, passphraseReset, create, unlock, unlockWithRecovery, unlockWithPasskey, openDemo, update, remove, purgeUnused, flush, snapshotForSync, getGeneration: () => generationRef.current, getData: () => current.current, lock, addImage, image, addFile: addImage, file: image, exportBackup, exportSnapshot, importBackup, mergeRemote, retry, createRecoveryKey, addPasskey, removePasskey, changePassphrase, restoreData, getKey, history, restoreSnapshot, clearHistory };
 }
 export type VaultController = ReturnType<typeof useVault>;

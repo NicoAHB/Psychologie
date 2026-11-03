@@ -102,7 +102,7 @@ test('opening a legacy vault migrates old invoices and fees to whole amounts and
   await page.reload(); await page.getByLabel('Tresor-Passphrase', { exact: true }).fill('a very strong test passphrase');
   await page.getByRole('button', { name: 'Praxisraum öffnen', exact: true }).click();
   await expect(page.locator('.app-shell')).toBeVisible();
-  await expect(page.locator('.sync-bar')).toContainText('Auf diesem Gerät gespeichert');
+  await expect(page.locator('.sync-bar')).toContainText(/Auf diesem Gerät gespeichert|Gespeichert um /);
   await nav(page, 'Klienten');
   const entry = page.locator('.directory-list').getByRole('button', { name: /Altbestand/ });
   if (await entry.isVisible()) await entry.click();

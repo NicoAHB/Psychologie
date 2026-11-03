@@ -1,3 +1,4 @@
+import { openTodayTools } from './workflow-fixture';
 import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures';
@@ -11,7 +12,7 @@ test('multiple follow-ups can be filtered, moved and completed independently, th
   await page.setViewportSize({ width: /mobile|iphone/.test(info.project.name) ? 390 : 820, height: 1180 });
   const { data, client } = workflowData(); data.clients[0].followUpOn = addDays(today(), -1); data.clients[0].followUpNote = 'Bisherige Wiedervorlage';
   for (const [note, offset] of [['Heute nachfragen', 0], ['Später klären', 20]] as const) data.followUps.push({ id: uid(), clientId: client.id, dueOn: addDays(today(), offset), note, createdAt: new Date().toISOString() });
-  const read = await seedWorkflow(page, data), board = page.locator('.follow-up-tasks');
+  const read = await seedWorkflow(page, data); await openTodayTools(page); const board = page.locator('.follow-up-tasks');
   await expect(board.locator('.follow-up-task-list > li')).toHaveCount(3);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await board.getByLabel(de.followUpFilter, { exact: true }).selectOption('today'); await expect(board.locator('.follow-up-task-list > li')).toHaveCount(1);
@@ -32,7 +33,7 @@ test('multiple follow-ups can be filtered, moved and completed independently, th
   await row.getByRole('button', { name: de.clientFollowUpDone, exact: true }).click(); await expect(row).toHaveCount(0);
   expect((await read()).followUps.find(t => t.note === 'Zusätzlicher Rückruf')?.completedAt).toBeTruthy();
   expect((await read()).clients[0].followUpOn).toBe(addDays(today(), -1));
-  await page.getByRole('button', { name: de.lock, exact: true }).last().click(); await page.reload(); await unlock(page);
+  await page.getByRole('button', { name: de.lock, exact: true }).last().click(); await page.reload(); await unlock(page); await openTodayTools(page);
   await expect(board).not.toContainText('Zusätzlicher Rückruf'); await expect(board).toContainText('Bisherige Wiedervorlage');
   await nav(page, de.clients); await page.locator('.directory-list button').first().click();
   await expect(board).toContainText('Später klären');

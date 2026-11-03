@@ -21,6 +21,7 @@ test('iPad fallback checkpoints are encrypted, downloadable and survive reload; 
   const meta = await page.evaluate(async () => { const db = await new Promise<IDBDatabase>(resolve => { const request = indexedDB.open('praxisraum', 1); request.onsuccess = () => resolve(request.result); }); return new Promise<string>(resolve => { const request = db.transaction('meta').objectStore('meta').getAll(); request.onsuccess = () => { db.close(); resolve(JSON.stringify(request.result)); }; }); });
   expect(meta).not.toContain('PRIVATE RECOVERY'); expect(meta).not.toContain('olena@example.com');
   await page.reload(); await unlock(page); await nav(page, 'Klienten'); await page.locator('.directory-list').getByRole('button', { name: /Олена Приклад/ }).click(); await expect(preparation).toHaveValue('PRIVATE RECOVERY CHECKPOINT');
+  await page.locator('.profile-more > summary').click();
   await page.getByRole('button', { name: 'Datenexport (ZIP)', exact: true }).click(); const dialog = page.getByRole('dialog'); await expect(dialog).toContainText('unverschlüsselt');
   const zipDownload = page.waitForEvent('download'); await dialog.getByRole('button', { name: 'Lesbare ZIP herunterladen', exact: true }).click();
   const files = unzipSync(await readFile((await (await zipDownload).path())!)); const exported = JSON.parse(strFromU8(files['daten.json']));
@@ -30,7 +31,7 @@ test('iPad fallback checkpoints are encrypted, downloadable and survive reload; 
 test('60-minute locking survives reload and locks on return after inactivity, while manual locking remains immediate', async ({ page }) => {
   await page.clock.install(); const { data } = workflowData(); await seedWorkflow(page, data); await nav(page, 'Einstellungen');
   await page.getByLabel('Automatisch sperren nach', { exact: true }).selectOption('60');
-  await expect(page.locator('.sync-bar')).toContainText('Auf diesem Gerät gespeichert');
+  await expect(page.locator('.sync-bar')).toContainText(/Auf diesem Gerät gespeichert|Gespeichert um /);
   await page.reload(); await unlock(page); await nav(page, 'Einstellungen'); await expect(page.getByLabel('Automatisch sperren nach', { exact: true })).toHaveValue('60');
   await page.clock.fastForward(11 * 60 * 1000); await expect(page.locator('.app-shell')).toBeVisible();
   await page.clock.fastForward(50 * 60 * 1000); await expect(page.getByRole('heading', { name: 'Willkommen zurück.', exact: true })).toBeVisible();
@@ -42,7 +43,7 @@ test('only the base font is precached; a PDF with a Greek name fetches and cache
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   const fonts = () => page.evaluate(async () => (await Promise.all((await caches.keys()).map(async key => (await (await caches.open(key)).keys()).map(request => new URL(request.url).pathname)))).flat().filter(path => path.endsWith('.ttf')));
   const initial = await fonts(); expect(initial).toHaveLength(1); expect(initial[0]).toMatch(/DejaVuSans-Base-/);
-  await page.locator('.follow-up-invoices').getByRole('button').click(); const dialog = page.getByRole('dialog');
+  await nav(page, 'Zahlungen'); await page.locator('.follow-up-invoices').getByRole('button').click(); const dialog = page.getByRole('dialog');
   const download = page.waitForEvent('download'); await dialog.getByRole('button', { name: 'PDF herunterladen', exact: true }).click(); await download;
   const cached = await fonts(); expect(cached.some(path => /DejaVuSans-Bold-[^-]+\.ttf/.test(path))).toBe(true); expect(cached.some(path => /DejaVuSans-[^-]+\.ttf/.test(path))).toBe(true);
 });

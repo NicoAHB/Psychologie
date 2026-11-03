@@ -1,3 +1,4 @@
+import { openTodayTools } from './workflow-fixture';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures';
 import { nav, seedWorkflow, unlock, workflowData } from './workflow-fixture';
@@ -24,8 +25,8 @@ test('five main destinations and More remain reachable in both languages on port
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
     await nav(page, words.overview);
-    await expect(page.locator('.today-appointments .btn-primary')).toHaveCount(1);
-    await expect(page.locator('.today-payments .btn-primary')).toHaveCount(1);
+    await expect(page.locator('.page-heading .btn-primary')).toHaveCount(1);
+    await expect(page.locator('.today-payments .btn-primary')).toHaveCount(0);
     await expect(page.locator('main')).not.toContainText(language === 'de' ? /Sitzung/ : /сесі[яїюй]/i);
   }
 });
@@ -37,7 +38,7 @@ test('appointment completion creates an open payment, payment is separate, and b
   const practiceDay = new Intl.DateTimeFormat('sv-SE', { timeZone: data.settings.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const appointment = { id: uid(), clientId: client.id, date: practiceDay, time: '09:00', duration: 50, feeCents: 8500, timeZone: data.settings.timeZone, reminderId: uid(), status: 'scheduled' as const };
   data.appointments.push(appointment, { ...appointment, id: uid(), date: addDays(practiceDay, 2), reminderId: uid() });
-  const read = await seedWorkflow(page, data);
+  const read = await seedWorkflow(page, data); await openTodayTools(page);
   await expect(page.locator('.today-appointments .appointment-row')).toHaveCount(2);
   await expect(page.locator('.today-payments .follow-up-invoices')).toContainText(invoice.number);
   await expect(page.locator('.today-appointments')).not.toContainText(invoice.number);
@@ -58,7 +59,7 @@ test('appointment completion creates an open payment, payment is separate, and b
   await page.getByRole('button', { name: de.goToPayments, exact: true }).click();
   await expect(page.locator('.finance-open li').filter({ hasText: '09:00' })).toHaveCount(1);
   await expect(page.getByRole('button', { name: de.addSession, exact: true })).toHaveCount(0);
-  await expect(page.locator('.finance-history')).not.toHaveAttribute('open');
+  await page.getByRole('navigation', {name:de.paymentQuickFilters}).getByRole('button', {name:de.all,exact:true}).click(); await expect(page.locator('.finance-history')).not.toHaveAttribute('open');
   await page.locator('.finance-history > summary').focus(); await page.keyboard.press('Enter');
   await expect(page.locator('.finance-records')).toBeVisible();
   const payment = page.locator('.open-payment-list li').filter({ hasText: '09:00' });
@@ -84,7 +85,7 @@ test('Today uses the practice day for appointments while income links retain the
   const appointment = { id: uid(), clientId: client.id, date: '2026-10-31', time: '23:45', duration: 50, feeCents: 8500, timeZone: 'UTC', reminderId: uid(), status: 'scheduled' as const };
   data.appointments.push(appointment, { ...appointment, id: uid(), date: '2026-11-01', time: '23:30', reminderId: uid() });
   data.sessions.push(...[['2026-10-31', 8500], ['2026-11-01', 9000]].map(([paidAt, feeCents]) => ({ id: uid(), clientId: client.id, date: String(paidAt), time: '10:00', paidAt: String(paidAt), feeCents: Number(feeCents), notes: 'Bezahlter Termin', tags: [] })));
-  await seedWorkflow(page, data);
+  await seedWorkflow(page, data); await openTodayTools(page);
   const appointments = page.locator('.today-appointments');
   await expect(appointments.locator('.today-subheading').first()).toContainText('1. November');
   await expect(appointments.locator('.appointment-list').first().locator('.appointment-row')).toHaveCount(1);

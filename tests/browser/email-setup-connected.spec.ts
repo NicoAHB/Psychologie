@@ -30,7 +30,7 @@ for (const provider of ['resend', 'gmail'] as const) test(`${provider} setup per
     if (body.action === 'test') { expect(body.to).toBeUndefined(); expect(body.attachment).toBeUndefined(); return route.fulfill({ json: { providerId: 'synthetic-receipt', acceptedAt: new Date().toISOString() } }); }
     throw new Error('Only synthetic setup requests are expected');
   });
-  const { data } = workflowData(), read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(de.saved); const before = await read(); await nav(page, de.settings); const card = page.locator('#settings-email');
+  const { data } = workflowData(), read = await seedWorkflow(page, data); await expect(page.locator('.sync-bar')).toContainText(new RegExp(`${de.saved}|${de.savedAtTime.split('{time}')[0]}`)); const before = await read(); await nav(page, de.settings); const card = page.locator('#settings-email');
   await expect(card.getByLabel(de.emailSetupSenderAddress, { exact: true })).toBeVisible();
   await card.getByLabel(de.emailProviderChoice, { exact: true }).selectOption(provider);
   await card.getByLabel(de.emailSetupSenderName, { exact: true }).fill('Praxis Beispiel');

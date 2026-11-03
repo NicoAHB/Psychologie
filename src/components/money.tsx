@@ -56,6 +56,6 @@ export function FeeInput({ value, onChange, inputCurrency, onCurrency, currency,
 export function BillingMoney({ feeCents, billing }: { feeCents: number; billing?: Billing }) {
   const { language, t } = useI18n();
   return billing?.currency === 'UAH'
-    ? <span className="billing-money"><strong>{money(billing.amountCents, language, 'UAH')}</strong><small title={t('euroComparisonOnly')}>≈ {money(feeCents, language)}</small></span>
+    ? <span className="billing-money"><strong>{money(billing.amountCents, language, 'UAH')}</strong><small title={t('euroComparisonOnly')}>≈ {money(feeCents, language)} · {t('euroComparison')}</small></span>
     : <span>{money(feeCents, language)}</span>;
 }

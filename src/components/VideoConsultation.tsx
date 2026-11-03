@@ -1,3 +1,4 @@
+import { VaultTextEditor } from './VaultTextEditor';
 import { useEffect, useRef, useState } from 'react';
 import { Copy, Mic, MicOff, PhoneOff, Video, VideoOff } from 'lucide-react';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -21,27 +22,12 @@ function StreamVideo({ stream, muted = false, label }: { stream?: MediaStream; m
 }
 /** Notes stay in the therapist vault. Nothing from this component enters the video channel. */
 function ConsultationNotes({ vault, client }: { vault: VaultController; client: Client }) {
-  const { t, language } = useI18n(); const [target, setTarget] = useState('preparation');
+  const { t } = useI18n(); const [target, setTarget] = useState('preparation');
   const sessions = vault.data!.sessions.filter(s => s.clientId === client.id).sort((a, b) => b.date.localeCompare(a.date));
   const stored = target === 'preparation' ? client.preparation : sessions.find(s => s.id === target)?.notes ?? '';
-  const [value, setValue] = useState(stored); const pending = useRef<string | null>(null); const timer = useRef(0); const latest = useRef(vault); latest.current = vault;
-  const saveRef = useRef<() => void>(() => {});
-  saveRef.current = () => {
-    clearTimeout(timer.current); const text = pending.current; if (text === null) return; pending.current = null;
-    void latest.current.update(d => {
-      if (target === 'preparation') { const c = d.clients.find(c => c.id === client.id); if (c) c.preparation = text; }
-      else { const session = d.sessions.find(s => s.id === target); if (session) session.notes = text; }
-    }).catch(() => {});
-  };
-  useEffect(() => { if (pending.current === null) setValue(stored); }, [stored]);
-  useEffect(() => {
-    const flush = () => saveRef.current(); document.addEventListener('visibilitychange', flush); window.addEventListener('pagehide', flush);
-    return () => { flush(); document.removeEventListener('visibilitychange', flush); window.removeEventListener('pagehide', flush); };
-  }, []);
-  const change = (text: string) => { setValue(text); pending.current = text; clearTimeout(timer.current); timer.current = window.setTimeout(() => saveRef.current(), 700); };
   return <section className="video-notes"><h3>{t('videoPrivateNotes')}</h3><p className="hint">{t('videoNotesHint')}</p>
-    <label className="field"><span>{t('videoNoteTarget')}</span><select value={target} onChange={e => { saveRef.current(); const id = e.target.value; setTarget(id); setValue(id === 'preparation' ? client.preparation : sessions.find(s => s.id === id)?.notes ?? ''); }}><option value="preparation">{t('preparation')}</option>{sessions.map(s => <option key={s.id} value={s.id}>{s.date} · {s.time} · {t('session')}</option>)}</select></label>
-    <label className="field"><span>{t('sessionNotes')}</span><textarea lang={language} rows={14} value={value} maxLength={target === 'preparation' ? 30000 : 20000} onChange={e => change(e.target.value)} onBlur={() => saveRef.current()}/></label><p className="hint" role="status">{t(vault.saving ? 'saving' : vault.storageError ? 'storageError' : 'saved')}</p></section>;
+    <label className="field"><span>{t('videoNoteTarget')}</span><select value={target} onChange={e => setTarget(e.target.value)}><option value="preparation">{t('preparation')}</option>{sessions.map(s => <option key={s.id} value={s.id}>{s.date} · {s.time} · {t('session')}</option>)}</select></label>
+    <VaultTextEditor key={target} vault={vault} clientId={client.id} sessionId={target === 'preparation' ? undefined : target} stored={stored} label={t('sessionNotes')} rows={14}/></section>;
 }
 
 function CallPanel({ room, guest, onEnd }: { room: VideoRoom; guest: boolean; onEnd: () => void }) {
