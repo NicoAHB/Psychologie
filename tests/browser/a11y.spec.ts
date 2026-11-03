@@ -28,7 +28,7 @@ for (const theme of ['light', 'dark'] as const) {
     await scan(page, found, 'overview');
     await nav(page, 'Klienten');
     await page.locator('.directory-list button').first().click();
-    for (const tab of ['Überblick', 'Besprochen', 'Fragebögen', /Dokumente/, 'Zahlungen']) {
+    for (const tab of ['Überblick', 'Besprochen', 'Hausaufgaben', 'Fragebögen', /Dokumente/, 'Zahlungen']) {
       await page.getByRole('tab', { name: tab }).click();
       await scan(page, found, `client ${tab}`);
     }

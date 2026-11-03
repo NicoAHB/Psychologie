@@ -1,3 +1,5 @@
+import { prepareHomeworkPdf } from '../src/lib/prepareHomeworkPdf';
+import type { VaultController } from '../src/lib/useVault';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -5,7 +7,7 @@ import { PDFDocument } from 'pdf-lib';
 import { homeworkPdf } from '../src/lib/homeworkPdf';
 import { builtinHomework } from '../src/lib/homeworkCatalog';
 import { emptyVault, normalizeVault } from '../src/lib/types';
-import { assignHomework, attachHomeworkDocument, homeworkDocumentId } from '../src/lib/homework';
+import { assignHomework, attachHomeworkDocument, homeworkDocumentId, updateHomework, updateHomeworkReturnPlan } from '../src/lib/homework';
 import { assertHomeworkDocument, homeworkDeliveryNeedsConfirmation } from '../src/lib/homeworkDelivery';
 import { prepareDelivery } from '../src/lib/documents';
 import { mergeVaults, stampChanges } from '../src/lib/merge';
@@ -46,4 +48,19 @@ test('offline PDF alternatives retain an indivisible file/content tuple and all 
   stampChanges(data,a,10,'a');stampChanges(data,b,20,'b');const merged=mergeVaults(a,b),doc=merged.documents[0];
   assert.equal(doc.file.blobId,'pdf-b');assert.equal(doc.homeworkSnapshot!.content.title,'Fassung B');assert.equal(doc.title,'Fassung B');assert.deepEqual(referencedBlobs(merged).sort(),['pdf-a','pdf-b']);assert.doesNotThrow(()=>normalizeVault(merged));
   const invalid=structuredClone(merged);delete invalid.documents[0].homeworkSnapshot;assert.throws(()=>normalizeVault(invalid),/invalidBackup/);
+});
+
+test('a changed or cleared homework deadline stays consistent with document follow-ups in both directions',()=>{
+  const {data,task}=setup();updateHomework(data,task.id,'open',task.feedback,'2026-02-01');assert.equal(data.documents[0].returnDueOn,'2026-02-01');
+  updateHomework(data,task.id,'open',task.feedback,'');assert.equal(data.documents[0].returnDueOn,undefined);assert.equal(task.dueOn,undefined);
+  updateHomeworkReturnPlan(data,task.id,false,'2026-03-01');assert.equal(task.returnExpected,false);assert.equal(task.dueOn,'2026-03-01');assert.equal(data.documents[0].returnExpected,false);assert.equal(task.feedback,'PRIVATE FEEDBACK');
+  assert.throws(()=>updateHomeworkReturnPlan(data,task.id,true,'2026-02-30'),/hwInvalid/);
+});
+
+test('reusing a PDF waits for durable vault persistence and fails closed after a lock',async()=>{
+ const {data,task,doc}=setup();const original=await crypto.subtle.generateKey({name:'AES-GCM',length:256},false,['encrypt','decrypt']);let active:CryptoKey|null=original;
+ const vault={getKey:()=>active,getData:()=>data,flush:async()=>{throw new Error('storageError');}} as unknown as VaultController;
+ await assert.rejects(()=>prepareHomeworkPdf(vault,task),/storageError/);
+ vault.flush=async()=>{active=null;};await assert.rejects(()=>prepareHomeworkPdf(vault,task),/locked/);
+ active=original;vault.flush=async()=>{};assert.equal((await prepareHomeworkPdf(vault,task)).id,doc.id);
 });

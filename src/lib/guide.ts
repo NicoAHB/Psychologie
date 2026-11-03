@@ -34,6 +34,7 @@ export const guideTopics = [
   { id: 'notes', group: 'daily', title: 'guideNotesTitle', summary: 'guideNotesSummary', steps: 'guideNotesSteps', tip: 'guideNotesTip', actions: [
     { label: 'guideClientsAction', target: { route: 'clients' } },
   ] },
+  { id: 'homework', group:'daily', title:'guideHomeworkTitle', summary:'guideHomeworkSummary', steps:'guideHomeworkSteps', tip:'guideHomeworkTip', actions:[{label:'guideClientsAction',target:{route:'clients'}}] },
   { id: 'followups', group: 'daily', title: 'guideFollowupsTitle', summary: 'guideFollowupsSummary', steps: 'guideFollowupsSteps', tip: 'guideFollowupsTip', actions: [
     { label: 'guideTodayAction', target: { route: 'overview' } },
   ] },

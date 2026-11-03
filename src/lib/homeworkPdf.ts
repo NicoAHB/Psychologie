@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName, PDFString, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFString, PDFHexString, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { translate, type TextKey } from './i18n';
 import { validHomeworkSnapshot, type HomeworkSnapshot } from './homeworkTypes';
@@ -28,6 +28,7 @@ export async function homeworkPdf(input: HomeworkPdfInput, regularBytes: Uint8Ar
   const T = (key: TextKey) => translate(snapshot.language, key);
   const pdf = await PDFDocument.create(); pdf.registerFontkit(fontkit);
   const regular = await pdf.embedFont(regularBytes), bold = await pdf.embedFont(boldBytes);
+  pdf.catalog.set(PDFName.of('Lang'),PDFString.of(snapshot.language==='uk'?'uk-UA':'de-DE'));
   const form = pdf.getForm(), ink = rgb(.13,.2,.24), muted = rgb(.3,.37,.4), accent = rgb(.24,.4,.39);
   form.acroForm.dict.set(PDFName.of('DR'), pdf.context.obj({ Font: { [regular.name]: regular.ref } }));
   form.acroForm.dict.set(PDFName.of('DA'), PDFString.of(`/${regular.name} 11 Tf 0 g`));
@@ -47,24 +48,25 @@ export async function homeworkPdf(input: HomeworkPdfInput, regularBytes: Uint8Ar
     }
     y -= 9;
   }
-  function field(name:string,height:number,value?:string) {
+  function field(name:string,height:number,value?:string,label=name) {
     if (y-height < 70) newPage();
     const entry=form.createTextField(name); entry.acroField.setDefaultAppearance(`/${regular.name} 11 Tf 0 g`);
+    entry.acroField.dict.set(PDFName.of('TU'),PDFHexString.fromText(label));
     if (height>40) entry.enableMultiline();
     if (value) entry.setText(value);
     entry.addToPage(page,{x:48,y:y-height,width:499,height,borderWidth:.6,borderColor:muted,backgroundColor:rgb(.98,.99,.99),font:regular}); y-=height+20;
   }
   newPage(); paragraph(content.title,21,bold);
   paragraph(T('hwPdfInstructions'),10,regular,muted);
-  if (snapshot.pdfClientName) { paragraph(T('pdfClientName'),10,bold); field('client_name',30,snapshot.pdfClientName); }
-  paragraph(T('date'),10,bold); field('completed_on',30);
+  if (snapshot.pdfClientName) { paragraph(T('pdfClientName'),10,bold); field('client_name',30,snapshot.pdfClientName,T('pdfClientName')); }
+  paragraph(T('date'),10,bold); field('completed_on',30,undefined,T('date'));
   if (content.goal) { paragraph(T('hwGoal'),12,bold); paragraph(content.goal); }
   paragraph(T('hwSteps'),12,bold); paragraph(content.steps);
   if(content.rhythm) { paragraph(T('hwRhythm'),12,bold); paragraph(content.rhythm); }
   const questions=content.questions.length?content.questions:[T('hwPdfReflection')];
   for(const [i,question] of questions.entries()) {
     // Keep the end of a long prompt next to its answer box across page boundaries.
-    if(y<235)newPage(); paragraph(question,11,bold); field(`reflection_${i+1}`,115);
+    if(y<235)newPage(); paragraph(question,11,bold); field(`reflection_${i+1}`,115,undefined,question);
   }
   paragraph(T('hwPdfOptional'),10,regular,muted);
   const pages=pdf.getPages(); pages.forEach((p,i)=>p.drawText(`${i+1} / ${pages.length}`,{x:492,y:40,size:9,font:regular,color:muted}));

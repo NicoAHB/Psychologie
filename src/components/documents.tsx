@@ -1,3 +1,4 @@
+import { updateHomeworkReturnPlan } from '../lib/homework';
 import { assertHomeworkDocument, homeworkDeliveryNeedsConfirmation } from '../lib/homeworkDelivery';
 import { DocumentShareDialog, DocumentShareHistory } from './DocumentShare';
 import { runSecureTask } from '../lib/workerTasks';
@@ -100,7 +101,7 @@ function ReturnSettingsDialog({ vault, documentId, onClose }: { vault: VaultCont
   const [expected, setExpected] = useState(doc.returnExpected); const [dueOn, setDueOn] = useState(doc.returnDueOn ?? ''); const [closed, setClosed] = useState(!!doc.returnClosedAt);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
   async function save(e: FormEvent) { e.preventDefault(); setError(undefined); if (dueOn && !validDay(dueOn)) { setError('required'); return; } setBusy(true);
-    try { await vault.update(d => { const item = d.documents.find(x => x.id === documentId)!; item.returnExpected = expected; if (dueOn) item.returnDueOn = dueOn; else delete item.returnDueOn; if (closed) item.returnClosedAt ??= new Date().toISOString(); else delete item.returnClosedAt; }); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
+    try { await vault.update(d => { const item = d.documents.find(x => x.id === documentId)!; item.returnExpected = expected; if(item.homeworkAssignmentId)updateHomeworkReturnPlan(d,item.homeworkAssignmentId,expected,dueOn); if (dueOn) item.returnDueOn = dueOn; else delete item.returnDueOn; if (closed) item.returnClosedAt ??= new Date().toISOString(); else delete item.returnClosedAt; }); onClose(); } catch { setError('storageError'); } finally { setBusy(false); }
   }
   return <Modal title={t('returnSettings')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={save} noValidate><p className="hint">{t('returnSettingsHint')}</p>
     <label className="check-label"><input type="checkbox" checked={expected} onChange={e => setExpected(e.target.checked)}/><span>{t('documentReturnExpected')}</span></label>
@@ -128,18 +129,21 @@ export function ReturnDialog({ vault, documentId, onClose }: { vault: VaultContr
   }
   async function save(e: FormEvent) {
     e.preventDefault(); if (reading || !file || !validDay(receivedOn) || receivedOn > today() || confirmed && (!result || !validDay(assessmentDate) || assessmentDate > today())) { setError('required'); return; }
+    const activeKey=vault.getKey();
+    const active=()=>{if(!activeKey||vault.getKey()!==activeKey||!vault.getData()?.documents.some(d=>d.id===documentId&&d.clientId===document.clientId))throw new Error('locked');};
     setBusy(true); let added: string | undefined;
     try {
-      const { bytes, fileName, mimeType } = await inspectDocument(file); added = await vault.addFile(bytes);
+      active();const { bytes, fileName, mimeType } = await inspectDocument(file); added = await vault.addFile(bytes);
       const fileHash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(byte => byte.toString(16).padStart(2, '0')).join('');
-      const returnId = uid(); const assessmentId = confirmed && result ? uid() : undefined;
+      active();const returnId = uid(); const assessmentId = confirmed && result ? uid() : undefined;
       const returned = { id: returnId, receivedOn, uploadedAt: new Date().toISOString(), file: { blobId: added, fileName, mimeType, size: bytes.byteLength }, ...(assessmentId && { assessmentId }) };
       await vault.update(d => {
+        active();
         if (assessmentId && d.assessments.some(a => a.clientId === document.clientId && a.kind === result!.kind && a.source?.fileHash === fileHash)) throw new Error('questionnaireImportDuplicate');
         const target = d.documents.find(x => x.id === documentId); if (!target) throw new Error('required'); target.returns.push(returned);
         if (assessmentId && result) d.assessments.push({ id: assessmentId, clientId: target.clientId, kind: result.kind, date: assessmentDate, answers: [...result.answers], note: t('questionnaireImportedNote'), source: { documentId, returnId, fileHash } });
       }); onClose();
-    } catch (error) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(errorKey(error)); } finally { setBusy(false); }
+    } catch (error) { if (added&&vault.getKey()===activeKey) await vault.purgeUnused([added]).catch(() => {}); setError(errorKey(error)); } finally { setBusy(false); }
   }
   return <Modal title={t('uploadDocumentReturn')} onClose={() => { if (!busy) onClose(); }}><form onSubmit={save} noValidate>
     <Field label={t('returnedDocumentFile')} hint={t('documentFormats')}><input type="file" accept={DOCUMENT_ACCEPT} disabled={busy} onChange={e => void pick(e.target.files?.[0])}/></Field>

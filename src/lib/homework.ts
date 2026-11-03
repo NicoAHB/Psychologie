@@ -9,14 +9,17 @@ export const homeworkDocuments=(data:VaultData,assignment:HomeworkAssignment)=>d
 /** Old free text stays in its session. Only an explicit action materialises a
  * separate assignment; the session date is never presented as a delivery date. */
 export function legacyHomework(data:VaultData,clientId:string):HomeworkAssignment[] {
+  const clientLanguage=data.clients.find(c=>c.id===clientId)?.language??'de';
+  const converted=new Set((data.homeworkAssignments??[]).filter(a=>a.clientId===clientId&&a.snapshot.legacySessionId).map(a=>JSON.stringify([a.snapshot.legacySessionId,a.snapshot.content.steps])));
   return data.sessions.filter(s=>s.clientId===clientId&&s.kind!=='cancellationFee'&&s.homework?.trim()).flatMap(s=>{
     const text=s.homework!.trim();
-    if ((data.homeworkAssignments??[]).some(a=>a.clientId===clientId&&a.snapshot.legacySessionId===s.id&&a.snapshot.content.steps===text)) return [];
-    return [{id:`legacy-homework:${s.id}:${digest(text)}`,clientId,sessionId:s.id,snapshot:{templateId:`legacy:${s.id}`,version:'legacy',category:'goals',language:data.clients.find(c=>c.id===clientId)?.language??'de',legacySessionId:s.id,content:{title:text.replace(/\s+/g,' ').slice(0,120),goal:'',steps:text,rhythm:'',questions:[]}},returnExpected:false,state:{value:s.homeworkDone?'discussed':'open'},feedback:'',handovers:[]} as HomeworkAssignment];
+    if (converted.has(JSON.stringify([s.id,text]))) return [];
+    return [{id:`legacy-homework:${s.id}:${digest(text)}`,clientId,sessionId:s.id,snapshot:{templateId:`legacy:${s.id}`,version:'legacy',category:'goals',language:clientLanguage,legacySessionId:s.id,content:{title:text.replace(/\s+/g,' ').slice(0,120),goal:'',steps:text,rhythm:'',questions:[]}},returnExpected:false,state:{value:s.homeworkDone?'discussed':'open'},feedback:'',handovers:[]} as HomeworkAssignment];
   });
 }
 export function clientHomework(data:VaultData,clientId:string):HomeworkAssignment[] {
-  return [...(data.homeworkAssignments??[]).filter(a=>a.clientId===clientId),...legacyHomework(data,clientId)].sort((a,b)=>(b.assignedAt??b.recordedAt??data.sessions.find(s=>s.id===b.sessionId)?.date??'').localeCompare(a.assignedAt??a.recordedAt??data.sessions.find(s=>s.id===a.sessionId)?.date??'')||a.id.localeCompare(b.id));
+  const dates=new Map(data.sessions.map(s=>[s.id,s.date]));
+  return [...(data.homeworkAssignments??[]).filter(a=>a.clientId===clientId),...legacyHomework(data,clientId)].sort((a,b)=>(b.assignedAt??b.recordedAt??dates.get(b.sessionId??'')??'').localeCompare(a.assignedAt??a.recordedAt??dates.get(a.sessionId??'')??'')||a.id.localeCompare(b.id));
 }
 export function previousHomework(data:VaultData,clientId:string,snapshot:HomeworkSnapshot):HomeworkAssignment[] {
   return clientHomework(data,clientId).filter(a=>a.snapshot.templateId===snapshot.templateId||!!a.snapshot.legacySessionId&&(normalized(a.snapshot.content.steps)===normalized(snapshot.content.steps)||normalized(a.snapshot.content.steps)===normalized(snapshot.content.title)));
@@ -39,7 +42,7 @@ export function materializeLegacyHomework(data:VaultData,id:string):HomeworkAssi
 export function updateHomework(data:VaultData,id:string,status:HomeworkStatus,feedback:string,dueOn:string,now=new Date().toISOString()) {
   if(!['open','deferred','discussed','ended'].includes(status)||feedback.length>4000||dueOn&&!homeworkDay(dueOn))throw new Error('hwInvalid');
   const item=materializeLegacyHomework(data,id);if(item.state.value!==status)item.state={value:status,at:now};item.feedback=feedback;
-  if(dueOn)item.dueOn=dueOn;else delete item.dueOn;
+  updateHomeworkReturnPlan(data,id,item.returnExpected,dueOn);
   if(item.snapshot.legacySessionId&&status==='discussed'){const session=data.sessions.find(s=>s.id===item.snapshot.legacySessionId);if(session?.homework?.trim()===item.snapshot.content.steps)session.homeworkDone=true;}
 }
 export function recordHomeworkHandover(data:VaultData,id:string,on:string,channel:HomeworkHandover['channel'],reference:string,now=new Date().toISOString()) {
@@ -74,4 +77,12 @@ export function reviewHomeworkFromSession(data:VaultData,clientId:string,ids:rea
 export function reviewLegacyHomework(data:VaultData,sessionId:string,done:boolean,now=new Date().toISOString()) {
   const session=data.sessions.find(s=>s.id===sessionId);if(!session)return;session.homeworkDone=done;
   for(const row of data.homeworkAssignments)if(row.snapshot.legacySessionId===sessionId&&row.snapshot.content.steps===session.homework?.trim())row.state={value:done?'discussed':'open',at:now};
+}
+
+/** One return plan for the task and its existing document metadata. The issued PDF stays unchanged. */
+export function updateHomeworkReturnPlan(data:VaultData,id:string,returnExpected:boolean,dueOn:string) {
+  if(typeof returnExpected!=='boolean'||dueOn&&!homeworkDay(dueOn))throw new Error('hwInvalid');
+  const item=materializeLegacyHomework(data,id);item.returnExpected=returnExpected;
+  if(dueOn)item.dueOn=dueOn;else delete item.dueOn;
+  for(const doc of homeworkDocuments(data,item)){doc.returnExpected=returnExpected;if(dueOn)doc.returnDueOn=dueOn;else delete doc.returnDueOn;}
 }

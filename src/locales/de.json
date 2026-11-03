@@ -482,7 +482,7 @@
   "sessionsTotal": "Termine insgesamt",
   "openLabel": "offen",
   "latestQuestionnaire": "Letzter Fragebogen",
-  "homework": "Hausaufgabe",
+  "homework": "Hausaufgaben",
   "homeworkFor": "Hausaufgabe für den Klienten",
   "homeworkPlaceholder": "Was soll der Klient bis zum nächsten Mal tun oder beobachten?",
   "homeworkReviewed": "Erledigt / besprochen",
@@ -2074,5 +2074,9 @@
   "hwFiles": "Arbeitsblatt & Rücklauf",
   "hwPdfChanged": "Die gespeicherte PDF-Fassung unterscheidet sich nach einem Abgleich von der Aufgabe. Klären Sie den Synchronisationskonflikt oder weisen Sie die gewünschte Fassung erneut zu. Die alte PDF wird nicht überschrieben.",
   "hwResendConfirm": "Ich habe den bisherigen Versand bzw. die Übergabe geprüft und möchte dieses Arbeitsblatt bewusst erneut versenden. Auch bei unklarem Versandstatus kann es bereits angekommen sein.",
-  "hwDownloadHint": "Herunterladen allein gilt nicht als Versand. Das Arbeitsblatt enthält die ausgewählte Aufgabe, keine internen Rückmeldungen oder Zahlungsdaten."
+  "hwDownloadHint": "Herunterladen allein gilt nicht als Versand. Das Arbeitsblatt enthält die ausgewählte Aufgabe, keine internen Rückmeldungen oder Zahlungsdaten.",
+  "guideHomeworkTitle": "Hausaufgaben auswählen und wiederfinden",
+  "guideHomeworkSummary": "30 Arbeitsblätter, eigene Vorlagen, PDFs und der Verlauf je Klient.",
+  "guideHomeworkSteps": "Klientenprofil öffnen und den Reiter Hausaufgaben wählen. Über Aufgabe auswählen ein passendes Arbeitsblatt suchen und bei Bedarf anpassen.\nFrühere Vergaben werden angezeigt. Eine Wiederholung verlangt eine Bestätigung. Im Terminformular werden Aufgaben erst mit dem Termin gespeichert.\nArbeitsblatt als PDF lädt die gespeicherte Fassung herunter. E-Mail und Telegram öffnen einen überprüfbaren Versanddialog in der Klientensprache.\nEine persönliche Übergabe mit tatsächlichem Datum erfassen oder eine ausgefüllte Datei als Rücklauf hinterlegen. Beim nächsten Termin die Aufgabe als besprochen markieren.",
+  "guideHomeworkTip": "Herunterladen ist kein Versandnachweis. Interne Rückmeldungen bleiben privat und stehen nicht auf dem PDF. Auch nach einer Pause bleiben frühere Aufgaben erhalten."
 }

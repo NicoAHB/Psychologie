@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu in **0.4.0**: **30 deutsch/ukrainische Hausaufgaben**, eigene Vorlagen und Favoriten, bewusste Wiederholungswarnung, verschlüsselter Klientenverlauf, ausfüllbare PDFs, bestehender E-Mail-/Telegram-Versand und datierte Rückläufe. [Bedienung und technische Übergabe für Claude](docs/hausaufgaben-claude.md).
+
 Neu in **0.3.0**: ruhigere Heute-Seite, Vorbereitung zuerst und Gesprächsmodus, gruppierte Einstellungen mit Suche, getrennte EUR-/UAH-Zahlungen mit Schnellfiltern sowie präziser Speicherstatus. [Bedienung, Grenzen und Übergabe für Claude](docs/ruhiger-praxisalltag.md).
 
 Neu in **0.2.1**: Schutz vor überschriebenen Änderungen in mehreren Fenstern, korrekter Bezug aktueller Sicherungen, Wiederaufnahme nach Bereichsfehlern, verschlüsselte Newsletter-Entwürfe und Speicherplatzanzeige. [Bedienung, Datenmodell, Grenzen und Übergabe für Claude](docs/speicherschutz-und-entwuerfe.md).
@@ -8,7 +10,7 @@ Neu in **0.2.0**: App-Updates stoppen bei Speicherfehlern, dreistufiger E-Mail-A
 
 Neu: **E-Mail-Versand direkt in der App einrichten** unter **Mehr → Einstellungen → E-Mail-Versand**, mit dauerhaft gespeichertem Absender, geschütztem Anbieter-Schlüssel und freiwilliger Testmail an die eigene Konto-Adresse. Jetzt auch **Gmail ohne eigene Domain**, mit eigener Google-Apps-Script-Freigabe statt Google-Passwort; Resend bleibt auswählbar. Die einmalige Supabase-Freigabe bleibt erforderlich. [Gmail einrichten / Übergabe für Claude](docs/gmail-versand.md). [Einrichtung, Grenzen und technische Übergabe für Claude](docs/email-einrichtung-in-der-app.md).
 
-Neu: **Mehr → Anleitung** bietet einen einfachen Einstieg, 14 aufklappbare Themen, eine deutsch/ukrainische Suche und direkte Verlinkungen zu den passenden Bereichen. Die Anleitung funktioniert auch offline. [Bedienung und technische Übergabe](docs/anleitung.md).
+Neu: **Mehr → Anleitung** bietet einen einfachen Einstieg, 15 aufklappbare Themen, eine deutsch/ukrainische Suche und direkte Verlinkungen zu den passenden Bereichen. Die Anleitung funktioniert auch offline. [Bedienung und technische Übergabe](docs/anleitung.md).
 
 Neu: **Mehrere Wiedervorlagen**, lokale **Dublettenhinweise mit ausdrücklicher Bestätigung vor dem Speichern** bei der Klientenanlage, **Rechnungsprüfung** mit direkter Stammdatenbearbeitung und ein gemeinsamer **Kontaktverlauf** im Klientenprofil. Bestehende Akten und Sicherungen bleiben kompatibel. [Bedienung, Grenzen, Dateiliste und technische Übergabe für Claude](docs/praxisorganisation-und-kontaktverlauf.md).
 

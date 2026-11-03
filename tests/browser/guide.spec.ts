@@ -11,7 +11,7 @@ test('More opens an understandable guide with keyboard topics and bilingual sear
   await expect(page).toHaveTitle(`${de.guide} · Praxisraum`);
   await expect(page.getByRole('heading', { name: de.guide, exact: true })).toBeVisible();
   await expect(page.locator('.sidebar nav [aria-current="page"]')).toHaveText(de.more);
-  await expect(page.locator('.sidebar nav button')).toHaveCount(5); await expect(page.locator('.guide-topic')).toHaveCount(14);
+  await expect(page.locator('.sidebar nav button')).toHaveCount(5); await expect(page.locator('.guide-topic')).toHaveCount(15);
   await expect(page.locator('.guide-flow > li')).toHaveCount(3); await expect(page.locator('.guide-page .btn-primary')).toHaveCount(1);
   const flow = page.getByRole('button', { name: de.guideFlowTitle, exact: true });
   await expect(page.locator('.guide-flow')).toBeHidden(); await flow.focus(); await page.keyboard.press('Enter'); await expect(page.locator('.guide-flow')).toBeVisible();
@@ -30,7 +30,7 @@ test('More opens an understandable guide with keyboard topics and bilingual sear
   await expect(page.getByLabel(uk.guideSearch, { exact: true })).toHaveValue('Urlaub');
   await expect(page.getByRole('button', { name: uk.guideAppointmentsTitle, exact: true })).toHaveAttribute('aria-expanded', 'true');
   await page.getByLabel(uk.guideSearch, { exact: true }).fill('qzxvUnbekannt'); await expect(page.getByRole('heading', { name: uk.guideEmptyTitle, exact: true })).toBeVisible();
-  await page.getByRole('button', { name: uk.guideSearchClear, exact: true }).click(); await expect(page.locator('.guide-topic')).toHaveCount(14);
+  await page.getByRole('button', { name: uk.guideSearchClear, exact: true }).click(); await expect(page.locator('.guide-topic')).toHaveCount(15);
   await page.getByRole('button', { name: uk.backToMore, exact: true }).click(); await expect(page.locator('.more-navigation button')).toHaveCount(6);
 });
 
@@ -76,7 +76,7 @@ for (const [width, theme] of [[820, 'light'], [390, 'dark']] as const) test(`exp
   await nav(page, de.settings); await page.getByLabel(de.colorScheme, { exact: true }).selectOption(theme); await page.getByLabel(de.fontSize, { exact: true }).selectOption('extraLarge');
   await nav(page, de.guide); await page.getByRole('button', { name: de.guideExpandAll, exact: true }).click();
   await page.getByRole('button', { name: de.guideFlowTitle, exact: true }).click();
-  await expect(page.locator('.guide-topic .guide-topic-toggle[aria-expanded="true"]')).toHaveCount(14);
+  await expect(page.locator('.guide-topic .guide-topic-toggle[aria-expanded="true"]')).toHaveCount(15);
   for (const words of [de, uk]) {
     if (words === uk) await page.getByRole('button', { name: 'Українська', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: words.guide, exact: true })).toBeVisible();
