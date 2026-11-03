@@ -1,3 +1,4 @@
+import { assertHomeworkDocument, homeworkDeliveryNeedsConfirmation } from '../lib/homeworkDelivery';
 import { DocumentShareDialog, DocumentShareHistory } from './DocumentShare';
 import { runSecureTask } from '../lib/workerTasks';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -16,7 +17,7 @@ import { needsAttention } from '../lib/assessments';
 import type { ImportedQuestionnaire } from '../lib/questionnaireImport';
 import { TelegramComposer } from './telegram';
 
-const errorKey = (error: unknown): TextKey => error instanceof Error && ['workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailGmailConnectionInvalid', 'emailGmailAddressMismatch', 'emailGmailDeliveryUnknown', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
+const errorKey = (error: unknown): TextKey => error instanceof Error && ['hwPdfChanged', 'workerUnavailable', 'workerFailed', 'documentSizeError', 'documentTypeError', 'emailNotConfigured', 'emailSetupRequired', 'emailProviderKeyInvalid', 'emailSenderNotVerified', 'emailGmailConnectionInvalid', 'emailGmailAddressMismatch', 'emailGmailDeliveryUnknown', 'emailRateLimited', 'emailSendError', 'emailRetryExpired', 'invalidClientEmail', 'authError', 'invoiceInactive', 'invoiceReminderUnavailable', 'questionnaireImportDuplicate'].includes(error.message) ? error.message as TextKey : 'storageError';
 
 function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { vault: VaultController; client: Client; questionnaire: boolean; onClose: () => void; onSaved: (document: ClientDocument, email: boolean) => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [title, setTitle] = useState('');
@@ -51,18 +52,20 @@ function DocumentDialog({ vault, client, questionnaire, onClose, onSaved }: { va
   </form></Modal>;
 }
 
-export function EmailComposer({ vault, client, documentId, onClose, purpose = 'invoice' }: { vault: VaultController; client: Client; documentId: string; onClose: () => void; purpose?: 'invoice' | 'paymentReminder' }) {
+export function EmailComposer({ vault, client, documentId, onClose, purpose = vault.data!.documents.find(d=>d.id===documentId)?.homeworkAssignmentId ? 'homework' : 'invoice' }: { vault: VaultController; client: Client; documentId: string; onClose: () => void; purpose?: 'invoice' | 'paymentReminder' | 'homework' }) {
   const { t, language } = useI18n(); const document = vault.data!.documents.find(d => d.id === documentId)!;
   const pending = [...document.deliveries].reverse().find(d => !d.acceptedAt && d.recipient === client.email && (d.purpose ?? 'invoice') === purpose);
   const invoice = vault.data!.invoices.find(i => i.id === document.invoiceId);
-  const message = invoice && invoiceMessage(invoice, client, purpose, invoiceOutstanding(vault.data!, invoice) ?? 0);
+  const message = invoice && purpose!=='homework' ? invoiceMessage(invoice, client, purpose, invoiceOutstanding(vault.data!, invoice) ?? 0) : undefined;
   const inactive = !!invoice && !!cancellationOf(vault.data!, invoice.id); const [expectedBalance] = useState(() => invoice ? invoiceOutstanding(vault.data!, invoice) : null); const reminderUnavailable = purpose === 'paymentReminder' && (!invoice || !canRemindInvoice(vault.data!, invoice, expectedBalance));
-  const [subject, setSubject] = useState(pending?.subject ?? message?.subject ?? translate(client.language, 'documentEmailSubject'));
-  const [body, setBody] = useState(pending?.body ?? message?.body ?? translate(client.language, document.returnExpected ? 'documentEmailBodyReturn' : 'documentEmailBody'));
+  const [subject, setSubject] = useState(pending?.subject ?? message?.subject ?? translate(client.language, purpose==='homework'?'hwEmailSubject':'documentEmailSubject'));
+  const [body, setBody] = useState(pending?.body ?? message?.body ?? translate(client.language, purpose==='homework'?(document.returnExpected?'hwEmailBodyReturn':'hwEmailBody'):(document.returnExpected ? 'documentEmailBodyReturn' : 'documentEmailBody')));
   const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>(); const [sentAt, setSentAt] = useState<string>();
+  const [repeatConfirmed,setRepeatConfirmed]=useState(false);const confirmRepeat=purpose==='homework'&&homeworkDeliveryNeedsConfirmation(vault.data!,document);
   async function send(e: FormEvent) {
-    e.preventDefault(); setError(undefined); setBusy(true);
+    e.preventDefault(); if(busy||confirmRepeat&&!repeatConfirmed)return;setError(undefined); setBusy(true);
     try {
+      assertHomeworkDocument(vault.getData()!,document);
       if (!emailConfigured || vault.demo) throw new Error('emailNotConfigured');
       if (inactive) throw new Error('invoiceInactive');
       if (reminderUnavailable) throw new Error('invoiceReminderUnavailable');
@@ -84,10 +87,11 @@ export function EmailComposer({ vault, client, documentId, onClose, purpose = 'i
     {inactive && <Notice error>{t('invoiceInactive')}</Notice>}
     {reminderUnavailable && <Notice error>{t('invoiceReminderUnavailable')}</Notice>}
     {(!emailConfigured || vault.demo) && <Notice>{t('emailNotConfigured')}</Notice>}
+    {confirmRepeat&&!sentAt&&<label className="check-label"><input type="checkbox" checked={repeatConfirmed} disabled={busy} onChange={e=>setRepeatConfirmed(e.target.checked)}/><span>{t('hwResendConfirm')}</span></label>}
     <EmailSetupButton demo={vault.demo}/>
     {sentAt && <Notice>{t('emailAccepted')} {new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'uk-UA', { timeZone: vault.data!.settings.timeZone, dateStyle: 'short', timeStyle: 'short' }).format(new Date(sentAt))}</Notice>}
     {error && <Notice error>{t(error)}</Notice>}
-    <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button>{!sentAt && <button className="btn btn-primary" disabled={busy || inactive || reminderUnavailable || !emailConfigured || vault.demo || !validEmail(client.email ?? '') || !subject.trim()}><Mail size={17}/>{t(busy ? 'working' : 'sendEmailNow')}</button>}</div>
+    <div className="form-actions"><button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button>{!sentAt && <button className="btn btn-primary" disabled={busy || confirmRepeat&&!repeatConfirmed || inactive || reminderUnavailable || !emailConfigured || vault.demo || !validEmail(client.email ?? '') || !subject.trim()}><Mail size={17}/>{t(busy ? 'working' : 'sendEmailNow')}</button>}</div>
   </form></Modal>;
 }
 
@@ -105,7 +109,7 @@ function ReturnSettingsDialog({ vault, documentId, onClose }: { vault: VaultCont
   </form></Modal>;
 }
 
-function ReturnDialog({ vault, documentId, onClose }: { vault: VaultController; documentId: string; onClose: () => void }) {
+export function ReturnDialog({ vault, documentId, onClose }: { vault: VaultController; documentId: string; onClose: () => void }) {
   const { t } = useI18n(); const [file, setFile] = useState<File>(); const [receivedOn, setReceivedOn] = useState(today());
   const [busy, setBusy] = useState(false); const [reading, setReading] = useState(false); const [error, setError] = useState<TextKey>();
   const [result, setResult] = useState<ImportedQuestionnaire>(); const [importError, setImportError] = useState<TextKey>(); const [confirmed, setConfirmed] = useState(false); const [assessmentDate, setAssessmentDate] = useState(today());
@@ -179,7 +183,7 @@ export function DocumentsSection({ vault, client, focusId }: { vault: VaultContr
         {!doc.deliveries.length && !doc.telegramDeliveries?.length && <p className="hint">{t('documentNotSent')}</p>}
         <button className="btn btn-secondary btn-small" disabled={!validEmail(client.email ?? '')} onClick={() => setEmailId(doc.id)}><Mail size={16}/>{t('emailClientDocument')}</button>
         <button className="btn btn-secondary btn-small" onClick={() => setShareId(doc.id)}>{t('shareTitle')}</button><DocumentShareHistory vault={vault} document={doc}/>
-        {doc.invoiceId && <button className="btn btn-secondary btn-small" onClick={() => setTelegramId(doc.id)}>{t('invoiceTelegram')}</button>}
+        {(doc.invoiceId||doc.homeworkAssignmentId) && <button className="btn btn-secondary btn-small" onClick={() => setTelegramId(doc.id)}>{t(doc.homeworkAssignmentId?'hwTelegramTitle':'invoiceTelegram')}</button>}
       </section><section><h4>{t('documentReturnColumn')}</h4>
         {doc.returns.length ? <ul className="document-returns">{doc.returns.map(returned => <li key={returned.id}><strong>{t('documentReceivedOn')} <time dateTime={returned.receivedOn}>{day(returned.receivedOn)}</time></strong><button className="document-download" onClick={() => void download(returned.file)}><Download size={17}/>{returned.file.fileName}</button><small>{t('documentAddedOn')} {day(returned.uploadedAt)}</small>{returned.assessmentId && <small>{t('questionnaireImportedStatus')}</small>}</li>)}</ul> : <p className="hint">{t(doc.returnClosedAt ? 'returnClose' : doc.returnExpected ? hasDocumentReceipt(doc) ? 'documentAwaitingReturn' : 'returnNotSent' : 'documentNoReturn')}</p>}
         <div className="button-row"><button className="btn btn-secondary btn-small" onClick={() => setReturnId(doc.id)}><Reply size={16}/>{t('uploadDocumentReturn')}</button><button className="text-link" onClick={() => setSettingsId(doc.id)}>{t('returnSettings')}</button></div>

@@ -40,6 +40,7 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
     if (k === 'id' || k === 'updatedAt' || collection === 'settings' && k === 'autoSync') continue;
     if (collection === 'clients' && k === 'address' && row.postalAddress) continue;
     if ('feeCents' in row && ['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId', 'paymentMethod', 'kind', 'failureStatus'].includes(k)) continue;
+    if (collection === 'documents' && row.homeworkAssignmentId && ['file','title','language','homeworkSnapshot','homeworkAssignmentId'].includes(k)) continue;
     if (collection === 'audioMemos' && ['blobId', 'mimeType', 'size', 'durationMs'].includes(k)) continue;
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
     else if (collection === 'clients' && k === 'marketingConsent') { for (const [channel, consent] of Object.entries(v as object)) result[`marketingConsent:${channel}`] = consent as Json; }
@@ -50,6 +51,7 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
   }
   if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId', 'paymentMethod', 'kind', 'failureStatus'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
   if (collection === 'audioMemos') result.$recording = Object.fromEntries(['blobId', 'mimeType', 'size', 'durationMs'].map(k => [k, row[k]])) as Json;
+  if (collection === 'documents' && row.homeworkAssignmentId) result.$worksheet = Object.fromEntries(['file','title','language','homeworkSnapshot','homeworkAssignmentId'].filter(k=>row[k]!==undefined).map(k=>[k,row[k]])) as Json;
   return result;
 }
 function seed(value: Json | undefined, at: number, actor: string): Register {
@@ -92,7 +94,7 @@ function adoptUnstamped(data: VaultData, state: CrdtState): CrdtState {
       const entity = keyOf(collection, row.id), registers = state.entities[entity] ?? {}, actual = fields(row, collection);
       // A tombstone remains authoritative until an explicit normal edit/restore acknowledges it.
       if (registers.$exists?.values.some(v => v.value === false)) continue;
-      for (const field of new Set([...Object.keys(actual), ...Object.keys(registers).filter(k => !k.startsWith('$') || k === '$snapshot' || k === '$amount' || k === '$recording')])) {
+      for (const field of new Set([...Object.keys(actual), ...Object.keys(registers).filter(k => !k.startsWith('$') || k === '$snapshot' || k === '$amount' || k === '$recording' || k === '$worksheet')])) {
         if (same(actual[field], registers[field] && preferred(registers[field], field))) continue;
         const actor = `legacy-edit-${digest([entity, field, actual[field] ?? null, row.updatedAt ?? 0])}`;
         const sequence = (state.clock[actor] ?? 0) + 1; state.clock[actor] = sequence;
@@ -169,7 +171,7 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
     const row: Row = { id, updatedAt: Math.max(0, ...Object.values(registers).flatMap(r => r.values.map(v => v.at))) };
     for (const [field, register] of Object.entries(registers)) {
       const value = preferred(register, field); if (value === undefined || field === '$exists' || field === '$order') continue;
-      if (field === '$snapshot' || field === '$amount' || field === '$recording') Object.assign(row, structuredClone(value));
+      if (field === '$snapshot' || field === '$amount' || field === '$recording' || field === '$worksheet') Object.assign(row, structuredClone(value));
       else if (field.startsWith('practice.')) { row.practice ??= {}; (row.practice as Record<string, Json>)[field.slice(9)] = value; }
       else if (field.startsWith('tag:')) { if (value) (row.tags ??= [] as string[]); if (value) (row.tags as string[]).push(field.slice(4)); }
       else if (field.startsWith('memoLabel:')) { if (value) (row.memoLabels ??= [] as string[]); if (value) (row.memoLabels as string[]).push(field.slice(10)); }

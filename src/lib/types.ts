@@ -1,4 +1,4 @@
-import { validateHomeworkSelection, normalizeHomeworkRecords, type HomeworkAssignment, type HomeworkSelection, type HomeworkTemplate } from './homeworkTypes';
+import { validateHomeworkSelection, validHomeworkSnapshot, normalizeHomeworkRecords, type HomeworkSnapshot, type HomeworkAssignment, type HomeworkSelection, type HomeworkTemplate } from './homeworkTypes';
 import type { CrdtState } from './crdt';
 import { normalizeClientAddress } from './clientAddress';
 export type Language = 'de' | 'uk';
@@ -142,6 +142,7 @@ export interface ClientDocument extends Stamped {
   invoiceId?: string; invoicePaidOn?: string | null; telegramDeliveries?: TelegramDelivery[];
   returnDueOn?: string; returnClosedAt?: string; shares?: DocumentShare[];
   homeworkAssignmentId?: string;
+  homeworkSnapshot?: HomeworkSnapshot;
 }
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;
@@ -257,6 +258,8 @@ export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData
   result.clients = value.clients.map(client => normalizeClientAddress(client, value.crdt?.entities[JSON.stringify(['clients', client.id])]?.postalAddress?.values.at(-1)?.value));
   for (const draft of result.sessionDrafts) if (draft.payload.homeworkSelections !== undefined) { if (!Array.isArray(draft.payload.homeworkSelections) || draft.payload.homeworkSelections.length > 30) throw new Error('invalidBackup'); draft.payload.homeworkSelections.forEach(validateHomeworkSelection); }
   for (const draft of result.sessionDrafts) if (draft.payload.homeworkReviewIds !== undefined && (!Array.isArray(draft.payload.homeworkReviewIds) || draft.payload.homeworkReviewIds.length > 100 || draft.payload.homeworkReviewIds.some(id => typeof id !== 'string' || !id || id.length > 240))) throw new Error('invalidBackup');
+  if(result.settings.homeworkFavorites!==undefined&&(!Array.isArray(result.settings.homeworkFavorites)||result.settings.homeworkFavorites.length>2030||result.settings.homeworkFavorites.some(id=>typeof id!=='string'||!id||id.length>200)))throw new Error('invalidBackup');
+  for(const doc of result.documents)if(doc.homeworkAssignmentId!==undefined&&(typeof doc.homeworkAssignmentId!=='string'||!doc.homeworkAssignmentId||!validHomeworkSnapshot(doc.homeworkSnapshot)))throw new Error('invalidBackup');
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.

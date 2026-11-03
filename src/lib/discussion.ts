@@ -27,7 +27,7 @@ export function overviewOf(data: VaultData, clientId: string, now = Date.now()):
 }
 /** The newest homework that has not been reviewed yet, so the next session can start by asking about it. */
 export const pendingHomework = (data: VaultData, clientId: string, exceptSessionId?: string) =>
-  data.sessions.filter(s => s.clientId === clientId && s.id !== exceptSessionId && s.homework?.trim() && !s.homeworkDone).sort(bySessionDesc)[0];
+  data.sessions.filter(s => s.clientId === clientId && s.id !== exceptSessionId && s.homework?.trim() && !s.homeworkDone && !(data.homeworkAssignments??[]).some(a=>a.snapshot.legacySessionId===s.id&&a.snapshot.content.steps===s.homework?.trim())).sort(bySessionDesc)[0];
 /** "Today", "yesterday" or the number of days since an ISO date. */
 export const daysSince = (date: string, reference = today()) => Math.max(0, daysBetween(date, reference));
 /** First sentence-ish excerpt of a note for lists; never cuts in the middle of a word when avoidable. */

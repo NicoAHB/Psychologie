@@ -2070,5 +2070,9 @@
   "hwStateDate_discussed": "Besprochen am",
   "hwStateDate_ended": "Beendet am",
   "hwStateDate_deferred": "Zurückgestellt am",
-  "hwPendingReview": "Bisherige Aufgaben gemeinsam besprechen"
+  "hwPendingReview": "Bisherige Aufgaben gemeinsam besprechen",
+  "hwFiles": "Arbeitsblatt & Rücklauf",
+  "hwPdfChanged": "Die gespeicherte PDF-Fassung unterscheidet sich nach einem Abgleich von der Aufgabe. Klären Sie den Synchronisationskonflikt oder weisen Sie die gewünschte Fassung erneut zu. Die alte PDF wird nicht überschrieben.",
+  "hwResendConfirm": "Ich habe den bisherigen Versand bzw. die Übergabe geprüft und möchte dieses Arbeitsblatt bewusst erneut versenden. Auch bei unklarem Versandstatus kann es bereits angekommen sein.",
+  "hwDownloadHint": "Herunterladen allein gilt nicht als Versand. Das Arbeitsblatt enthält die ausgewählte Aufgabe, keine internen Rückmeldungen oder Zahlungsdaten."
 }

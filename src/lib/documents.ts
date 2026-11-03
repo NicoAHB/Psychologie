@@ -24,7 +24,7 @@ export function prepareDelivery(document: ClientDocument, recipient: string, sub
   const pending = document.deliveries.find(d => !d.acceptedAt && d.recipient === recipient && d.subject === subject && d.body === body && (d.purpose ?? 'invoice') === purpose);
   // Resend retains idempotency keys for 24h. Never blindly repeat an uncertain request after that window.
   if (pending && Date.parse(now) - Date.parse(pending.requestedAt) >= 23 * 3600000) throw new Error('emailRetryExpired');
-  return pending ?? { id: uid(), recipient, requestedAt: now, subject, body, ...(purpose === 'paymentReminder' && { purpose }) };
+  return pending ?? { id: uid(), recipient, requestedAt: now, subject, body, ...(purpose !== 'invoice' && { purpose }) };
 }
 // Availability is checked by the server; provider changes no longer need a Pages rebuild.
 export const emailConfigured = cloudConfigured;

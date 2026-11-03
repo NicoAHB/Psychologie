@@ -26,6 +26,9 @@ async function execute<K extends keyof WorkerTasks>(task: K, input: WorkerTasks[
       const { regular, bold } = await loadPdfFonts(JSON.stringify(p.invoice));
       return await invoicePdf(p.invoice, p.paid, regular, bold) as WorkerTasks[K]['output'];
     }
+    case 'homeworkPdf': {
+      const p=input as WorkerTasks['homeworkPdf']['input'];const [{homeworkPdf},{loadPdfFonts}]=await Promise.all([import('../lib/homeworkPdf'),import('../lib/pdfFonts')]);const {regular,bold}=await loadPdfFonts(JSON.stringify(p.snapshot));return await homeworkPdf(p,regular,bold) as WorkerTasks[K]['output'];
+    }
     case 'questionnaire': {
       const p = input as WorkerTasks['questionnaire']['input'];
       const [{ questionnairePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/questionnairePdf'), import('../lib/pdfFonts')]);
@@ -43,7 +46,7 @@ scope.onmessage = event => {
   void execute(task, input).then(value => {
     scope.postMessage({ id, value }, value instanceof Uint8Array ? [value.buffer] : []);
   }, error => {
-    const allowed = ['invalidBackup', 'invoicePdfError', 'questionnaireImportInvalid', 'questionnaireImportIncomplete', 'questionnaireImportMismatch'];
+    const allowed = ['invalidBackup', 'hwInvalid', 'invoicePdfError', 'questionnaireImportInvalid', 'questionnaireImportIncomplete', 'questionnaireImportMismatch'];
     scope.postMessage({ id, error: error instanceof Error && allowed.includes(error.message) ? error.message : 'workerFailed' });
   });
 };

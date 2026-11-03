@@ -63,7 +63,7 @@ export const homeworkPlainText=(content:HomeworkContent)=>[content.title,content
  * reused for downloads and both channels, rather than creating phantom tasks. */
 export function attachHomeworkDocument(data:VaultData,id:string,document:ClientDocument) {
   const assignment=materializeLegacyHomework(data,id);
-  if(document.homeworkAssignmentId!==id||document.clientId!==assignment.clientId||document.id!==homeworkDocumentId(id))throw new Error('hwInvalid');
+  if(document.homeworkAssignmentId!==id||document.clientId!==assignment.clientId||document.id!==homeworkDocumentId(id)||JSON.stringify(document.homeworkSnapshot)!==JSON.stringify(assignment.snapshot))throw new Error('hwInvalid');
   if(!data.documents.some(d=>d.id===document.id))data.documents.push(document);
 }
 
