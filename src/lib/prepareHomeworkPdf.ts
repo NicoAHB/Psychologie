@@ -1,3 +1,4 @@
+import { homeworkFileName } from './homeworkFileName';
 import { attachHomeworkDocument, clientHomework, homeworkDocumentId, materializeLegacyHomework } from './homework';
 import type { HomeworkAssignment } from './homeworkTypes';
 import type { ClientDocument } from './types';
@@ -33,7 +34,7 @@ async function prepare(vault:VaultController,assignment:HomeworkAssignment,key:C
   try {
     bytes=await runSecureTask('homeworkPdf',{assignmentId:assignment.id,snapshot:structuredClone(assignment.snapshot)});current();
     const size=bytes.byteLength;blobId=await vault.addFile(bytes);bytes.fill(0);current();
-    const document:ClientDocument={id,clientId:assignment.clientId,homeworkAssignmentId:assignment.id,homeworkSnapshot:structuredClone(assignment.snapshot),title:assignment.snapshot.content.title,language:assignment.snapshot.language,createdAt:new Date().toISOString(),file:{blobId,fileName:`Praxisraum-${assignment.id.replace(/[^a-zA-Z0-9-]/g,'').slice(-40)}.pdf`,mimeType:'application/pdf',size},deliveries:[],returns:[],returnExpected:assignment.returnExpected,...assignment.dueOn&&{returnDueOn:assignment.dueOn}};
+    const document:ClientDocument={id,clientId:assignment.clientId,homeworkAssignmentId:assignment.id,homeworkSnapshot:structuredClone(assignment.snapshot),title:assignment.snapshot.content.title,language:assignment.snapshot.language,createdAt:new Date().toISOString(),file:{blobId,fileName:homeworkFileName({assignmentId:assignment.id,snapshot:assignment.snapshot}),mimeType:'application/pdf',size},deliveries:[],returns:[],returnExpected:assignment.returnExpected,...assignment.dueOn&&{returnDueOn:assignment.dueOn}};
     await vault.update(data=>{
       current();const live=materializeLegacyHomework(data,assignment.id);document.returnExpected=live.returnExpected;if(live.dueOn)document.returnDueOn=live.dueOn;else delete document.returnDueOn;
       const other=data.documents.find(d=>d.id===id);if(other&&!matchingHomeworkPdf(other,assignment))throw new Error('hwPdfChanged');

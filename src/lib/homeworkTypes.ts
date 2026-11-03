@@ -12,6 +12,8 @@ export interface HomeworkTemplate extends Stamped {
 export interface HomeworkSnapshot {
   templateId: string; version: string; category: HomeworkCategory; language: Language; content: HomeworkContent;
   pdfClientName?: string;
+  /** An optional additional page for repeated practice; older worksheets omit it. */
+  practiceLog?: boolean;
   /** A legacy free-text task has no inferred assignment or delivery date. */
   legacySessionId?: string;
 }
@@ -27,7 +29,10 @@ export interface HomeworkAssignment extends Stamped {
   assignedAt?: string; recordedAt?: string; dueOn?: string; returnExpected: boolean;
   state: { value: HomeworkStatus; at?: string };
   feedback: string; handovers: HomeworkHandover[]; repeatAcknowledgedAt?: string;
+  reviewDraft?: HomeworkReviewDraft;
 }
+export interface HomeworkReviewValues { status: HomeworkStatus; feedback: string; dueOn: string; returnExpected: boolean }
+export interface HomeworkReviewDraft { base: HomeworkReviewValues; values: HomeworkReviewValues; savedAt: string }
 
 function fail(): never { throw new Error('invalidBackup'); }
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -38,7 +43,10 @@ export function validHomeworkContent(v: unknown): v is HomeworkContent {
   return object(v) && text(v.title,160,true) && text(v.goal,2000) && text(v.steps,8000,true) && text(v.rhythm,1000) && Array.isArray(v.questions) && v.questions.length <= 6 && v.questions.every(q => text(q,400,true));
 }
 export function validHomeworkSnapshot(v: unknown): v is HomeworkSnapshot {
-  return object(v) && text(v.templateId,200,true) && text(v.version,200,true) && HOMEWORK_CATEGORIES.includes(v.category as HomeworkCategory) && ['de','uk'].includes(String(v.language)) && validHomeworkContent(v.content) && (v.pdfClientName === undefined || text(v.pdfClientName,160)) && (v.legacySessionId === undefined || text(v.legacySessionId,200,true));
+  return object(v) && text(v.templateId,200,true) && text(v.version,200,true) && HOMEWORK_CATEGORIES.includes(v.category as HomeworkCategory) && ['de','uk'].includes(String(v.language)) && validHomeworkContent(v.content) && (v.pdfClientName === undefined || text(v.pdfClientName,160)) && (v.practiceLog === undefined || typeof v.practiceLog === 'boolean') && (v.legacySessionId === undefined || text(v.legacySessionId,200,true));
+}
+export function validHomeworkReview(v: unknown): v is HomeworkReviewValues {
+  return object(v) && ['open','deferred','discussed','ended'].includes(String(v.status)) && text(v.feedback,4000) && typeof v.returnExpected==='boolean' && (v.dueOn==='' || homeworkDay(v.dueOn));
 }
 export function validateHomeworkSelection(v: unknown): asserts v is HomeworkSelection {
   if (!object(v) || !text(v.id,240,true) || !validHomeworkSnapshot(v.snapshot) || typeof v.returnExpected !== 'boolean' || v.dueOn !== undefined && !homeworkDay(v.dueOn) || v.repeatConfirmed !== undefined && typeof v.repeatConfirmed !== 'boolean' || v.acknowledgedAssignmentIds !== undefined && (!Array.isArray(v.acknowledgedAssignmentIds) || v.acknowledgedAssignmentIds.some(id => !text(id,240,true)))) fail();
@@ -59,6 +67,7 @@ export function normalizeHomeworkRecords(templates: unknown = [], assignments: u
     ids.add(a.id);
     for (const key of ['assignedAt','recordedAt','repeatAcknowledgedAt']) if (a[key] !== undefined && !timestamp(a[key])) fail();
     if (a.dueOn !== undefined && !homeworkDay(a.dueOn) || a.sessionId !== undefined && !text(a.sessionId,200,true)) fail();
+    if (a.reviewDraft !== undefined && (!object(a.reviewDraft) || !validHomeworkReview(a.reviewDraft.base) || !validHomeworkReview(a.reviewDraft.values) || !timestamp(a.reviewDraft.savedAt))) fail();
     const events = new Set<string>();
     for (const event of a.handovers as unknown[]) {
       if (!object(event) || !text(event.id,200,true) || events.has(event.id) || !homeworkDay(event.on) || !timestamp(event.recordedAt) || !['personal','externalEmail','externalTelegram','other'].includes(String(event.channel))) fail();

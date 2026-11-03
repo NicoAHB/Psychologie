@@ -1,5 +1,7 @@
 # Weiterarbeit am Tablet
 
+Neu in **0.5.0**: Hausaufgaben mit klientenbezogenen Auswahlfiltern, lesbarer Vorschau, klaren Fälligkeiten und Rückläufen, verschlüsselten Bearbeitungsentwürfen mit Konfliktschutz sowie optionaler ausfüllbarer Protokollseite im PDF. [Bedienung und technische Übergabe für Claude](docs/hausaufgaben-feinschliff.md).
+
 Neu in **0.4.0**: **30 deutsch/ukrainische Hausaufgaben**, eigene Vorlagen und Favoriten, bewusste Wiederholungswarnung, verschlüsselter Klientenverlauf, ausfüllbare PDFs, bestehender E-Mail-/Telegram-Versand und datierte Rückläufe. [Bedienung und technische Übergabe für Claude](docs/hausaufgaben-claude.md).
 
 Neu in **0.3.0**: ruhigere Heute-Seite, Vorbereitung zuerst und Gesprächsmodus, gruppierte Einstellungen mit Suche, getrennte EUR-/UAH-Zahlungen mit Schnellfiltern sowie präziser Speicherstatus. [Bedienung, Grenzen und Übergabe für Claude](docs/ruhiger-praxisalltag.md).

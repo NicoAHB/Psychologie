@@ -64,3 +64,7 @@ test('reusing a PDF waits for durable vault persistence and fails closed after a
  vault.flush=async()=>{active=null;};await assert.rejects(()=>prepareHomeworkPdf(vault,task),/locked/);
  active=original;vault.flush=async()=>{};assert.equal((await prepareHomeworkPdf(vault,task)).id,doc.id);
 });
+
+test('the optional practice page offers seven dated editable entries in DE and UK and older worksheets keep their fields',async()=>{
+ for(const language of ['de','uk'] as const){const snapshot=structuredClone(builtinHomework(language)[0].snapshot);snapshot.practiceLog=true;const pdf=await PDFDocument.load(await homeworkPdf({assignmentId:'log',snapshot},font));const fields=pdf.getForm();assert.equal(fields.getTextField('practice_date_1').getText(),undefined);assert.equal(fields.getTextField('practice_note_7').isMultiline(),true);fields.getTextField('practice_note_7').setText('Мої спостереження');const saved=await PDFDocument.load(await pdf.save({updateFieldAppearances:false}));assert.equal(saved.getForm().getTextField('practice_note_7').getText(),'Мої спостереження');}
+});

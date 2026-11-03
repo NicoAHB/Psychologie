@@ -54,7 +54,7 @@ export function searchVault(data: VaultData, query: string, limit = 40): Hit[] {
   for (const s of data.sessions) consider('session', s.id, s.clientId, nameOf(s.clientId), [s.notes, s.homework ?? '', s.tags.map(t => `#${t}`).join(' '), s.date], s.date, s);
   for (const n of data.notes) consider('note', n.id, n.clientId, nameOf(n.clientId), [n.caption, n.tags.map(t => `#${t}`).join(' ')], n.createdAt.slice(0, 10), n);
   for (const m of data.audioMemos ?? []) consider('audioMemo', m.id, m.clientId, nameOf(m.clientId), [m.label, m.summary, m.createdAt.slice(0, 10)], m.createdAt.slice(0, 10), m);
-  for(const a of data.homeworkAssignments??[]) consider('homework',a.id,a.clientId,nameOf(a.clientId),[a.snapshot.content.title,a.snapshot.content.steps,a.feedback,a.assignedAt??''],a.assignedAt?.slice(0,10),a);
+  for(const a of data.homeworkAssignments??[]) consider('homework',a.id,a.clientId,nameOf(a.clientId),[a.snapshot.content.title,a.snapshot.content.steps,a.feedback,a.reviewDraft?.values.feedback??'',a.assignedAt??''],a.assignedAt?.slice(0,10),a);
   for (const i of data.invoices) consider('invoice', i.id, i.clientId, nameOf(i.clientId), [i.number, i.recipient.name], i.issuedAt);
   return hits.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)).slice(0, limit);
 }

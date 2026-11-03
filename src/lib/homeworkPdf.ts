@@ -35,7 +35,7 @@ export async function homeworkPdf(input: HomeworkPdfInput, regularBytes: Uint8Ar
   for (const [name,value] of Object.entries({ praxisraum_homework: '1', praxisraum_assignment_id: input.assignmentId, praxisraum_template_id: snapshot.templateId, praxisraum_template_version: snapshot.version })) {
     const field = form.createTextField(name); field.setText(value); field.enableReadOnly();
   }
-  let page: PDFPage, y = 0;
+  let page!: PDFPage; let y = 0;
   function newPage() {
     page = pdf.addPage([595.28,841.89]); y = 770;
     page.drawText('Praxisraum', { x:48,y:800,size:11,font:bold,color:accent });
@@ -56,6 +56,11 @@ export async function homeworkPdf(input: HomeworkPdfInput, regularBytes: Uint8Ar
     if (value) entry.setText(value);
     entry.addToPage(page,{x:48,y:y-height,width:499,height,borderWidth:.6,borderColor:muted,backgroundColor:rgb(.98,.99,.99),font:regular}); y-=height+20;
   }
+  function logField(name:string,x:number,top:number,width:number,height:number,label:string,multiline=false) {
+    const entry=form.createTextField(name);entry.acroField.setDefaultAppearance(`/${regular.name} 10 Tf 0 g`);entry.acroField.dict.set(PDFName.of('TU'),PDFHexString.fromText(label));
+    if(multiline)entry.enableMultiline();
+    entry.addToPage(page,{x,y:top-height,width,height,borderWidth:.6,borderColor:muted,backgroundColor:rgb(.98,.99,.99),font:regular});
+  }
   newPage(); paragraph(content.title,21,bold);
   paragraph(T('hwPdfInstructions'),10,regular,muted);
   if (snapshot.pdfClientName) { paragraph(T('pdfClientName'),10,bold); field('client_name',30,snapshot.pdfClientName,T('pdfClientName')); }
@@ -69,6 +74,21 @@ export async function homeworkPdf(input: HomeworkPdfInput, regularBytes: Uint8Ar
     if(y<235)newPage(); paragraph(question,11,bold); field(`reflection_${i+1}`,115,undefined,question);
   }
   paragraph(T('hwPdfOptional'),10,regular,muted);
+  if(snapshot.practiceLog) {
+    newPage();paragraph(T('hwPracticeLogTitle'),21,bold);paragraph(content.title,11,bold);
+    paragraph(T('hwPracticeLogIntro'),10,regular,muted);
+    if(y<450)newPage();
+    page.drawText(T('date'),{x:48,y,size:10,font:bold,color:ink});
+    const headings=lines(T('hwPracticeObservation'),bold,10,375);
+    headings.forEach((line,i)=>page.drawText(line,{x:170,y:y-i*14,size:10,font:bold,color:ink}));
+    y-=Math.max(24,headings.length*14+10);
+    const rowHeight=Math.min(66,(y-80)/7);
+    for(let i=1;i<=7;i++) {
+      const label=T('hwPracticeEntry').replace('{n}',String(i));
+      logField(`practice_date_${i}`,48,y,108,rowHeight-7,`${label} · ${T('date')}`);
+      logField(`practice_note_${i}`,170,y,377,rowHeight-7,`${label} · ${T('hwPracticeObservation')}`,true);y-=rowHeight;
+    }
+  }
   const pages=pdf.getPages(); pages.forEach((p,i)=>p.drawText(`${i+1} / ${pages.length}`,{x:492,y:40,size:9,font:regular,color:muted}));
   pdf.setTitle(content.title); pdf.setProducer('Praxisraum'); pdf.setCreator('Praxisraum');
   form.updateFieldAppearances(regular);
