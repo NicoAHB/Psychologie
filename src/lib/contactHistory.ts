@@ -1,6 +1,6 @@
 import type { VaultData } from './types';
 
-export type ContactKind = 'document' | 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder' | 'marketing' | 'return';
+export type ContactKind = 'document' | 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder' | 'marketing' | 'return' | 'homework';
 export interface ContactEvent {
   id: string; at: string; dateOnly?: boolean; channel: 'email' | 'telegram' | 'return'; kind: ContactKind;
   title: string; body?: string; recipient?: string; fileName?: string;

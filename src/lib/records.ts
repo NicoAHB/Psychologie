@@ -13,6 +13,7 @@ export function deleteClient(data: VaultData, clientId: string) {
   data.referralPayouts = (data.referralPayouts ?? []).filter(p => p.referrerId !== clientId).map(p => ({ ...p, allocations: p.allocations.filter(a => !removed.has(a.referralId)) }));
   data.waitlist = (data.waitlist ?? []).filter(w => w.clientId !== clientId);
   data.followUps = (data.followUps ?? []).filter(t => t.clientId !== clientId);
+  data.homeworkAssignments = (data.homeworkAssignments ?? []).filter(a => a.clientId !== clientId);
   data.clients = data.clients.filter(c => c.id !== clientId);
   data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.clientId !== clientId);
   data.appointments = data.appointments.filter(a => a.clientId !== clientId);
@@ -29,6 +30,7 @@ export function deleteSession(data: VaultData, sessionId: string) {
   const session = data.sessions.find(s => s.id === sessionId);
   data.sessionDrafts = (data.sessionDrafts ?? []).filter(d => d.originalSessionId !== sessionId);
   data.sessions = data.sessions.filter(s => s.id !== sessionId);
+  for (const task of data.homeworkAssignments ?? []) if (task.sessionId === sessionId) delete task.sessionId;
   data.notes = data.notes.filter(n => n.sessionId !== sessionId); // photos of the session go with it
   data.audioMemos = (data.audioMemos ?? []).filter(m => m.sessionId !== sessionId);
   // A completed appointment without its session would otherwise stay "completed" with nothing to show for it.

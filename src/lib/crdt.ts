@@ -4,7 +4,7 @@ import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from './audioMemos';
 import { formatPostalAddress } from './clientAddress';
 import type { ClientPostalAddress } from './types';
 
-export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'newsletterDrafts', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps'] as const;
+export const COLLECTIONS = ['clients', 'appointments', 'sessions', 'notes', 'invoices', 'assessments', 'templates', 'documents', 'availability', 'audioMemos', 'sessionDrafts', 'messageTemplates', 'marketingCampaigns', 'newsletters', 'newsletterDrafts', 'referralCodes', 'referrals', 'referralPayouts', 'waitlist', 'followUps', 'homeworkTemplates', 'homeworkAssignments'] as const;
 type Collection = typeof COLLECTIONS[number] | 'settings';
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Vector = Record<string, number>;
@@ -44,8 +44,8 @@ function fields(row: Row, collection: Collection): Record<string, Json | undefin
     if (k === 'practice') { for (const [pk, pv] of Object.entries(v as object)) result[`practice.${pk}`] = pv as Json; }
     else if (collection === 'clients' && k === 'marketingConsent') { for (const [channel, consent] of Object.entries(v as object)) result[`marketingConsent:${channel}`] = consent as Json; }
     else if (k === 'tags') { for (const tag of v as string[]) result[`tag:${tag}`] = true; }
-    else if (collection === 'settings' && ['memoLabels', 'memoLabelFavorites'].includes(k)) { for (const label of v as string[]) result[`${k === 'memoLabels' ? 'memoLabel' : 'memoFavorite'}:${label}`] = true; }
-    else if (['deliveries', 'returns', 'telegramDeliveries', 'statusHistory', 'shares', 'messages', 'recipients', 'emailDeliveries', 'releasedSlots'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
+    else if (collection === 'settings' && ['memoLabels', 'memoLabelFavorites', 'homeworkFavorites'].includes(k)) { for (const label of v as string[]) result[`${k === 'memoLabels' ? 'memoLabel' : k === 'homeworkFavorites' ? 'homeworkFavorite' : 'memoFavorite'}:${label}`] = true; }
+    else if (['deliveries', 'returns', 'telegramDeliveries', 'statusHistory', 'shares', 'messages', 'recipients', 'emailDeliveries', 'releasedSlots', 'handovers'].includes(k)) { for (const entry of v as { id: string }[]) result[`${k}:${entry.id}`] = entry as unknown as Json; }
     else result[k] = v as Json;
   }
   if ('feeCents' in row) result.$amount = Object.fromEntries(['feeCents', 'billing', 'originalFeeCents', 'paidAt', 'invoiceId', 'paymentMethod', 'kind', 'failureStatus'].filter(k => row[k] !== undefined).map(k => [k, row[k]])) as Json;
@@ -80,7 +80,7 @@ function preferred(register: Register, field = '') {
   if (field === 'firstPaidOn') return register.values.map(v => v.value).filter((v): v is string => typeof v === 'string').sort()[0];
   const revoked = /^(shares|marketingConsent):|^appointmentEmailConsent$/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.revokedAt) : [];
   if (revoked.length) return revoked.at(-1)?.value;
-  const accepted = /^(deliveries|telegramDeliveries|recipients|emailDeliveries|releasedSlots):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.acceptedAt) : [];
+  const accepted = /^(deliveries|telegramDeliveries|recipients|emailDeliveries|releasedSlots|handovers):/.test(field) ? register.values.filter(v => v.value && typeof v.value === 'object' && !Array.isArray(v.value) && v.value.acceptedAt) : [];
   return (accepted.length ? accepted : register.values).at(-1)?.value;
 }
 /** Older app versions can echo unknown CRDT metadata without updating it. Import their actual
@@ -174,19 +174,22 @@ export function materialize(base: VaultData, state: CrdtState): VaultData {
       else if (field.startsWith('tag:')) { if (value) (row.tags ??= [] as string[]); if (value) (row.tags as string[]).push(field.slice(4)); }
       else if (field.startsWith('memoLabel:')) { if (value) (row.memoLabels ??= [] as string[]); if (value) (row.memoLabels as string[]).push(field.slice(10)); }
       else if (field.startsWith('memoFavorite:')) { if (value) (row.memoLabelFavorites ??= [] as string[]); if (value) (row.memoLabelFavorites as string[]).push(field.slice(13)); }
+      else if (field.startsWith('homeworkFavorite:')) { if (value) (row.homeworkFavorites ??= [] as string[]); if (value) (row.homeworkFavorites as string[]).push(field.slice(17)); }
       else if (field.startsWith('marketingConsent:')) { row.marketingConsent ??= {}; (row.marketingConsent as Record<string, Json>)[field.slice(17)] = structuredClone(value); }
-      else if (/^(deliveries|returns|telegramDeliveries|statusHistory|shares|messages|recipients|emailDeliveries|releasedSlots):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
+      else if (/^(deliveries|returns|telegramDeliveries|statusHistory|shares|messages|recipients|emailDeliveries|releasedSlots|handovers):/.test(field)) { const list = field.split(':')[0]; (row[list] ??= [] as Json[]); (row[list] as Json[]).push(structuredClone(value)); }
       else row[field] = structuredClone(value);
     }
     if (collection === 'settings') {
       if (base.settings.memoLabels || Object.keys(registers).some(field => field.startsWith('memoLabel:'))) row.memoLabels ??= [];
       if (base.settings.memoLabelFavorites || Object.keys(registers).some(field => field.startsWith('memoFavorite:'))) row.memoLabelFavorites ??= [];
+      if (base.settings.homeworkFavorites || Object.keys(registers).some(field => field.startsWith('homeworkFavorite:'))) row.homeworkFavorites ??= [];
       delete (row as Partial<Row>).id; result.settings = { ...result.settings, ...row, autoSync: base.settings.autoSync } as VaultData['settings'];
     }
     else {
       if (['sessions', 'notes'].includes(collection)) row.tags ??= [];
       if (collection === 'clients' && Object.keys(registers).some(field => field.startsWith('statusHistory:'))) row.statusHistory ??= [];
       if (collection === 'clients' && row.postalAddress) row.address = formatPostalAddress(row.postalAddress as unknown as ClientPostalAddress);
+      if (collection === 'homeworkAssignments') row.handovers ??= [];
       if (collection === 'documents') { row.deliveries ??= []; row.returns ??= []; }
       if (collection === 'newsletters') { row.messages ??= []; row.recipients ??= []; }
       if (collection === 'documents') for (const field of ['deliveries', 'returns', 'telegramDeliveries']) {

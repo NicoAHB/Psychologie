@@ -1,3 +1,4 @@
+import { clientHomework } from './homework';
 import { strToU8, zipSync, type Zippable } from 'fflate';
 import { money } from './dates';
 import { scoreOf } from './assessments';
@@ -56,7 +57,10 @@ export async function clientExport(data: VaultData, clientId: string, language: 
   text('empfehlungen.json', JSON.stringify(referrals,null,2));
   const followUps = (data.followUps ?? []).filter(t => t.clientId === clientId);
   text('wiedervorlagen.json', JSON.stringify({ followUps, legacy: { dueOn: client.followUpOn, note: client.followUpNote } }, null, 2));
-  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, waitlist, followUps, referrals, newsletters, newsletterDrafts, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
+  const homework = clientHomework(data,clientId);
+  text('hausaufgaben.json',JSON.stringify(homework,null,2));
+  text('hausaufgaben.md',`# ${T('homework')}\n\n`+homework.map(a=>`## ${a.snapshot.content.title}\n\n${a.assignedAt ?? T('hwDateUnknown')}\n\n${a.snapshot.content.goal}\n\n${a.snapshot.content.steps}\n\n${a.snapshot.content.rhythm}\n\n${a.feedback}\n`).join('\n'));
+  text('daten.json', JSON.stringify({ format: 'praxisraum-client-export-v1', exportedAt: new Date().toISOString(), client:clientProfile, homework, waitlist, followUps, referrals, newsletters, newsletterDrafts, appointments, sessions, notes, sessionDrafts, audioMemos: memoIndex, invoices, assessments, documents: documentIndex }, null, 2));
   text('README.md', `# ${T('clientExportTitle')}: ${client.name}\n\n${T('clientExportReadme')}\n\n${T('clientExportContents')}\n`);
   for (const attachment of attachments) { const blob = await file(attachment.blobId, attachment.mimeType); archive[attachment.path] = [new Uint8Array(await blob.arrayBuffer()), { level: 0 }]; }
   return { bytes: new Uint8Array(zipSync(archive)), filename: `Praxisraum-${safe(client.name)}-${new Date().toISOString().slice(0, 10)}.zip` };

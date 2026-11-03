@@ -16,7 +16,7 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
   const invoiceIds = new Set(merged.invoices.map(i => i.id));
   for (const session of merged.sessions) if (session.invoiceId && !invoiceIds.has(session.invoiceId)) delete session.invoiceId;
   const clientIds = new Set(merged.clients.map(c => c.id));
-  for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents', 'audioMemos', 'sessionDrafts'] as const)
+  for (const name of ['appointments', 'sessions', 'notes', 'invoices', 'assessments', 'documents', 'audioMemos', 'sessionDrafts', 'homeworkAssignments'] as const)
     (merged[name] as { clientId: string }[]) = (merged[name] as { clientId: string }[]).filter(r => clientIds.has(r.clientId));
   for (const draft of merged.newsletterDrafts ?? []) draft.payload.clientIds = draft.payload.clientIds.filter(id => clientIds.has(id));
   const sessions = new Map(merged.sessions.map(s => [s.id, s.clientId]));
@@ -27,6 +27,7 @@ export function mergeVaults(local: VaultData, remote: VaultData): VaultData {
   merged.referralCodes = merged.referralCodes.filter(c => clientIds.has(c.clientId));
   merged.referrals = merged.referrals.filter(r => clientIds.has(r.referrerId) && clientIds.has(r.referredId));
   merged.referralPayouts = merged.referralPayouts.filter(p => clientIds.has(p.referrerId));
+  for (const task of merged.homeworkAssignments) if (task.sessionId && !sessions.has(task.sessionId)) delete task.sessionId;
   reconcileAppointmentOutcomes(merged);
   reconcileBillingLinks(merged);
   reconcileReferralStarts(merged);

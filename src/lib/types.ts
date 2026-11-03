@@ -1,3 +1,4 @@
+import { validateHomeworkSelection, normalizeHomeworkRecords, type HomeworkAssignment, type HomeworkSelection, type HomeworkTemplate } from './homeworkTypes';
 import type { CrdtState } from './crdt';
 import { normalizeClientAddress } from './clientAddress';
 export type Language = 'de' | 'uk';
@@ -89,6 +90,7 @@ export interface SessionDraftValues {
   date: string; time: string; fee: string; inputCurrency: Currency; rate?: ExchangeRate;
   paid: boolean; paymentDate: string; notes: string; tags: string; homework: string; homeworkDone: boolean;
   paymentMethod?: PaymentMethod;
+  homeworkSelections?: HomeworkSelection[];
   nextTopics: string; nextTouched: boolean; reviewPrevious: boolean; pricingChanged: boolean;
   photos: DocumentFile[]; removedPhotos: string[]; memos: AudioMemo[]; removedMemos: string[];
   editedMemos: Record<string, { label: string; summary: string }>;
@@ -119,7 +121,7 @@ export interface DocumentFile { blobId: string; fileName: string; mimeType: stri
 export interface EmailDelivery {
   id: string; recipient: string; requestedAt: string; subject: string; body: string;
   acceptedAt?: string; providerId?: string;
-  purpose?: 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder';
+  purpose?: 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder' | 'homework';
 }
 export interface AppointmentEmailDelivery extends EmailDelivery {
   purpose: 'appointmentConfirmation' | 'appointmentReminder';
@@ -129,7 +131,7 @@ export interface DocumentReturn { id: string; file: DocumentFile; receivedOn: st
 export interface TelegramDelivery {
   id: string; recipient: string; requestedAt: string; text: string;
   acceptedAt?: string; messageId?: number;
-  purpose?: 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder';
+  purpose?: 'invoice' | 'paymentReminder' | 'appointmentConfirmation' | 'appointmentReminder' | 'homework';
 }
 export interface DocumentShare { id: string; createdAt: string; expiresAt: string; link: string; revokedAt?: string }
 export interface ClientDocument extends Stamped {
@@ -139,6 +141,7 @@ export interface ClientDocument extends Stamped {
   /** Each generated invoice copy preserves its payment status at the time of export. */
   invoiceId?: string; invoicePaidOn?: string | null; telegramDeliveries?: TelegramDelivery[];
   returnDueOn?: string; returnClosedAt?: string; shares?: DocumentShare[];
+  homeworkAssignmentId?: string;
 }
 export interface Assessment extends Stamped {
   id: string; clientId: string; kind: AssessmentKind; date: string; answers: number[]; note: string;
@@ -189,6 +192,7 @@ export interface Settings {
   /** Practice-wide memo title choices; encrypted with the rest of the vault. */
   memoLabels?: string[];
   memoLabelFavorites?: string[];
+  homeworkFavorites?: string[];
   marketingUsed?: boolean;
   referralProgram?: { rateBps: number; months: number };
   skipCloudSetup?: boolean;
@@ -220,6 +224,7 @@ export interface VaultData {
   invoices: Invoice[]; assessments: Assessment[]; templates: Template[]; documents: ClientDocument[];
   availability: CalendarAbsence[]; audioMemos: AudioMemo[]; waitlist: WaitlistEntry[]; followUps: FollowUpTask[];
   sessionDrafts: SessionDraft[];
+  homeworkTemplates: HomeworkTemplate[]; homeworkAssignments: HomeworkAssignment[];
   messageTemplates: MessageTemplate[]; marketingCampaigns: MarketingCampaign[]; newsletters: Newsletter[]; newsletterDrafts: NewsletterDraft[];
   referralCodes: ReferralCode[]; referrals: Referral[]; referralPayouts: ReferralPayout[];
   /** id -> deletion time, so a deletion on one device is not undone by merging another device. */
@@ -240,15 +245,17 @@ export interface EncryptedBlob { id: string; vaultId: string; payload: Ciphertex
 export interface RemoteVault { vault_id: string; salt: string; payload: Ciphertext & { wraps?: Wraps }; revision: number }
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
-  schema: 1, clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], waitlist: [], followUps: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], newsletterDrafts: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
+  schema: 1, homeworkTemplates: [], homeworkAssignments: [], clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], waitlist: [], followUps: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], newsletterDrafts: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
   settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
   const base = emptyVault();
-  const result = { ...base, ...value, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
+  const homework = normalizeHomeworkRecords(value.homeworkTemplates, value.homeworkAssignments);
+  const result = { ...base, ...value, ...homework, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
     documents: value.documents ?? [], waitlist: value.waitlist ?? [], followUps: value.followUps ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], newsletterDrafts: value.newsletterDrafts ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   result.clients = value.clients.map(client => normalizeClientAddress(client, value.crdt?.entities[JSON.stringify(['clients', client.id])]?.postalAddress?.values.at(-1)?.value));
+  for (const draft of result.sessionDrafts) if (draft.payload.homeworkSelections !== undefined) { if (!Array.isArray(draft.payload.homeworkSelections) || draft.payload.homeworkSelections.length > 30) throw new Error('invalidBackup'); draft.payload.homeworkSelections.forEach(validateHomeworkSelection); }
   if (!wholeAmounts) return result;
   // User-requested whole-unit migration. It is deterministic and does not rewrite history timestamps.
   // Keep the original values, including each invoice line, so the adjustment remains traceable.
