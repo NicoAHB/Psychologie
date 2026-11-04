@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu in **0.6.0**: **Nadiia – The Confidence Space** als App-Marke, kurzer Weg zur Anleitung, verständliche Terminaktionen, Suche nach Name/E-Mail mit Hinweisen auf frühere Klienten und gruppierte Werkzeuge unter „Mehr“. [Bedienung und technische Übergabe für Claude](docs/bedienung-und-marke.md). [Alle Logos und fünf Originalentwürfe](docs/branding/README.md).
+
 Neu in **0.5.1**: Aufgaben öffnen sich über die ganze Karte. Separate Aktionen bleiben sicher bedienbar; Tastaturfokus, archivierte Vorlagen und die Suche sind übersichtlicher. [Bedienung und technische Übergabe für Claude](docs/aufgaben-bedienung.md).
 
 Neu in **0.5.0**: Hausaufgaben mit klientenbezogenen Auswahlfiltern, lesbarer Vorschau, klaren Fälligkeiten und Rückläufen, verschlüsselten Bearbeitungsentwürfen mit Konfliktschutz sowie optionaler ausfüllbarer Protokollseite im PDF. [Bedienung und technische Übergabe für Claude](docs/hausaufgaben-feinschliff.md).

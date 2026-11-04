@@ -1,6 +1,6 @@
 import { freedSlots } from '../lib/waitlist';
 import { useMemo, useRef } from 'react';
-import { CalendarDays, Check, Plus, ArrowRight } from 'lucide-react';
+import { BookOpen, CalendarDays, Check, Plus, ArrowRight } from 'lucide-react';
 import { WaitingNotice } from '../components/Waitlist';
 import { SetupChecklist } from '../components/SetupChecklist';
 import { HelpButton } from '../components/HelpButton';
@@ -25,13 +25,14 @@ import { Avatar, PageHeading, TextLink } from '../components/ui';
 import { CurrencyTotals } from '../components/CurrencyTotals';
 
 type Props = {
+  onGuide: () => void;
   vault: VaultController; onWaitlist: () => void; backup?: BackupState | null; onSetup: (section: SettingsSection) => void;
   quickMethod: PaymentMethod; onMethod: (method: PaymentMethod) => void; onQuickComplete: (a: Appointment) => void; quickBusy: boolean;
   onNewAppointment: () => void; onNewClient: () => void; onClient: (id: string) => void; onClients: () => void;
   onAppointments: () => void; onComplete: (appointment: Appointment) => void; onPayments: (view: FinanceView) => void;
   onInvoice: (id: string) => void; onDocument: (clientId: string, documentId: string) => void; onWork: (item: WorkItem) => void;
 };
-export function Today({ vault, onWaitlist, backup, onSetup, quickMethod, onMethod, onQuickComplete, quickBusy, onNewAppointment, onNewClient, onClient, onClients, onAppointments, onComplete, onPayments, onInvoice, onDocument, onWork }: Props) {
+export function Today({ onGuide, vault, onWaitlist, backup, onSetup, quickMethod, onMethod, onQuickComplete, quickBusy, onNewAppointment, onNewClient, onClient, onClients, onAppointments, onComplete, onPayments, onInvoice, onDocument, onWork }: Props) {
   const { t, language } = useI18n(), data = vault.data!, day = practiceToday(data.settings);
   const allTasks = useRef<HTMLDetailsElement>(null);
   const tasks = useMemo(() => dailyTasks(data), [data, day]);
@@ -45,6 +46,7 @@ export function Today({ vault, onWaitlist, backup, onSetup, quickMethod, onMetho
   const workLabels = { draft:'draftResume',followUp:'workFollowUp',appointment:'completeAppointment',session:'workDocument',invoice:'workInvoice' } as const;
   return <>
     <PageHeading title={t('overview')} subtitle={dateLabel(day,language,{weekday:'long',day:'numeric',month:'long'})} action={<button className="btn btn-primary" onClick={onNewAppointment}><Plus size={18}/>{t('newAppointment')}</button>}/>
+    <button type="button" className="daily-guide-shortcut" aria-label={t('dailyGuideOpen')} aria-describedby="daily-guide-flow" onClick={onGuide}><BookOpen size={20} aria-hidden="true"/><span><strong>{t('dailyGuideOpen')}</strong><small id="daily-guide-flow">{(['Appointment','Completion','Payment'] as const).map(step=>t(`guideFlow${step}Title`)).join(' → ')}</small></span><ArrowRight size={18} aria-hidden="true"/></button>
     <div className="today-core"><section className="card today-next" aria-label={t('nextAppointmentLabel')}><div className="section-heading"><div><span className="eyebrow">{t('today')}</span><h2>{t('nextAppointmentLabel')}</h2></div><CalendarDays size={25} aria-hidden="true"/></div>
       {next ? <><AppointmentRow appointment={next} vault={vault} onClient={onClient} actions={<button className="btn btn-secondary" onClick={() => onClient(next.clientId)}>{t('openProfile')}<ArrowRight size={17}/></button>}/></> : <p className="hint">{t('todayNoUpcoming')}</p>}
     </section>

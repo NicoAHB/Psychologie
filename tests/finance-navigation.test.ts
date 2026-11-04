@@ -15,10 +15,13 @@ test('outstanding navigation includes every year; year view still respects its f
 });
 
 test('five primary destinations keep the finances route and every secondary tool reachable through More', async () => {
-  const { mainNavigation, moreNavigation, isMoreRoute } = await import('../src/lib/navigation');
+  const { mainNavigation, moreNavigation, moreNavigationGroups, isMoreRoute } = await import('../src/lib/navigation');
   assert.deepEqual(mainNavigation.map(item => item.id), ['overview', 'clients', 'appointments', 'finances', 'more']);
   assert.deepEqual(moreNavigation.map(item => item.id), ['guide', 'settings', 'newsletter', 'marketingCampaigns', 'messageTemplates', 'referrals']);
   for (const item of moreNavigation) assert.equal(isMoreRoute(item.id), true);
   assert.equal(isMoreRoute('more'), true);
   assert.equal(isMoreRoute('finances'), false);
+  const grouped = moreNavigationGroups.flatMap(group => moreNavigation.filter(item => item.group === group.id));
+  assert.deepEqual(new Set(grouped.map(item=>item.id)),new Set(moreNavigation.map(item=>item.id)));
+  assert.equal(grouped.length,moreNavigation.length,'every secondary tool appears once in the grouped menu');
 });

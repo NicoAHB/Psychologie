@@ -37,6 +37,7 @@ test('a client in Ukraine: both local times are shown everywhere, series, week v
   await expect(dialog.locator('.dual-cell').first()).toContainText('08:00 Uhr'); await expect(dialog.locator('.dual-cell').nth(1)).toContainText('09:00 Uhr');
   await dialog.getByRole('button', { name: 'Abbrechen' }).click(); await expect(dialog).not.toBeVisible();
 
+  await rows.first().locator('.appointment-options > summary').click();
   await page.getByRole('button', { name: 'Termintext kopieren' }).first().click();
   await expect(page.getByText('Kopiert')).toBeVisible();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
@@ -59,6 +60,7 @@ test('a client in Ukraine: both local times are shown everywhere, series, week v
   // Cancelling one appointment of a series offers to cancel the following ones too.
   await page.getByRole('button', { name: 'Liste', exact: true }).click();
   const dialogs: string[] = []; page.on('dialog', d => { dialogs.push(d.message()); void d.accept(); });
+  await rows.first().locator('.appointment-options > summary').click();
   await page.getByRole('button', { name: 'Termin absagen' }).first().click();
   await expect.poll(() => dialogs.length).toBe(2); expect(dialogs[1]).toContain('Serie');
   await expect(page.getByRole('button', { name: 'Termin absagen' })).toHaveCount(0);

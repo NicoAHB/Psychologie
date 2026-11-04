@@ -1,11 +1,16 @@
 import { cloneElement, isValidElement, useEffect, useLayoutEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Leaf, ShieldCheck, X, ImageOff, LoaderCircle } from 'lucide-react';
+import { ArrowRight, ShieldCheck, X, ImageOff, LoaderCircle } from 'lucide-react';
 import { LanguageSwitch, useI18n } from '../lib/i18n';
 import type { Client, Session } from '../lib/types';
 import type { VaultController } from '../lib/useVault';
 export function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) { return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
-export function Logo() { return <div className="brand"><span className="brand-icon"><Leaf size={24}/></span><span>Praxisraum<span className="brand-dot">.</span></span></div>; }
+export function Logo({ full = false }: { full?: boolean }) {
+  const {t}=useI18n();
+  if(full) return <div className="brand practitioner-brand practitioner-brand-full" role="img" aria-label={t('practitionerBrandLabel')}><img src={new URL('../assets/nadiia-logo-en.png',import.meta.url).href} alt="" width={1774} height={887} decoding="async"/></div>;
+  const nadiiaMark=new URL('../assets/nadiia-mark.png',import.meta.url).href;
+  return <div className="brand practitioner-brand" role="img" aria-label={t('practitionerBrandLabel')}><span className="practitioner-brand-mark"><img src={nadiiaMark} alt="" width={44} height={44}/></span><span className="practitioner-brand-text"><strong>{t('practitionerBrandName')}</strong><span className="practitioner-brand-slogan">{t('practitionerBrandSlogan')}</span><small className="practitioner-brand-profession">{t('practitionerBrandProfession')} · {t('practitionerBrandOwner')}</small></span></div>;
+}
 export function Botanical({ small = false }: { small?: boolean }) {
   return <svg className={small ? 'botanical small' : 'botanical'} viewBox="0 0 260 280" fill="none" aria-hidden="true"><path d="M127 270C118 208 158 150 158 40M128 225C99 204 77 160 69 104M138 182C172 164 199 133 210 92" stroke="currentColor" strokeWidth="2"/><path d="M155 92C113 78 122 32 152 16C175 42 182 67 155 92ZM145 143C102 148 84 110 92 80C124 83 151 102 145 143ZM139 185C166 139 204 153 214 175C198 203 169 213 139 185ZM126 232C87 225 65 198 76 168C111 168 132 197 126 232ZM88 163C47 162 32 126 44 100C74 103 95 128 88 163ZM184 126C171 89 190 58 217 58C236 90 223 117 184 126Z" fill="currentColor" fillOpacity=".23" stroke="currentColor" strokeWidth="1.5"/><path d="M40 262C85 247 137 254 186 268" stroke="currentColor" strokeWidth="1.2"/></svg>;
 }

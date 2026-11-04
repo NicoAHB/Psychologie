@@ -80,6 +80,7 @@ test('records can be corrected and erased: sessions, photo notes, appointments a
   await dialog.getByLabel('Uhrzeit *').fill('11:00');
   await expect(dialog.getByText('Überschneidung mit einem anderen Termin')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Speichern', exact: true }).click(); await expect(dialog).not.toBeVisible();
+  await page.locator('.appointments-card .appointment-options > summary').first().click();
   await page.getByRole('button', { name: 'Termin bearbeiten' }).first().click();
   await dialog.getByLabel('Uhrzeit *').fill('15:45'); await dialog.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(dialog).not.toBeVisible(); await expect(page.getByText('15:45', { exact: true })).toBeVisible();

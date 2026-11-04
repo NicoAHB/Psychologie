@@ -23,13 +23,18 @@ export const mainNavigation: { id: AppRoute; icon: LucideIcon }[] = [
   { id: 'finances', icon: Wallet },
   { id: 'more', icon: MoreHorizontal },
 ];
+type MoreGroup = 'practice' | 'communication';
+export const moreNavigationGroups: { id: MoreGroup; title: TextKey; hint: TextKey }[] = [
+  { id: 'practice', title: 'morePracticeGroup', hint: 'morePracticeGroupHint' },
+  { id: 'communication', title: 'moreCommunicationGroup', hint: 'moreCommunicationGroupHint' },
+];
 // Add future tools here; the primary navigation always stays short.
-export const moreNavigation: { id: Exclude<AppRoute, 'more'>; icon: LucideIcon; description: TextKey }[] = [
-  { id: 'guide', icon: BookOpen, description: 'moreGuideHint' },
-  { id: 'settings', icon: Settings2, description: 'moreSettingsHint' },
-  { id: 'newsletter', icon: Mail, description: 'moreNewsletterHint' },
-  { id: 'marketingCampaigns', icon: CalendarClock, description: 'moreCampaignsHint' },
-  { id: 'messageTemplates', icon: NotebookPen, description: 'moreTemplatesHint' },
-  { id: 'referrals', icon: Gift, description: 'moreReferralsHint' },
+export const moreNavigation: { id: Exclude<AppRoute, 'more'>; icon: LucideIcon; description: TextKey; group: MoreGroup }[] = [
+  { id: 'guide', icon: BookOpen, description: 'moreGuideHint', group: 'practice' },
+  { id: 'settings', icon: Settings2, description: 'moreSettingsHint', group: 'practice' },
+  { id: 'newsletter', icon: Mail, description: 'moreNewsletterHint', group: 'communication' },
+  { id: 'marketingCampaigns', icon: CalendarClock, description: 'moreCampaignsHint', group: 'communication' },
+  { id: 'messageTemplates', icon: NotebookPen, description: 'moreTemplatesHint', group: 'communication' },
+  { id: 'referrals', icon: Gift, description: 'moreReferralsHint', group: 'communication' },
 ];
 export const isMoreRoute = (route: AppRoute) => route === 'more' || moreNavigation.some(item => item.id === route);

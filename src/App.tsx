@@ -181,7 +181,7 @@ export default function App() {
         if (target.route === 'clients') { setSelectedId(undefined); setClientFilter('all'); }
         if (target.route === 'appointments' && target.waitlist) setWaitlistFocus(true);
       }}/></Suspense>}
-      {route === 'overview' && <Today onWaitlist={() => { navigate('appointments'); setWaitlistFocus(true); }} vault={vault} {...quickProps} backup={backupInfo} onSetup={section => { navigate('settings'); setSettingsFocus(section); }}
+      {route === 'overview' && <Today onGuide={() => navigate('guide')} onWaitlist={() => { navigate('appointments'); setWaitlistFocus(true); }} vault={vault} {...quickProps} backup={backupInfo} onSetup={section => { navigate('settings'); setSettingsFocus(section); }}
         onNewAppointment={() => setForm(data.clients.length ? { type: 'appointment' } : { type: 'client' })}
         onNewClient={() => setForm({ type: 'client' })} onClient={openClient}
         onClients={() => { setSelectedId(undefined); setClientFilter('active'); navigate('clients'); }}

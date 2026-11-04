@@ -1,0 +1,45 @@
+/* Keep the daily path short and make less frequent actions readable on touch screens. */
+.daily-guide-shortcut { display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:12px 16px;margin:0 0 20px;border:1px solid var(--border);border-radius:12px;background:var(--surface);text-align:left; }
+.daily-guide-shortcut > span { display:grid;gap:4px;flex:1;min-width:0;overflow-wrap:anywhere; }
+.daily-guide-shortcut strong { font-size:calc(13px * var(--text-scale,1)); }
+.daily-guide-shortcut small { color:var(--muted);line-height:1.6;font-size:calc(12px * var(--text-scale,1)); }
+.directory-results { display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:0 16px 12px; }
+.directory-results .text-link { min-height:44px;text-align:left;white-space:normal; }
+.directory-other-matches { padding:14px;margin:0 16px 16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);overflow-wrap:anywhere; }
+.directory-other-matches p { font-size:calc(13px * var(--text-scale,1));line-height:1.6;margin-bottom:10px; }
+.directory-other-matches .btn { width:100%; }
+.more-navigation { display:flex;flex-direction:column;gap:28px; }
+.more-group { min-width:0; }
+.more-group > h2 { margin-bottom:6px;font-size:calc(18px * var(--text-scale,1)); }
+.more-group > p { margin-bottom:16px; }
+.more-group-items { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px; }
+.appointment-options { min-width:0; }
+.appointment-options[open] { flex-basis:100%; }
+.appointment-options > summary { display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;padding:10px 14px;list-style:none;cursor:pointer;border:1px solid var(--border);border-radius:9px;background:var(--surface);font-size:calc(13px * var(--text-scale,1)); }
+.appointment-options > summary::-webkit-details-marker { display:none; }
+.appointment-options > summary:focus-visible { outline:3px solid var(--sage);outline-offset:3px; }
+.appointment-options[open] > summary > svg { transform:rotate(180deg); }
+.appointment-option-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px; }
+.appointment-option-list .btn { justify-content:flex-start;text-align:left;min-height:44px; }
+@media(max-width:700px) { .more-group-items { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:420px) { .appointment-option-list { grid-template-columns:minmax(0,1fr); } }
+.brand.practitioner-brand { display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;color:var(--text);white-space:normal; }
+.practitioner-brand-mark { display:grid;place-items:center;width:48px;height:48px;flex-shrink:0;padding:3px;border:1px solid #dce5de;border-radius:12px;background:#fbfcf9; }
+.practitioner-brand-mark img { display:block;width:100%;height:100%;object-fit:contain; }
+.practitioner-brand-text { display:grid;gap:5px;min-width:0; }
+.practitioner-brand-text strong { font-size:calc(20px * var(--text-scale,1));font-weight:650;line-height:1.25;letter-spacing:-.2px;overflow-wrap:anywhere; }
+.practitioner-brand-text small { font-size:calc(10px * var(--text-scale,1));font-weight:500;line-height:1.5;letter-spacing:0;color:var(--muted);overflow-wrap:anywhere; }
+.practitioner-brand-slogan { font-size:calc(12px * var(--text-scale,1));font-weight:550;line-height:1.4;letter-spacing:0;overflow-wrap:anywhere; }
+.sidebar .practitioner-brand-profession { display:none; }
+.sidebar-brand { gap:8px; }
+.sidebar-brand > .icon-btn { flex-shrink:0; }
+/* Preserve the approved artwork. Its cream plate keeps navy lettering legible in both themes. */
+.brand.practitioner-brand-full { display:block;width:min(100%,560px);aspect-ratio:3 / 1;overflow:hidden;border:1px solid #e9e3d8;border-radius:16px;background:#fcf8f1;flex-shrink:1; }
+.practitioner-brand-full > img { display:block;width:100%;height:100%;object-fit:cover;object-position:center; }
+.welcome-header { gap:24px;flex-wrap:wrap; }
+.welcome-controls { display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:auto; }
+.share-guest-header { gap:20px;flex-wrap:wrap; }
+@media(max-width:700px) {
+  .welcome-header > .practitioner-brand-full { flex-basis:100%;margin-inline:auto; }
+  .welcome-controls { justify-content:flex-end;width:100%; }
+}
