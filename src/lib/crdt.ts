@@ -316,7 +316,7 @@ export function conflictBlobIds(data: VaultData): string[] {
   const liveClients = new Set(data.clients.map(c => c.id));
   for (const [entity, fields] of Object.entries(data.crdt?.entities ?? {})) {
     const [collection, id] = JSON.parse(entity) as [Collection, string];
-    if (collection === 'settings') continue;
+    if (collection === 'settings') { for (const version of fields.invoiceLogo?.values ?? []) walk(version.value); continue; }
     if (collection === 'clients' && !liveClients.has(id)) continue;
     if (fields.clientId?.values.some(v => typeof v.value === 'string' && !liveClients.has(v.value))) continue;
     const visible = data[collection]?.some(r => r.id === id);

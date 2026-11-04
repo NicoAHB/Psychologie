@@ -3,13 +3,23 @@ import { resolvePracticeConflict } from '../lib/practiceConflicts';
 import { syncConflicts, type SyncConflict } from '../lib/crdt';
 import { useI18n, type TextKey } from '../lib/i18n';
 import type { VaultController } from '../lib/useVault';
-import type { ClientPostalAddress, Invoice, NewsletterDraftPayload, SessionDraftValues, MarketingConsent, PaymentMethod } from '../lib/types';
+import type { ClientPostalAddress, Invoice, InvoiceLogo, NewsletterDraftPayload, SessionDraftValues, MarketingConsent, PaymentMethod } from '../lib/types';
 import { marketingChannelText } from '../lib/marketing';
 import { formatPostalAddress } from '../lib/clientAddress';
 import { dateLabel, money } from '../lib/dates';
 import { ImageView, Modal, Notice } from './ui';
 import { InvoiceSheet } from './invoices';
 import { MEMO_MAX_LABEL, MEMO_MAX_SUMMARY } from '../lib/audioMemos';
+import { useInvoiceLogo } from '../lib/useInvoiceLogo';
+
+function LogoVariant({ vault, logo }: { vault: VaultController; logo?: InvoiceLogo }) {
+  const { t } = useI18n(), image = useInvoiceLogo(vault, logo);
+  return <div><p>{t(logo?.enabled ? 'invoiceLogoIsShown' : 'invoiceLogoIsHidden')}</p><p>{logo?.source === 'custom' ? logo.file.fileName : t('invoiceLogoDefault')}</p>{image.url && <div className={`invoice-logo-display invoice-logo-${logo?.source}`}><img src={image.url} alt={t('invoiceLogoPreview')}/></div>}{image.error && <Notice error>{t('invoiceLogoReadError')}</Notice>}</div>;
+}
+function InvoiceVariant({ vault, invoice }: { vault: VaultController; invoice: Invoice }) {
+  const image = useInvoiceLogo(vault, invoice.logo);
+  return <div className="table-scroll"><InvoiceSheet invoice={invoice} paid={null} logoUrl={image.url}/></div>;
+}
 
 function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict: SyncConflict }) {
   const { t, language } = useI18n(); const [text, setText] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState<TextKey>();
@@ -17,7 +27,7 @@ function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict:
   const clientId = record && 'clientId' in record ? record.clientId : conflict.collection === 'clients' ? conflict.id : undefined;
   const clientName = vault.data!.clients.find(c => c.id === clientId)?.name;
   const collectionLabels: Record<SyncConflict['collection'], TextKey> = { clients: 'clients', appointments: 'appointments', sessions: 'sessions', notes: 'addNote', invoices: 'invoiceTitle', assessments: 'questionnaires', templates: 'templates', documents: 'clientDocuments', availability: 'availabilityList', audioMemos: 'memoSection', sessionDrafts: 'draftsTitle', settings: 'settings', messageTemplates: 'messageTemplates', marketingCampaigns: 'marketingCampaigns', newsletters: 'newsletter', newsletterDrafts: 'newsletterDrafts', referralCodes: 'referralCodesTab', referrals: 'referrals', referralPayouts: 'referralPayoutHistory', waitlist: 'waitlist', followUps: 'followUpTasksTitle', homeworkTemplates: 'hwLibrary', homeworkAssignments: 'homework' };
-  const fieldLabels: Record<string, TextKey> = { preparation: 'preparation', notes: 'sessionNotes', name: 'name', address: 'clientAddress', postalAddress: 'clientAddress', followUpOn: 'clientFollowUpOn', email: 'clientEmail', contact: 'contact', language: 'language', currency: 'billingCurrency', homework: 'homeworkFor', caption: 'caption', label: 'memoLabel', summary: 'memoSummary', $recording: 'memoSection', $worksheet:'hwPdf', snapshot:'hwSnapshot', feedback:'hwFeedback', reviewDraft:'hwDraftBadge', state:'hwStatus', $amount: 'syncConflictBilling', $snapshot: collectionLabels[conflict.collection], $exists: 'syncConflictDeleted', avatarId: 'syncConflictAvatar' };
+  const fieldLabels: Record<string, TextKey> = { invoiceLogo: 'invoiceLogoTitle', preparation: 'preparation', notes: 'sessionNotes', name: 'name', address: 'clientAddress', postalAddress: 'clientAddress', followUpOn: 'clientFollowUpOn', email: 'clientEmail', contact: 'contact', language: 'language', currency: 'billingCurrency', homework: 'homeworkFor', caption: 'caption', label: 'memoLabel', summary: 'memoSummary', $recording: 'memoSection', $worksheet:'hwPdf', snapshot:'hwSnapshot', feedback:'hwFeedback', reviewDraft:'hwDraftBadge', state:'hwStatus', $amount: 'syncConflictBilling', $snapshot: collectionLabels[conflict.collection], $exists: 'syncConflictDeleted', avatarId: 'syncConflictAvatar' };
   const title = clientName ?? (record && 'name' in record ? record.name : t(collectionLabels[conflict.collection]));
   const canCombine = !['firstPaidOn','status'].includes(conflict.field) && !['referralCodes','referrals','referralPayouts'].includes(conflict.collection) && conflict.variants.every(v => typeof v.value === 'string');
   const textLimit = conflict.collection === 'audioMemos' ? conflict.field === 'summary' ? MEMO_MAX_SUMMARY : conflict.field === 'label' ? MEMO_MAX_LABEL : 50000 : 50000;
@@ -34,7 +44,8 @@ function ConflictEditor({ vault, conflict }: { vault: VaultController; conflict:
       const draft = conflict.collection === 'sessionDrafts' && conflict.field === 'payload' ? v.value as unknown as SessionDraftValues : undefined;
       return <div className="conflict-variant" key={`${v.actor}:${v.sequence}`}>
         {newsletterDraft ? <div><h4>{newsletterDraft.title || newsletterDraft.titleUk || t('newsletterUntitledDraft')}</h4><p>{t(marketingChannelText(newsletterDraft.channel))} · {t('marketingRecipientCount')}: {newsletterDraft.clientIds.length}</p><h4>{t('marketingMessageDe')}</h4><p className="pre-line">{newsletterDraft.content}</p>{newsletterDraft.contentUk && <><h4>{t('marketingMessageUk')}</h4><p lang="uk" className="pre-line">{newsletterDraft.contentUk}</p></>}{newsletterDraft.image && <ImageView id={newsletterDraft.image.blobId} vault={vault} alt={t('marketingImage')} className="marketing-image"/>}</div> : consent ? <div><p>{consent.destination}</p><p>{t('date')}: {consent.grantedAt}</p>{consent.revokedAt&&<p>{t(conflict.field === 'appointmentEmailConsent' ? 'appointmentEmailConsentMissing' : 'marketingConsentMissing')} · {consent.revokedAt}</p>}</div> : draft ? <div><p><strong>{draft.date} · {draft.time}</strong></p><h4>{t('sessionNotes')}</h4><p className="pre-line">{draft.notes}</p><h4>{t('homework')}</h4><p className="pre-line">{draft.homework}</p><h4>{t('preparation')}</h4><p className="pre-line">{draft.nextTopics}</p><p>{t('photosAttached')}: {draft.photos.length} · {t('memoSection')}: {draft.memos.length}</p><ul>{draft.memos.map(memo => <li key={memo.id}>{memo.label || t('memoDefaultTitle')}: {memo.summary}</li>)}</ul></div>
-          : conflict.field === '$snapshot' && conflict.collection === 'invoices' ? <div className="table-scroll"><InvoiceSheet invoice={{ ...v.value as unknown as Invoice, id: conflict.id }} paid={null}/></div>
+          : conflict.collection === 'settings' && conflict.field === 'invoiceLogo' ? <LogoVariant vault={vault} logo={v.value as InvoiceLogo | undefined}/>
+          : conflict.field === '$snapshot' && conflict.collection === 'invoices' ? <InvoiceVariant vault={vault} invoice={{ ...v.value as unknown as Invoice, id: conflict.id }}/>
           : conflict.field === 'postalAddress' && v.value ? <pre>{formatPostalAddress(v.value as unknown as ClientPostalAddress) || t('clientAddress')}</pre>
           : amount ? <div><p>{amount.kind === 'cancellationFee' ? `${t('cancellationFee')} · ${t(amount.failureStatus ?? 'noShow')}` : t('completed')}</p><p><strong>{money(amount.feeCents, language)}</strong>{amount.billing?.currency === 'UAH' ? ` · ${money(amount.billing.amountCents, language, 'UAH')}` : ''}</p><p>{t('paymentStatus')}: {amount.paidAt ? `${t('paid')} · ${dateLabel(amount.paidAt, language, { dateStyle: 'short' })}` : t('unpaid')}</p>{amount.paidAt && <p>{t('paymentMethod')}: {t(amount.paymentMethod === 'cash' ? 'paymentCash' : amount.paymentMethod === 'transfer' ? 'paymentTransfer' : 'paymentUnspecified')}</p>}{amount.billing?.rate && <p>{t('exchangeRate')}: {(amount.billing.rate.micros / 1e6).toLocaleString(language === 'uk' ? 'uk-UA' : 'de-DE', { maximumFractionDigits: 6 })} · {amount.billing.rate.date}</p>}</div>
             : conflict.collection === 'appointments' && conflict.field === 'status' && typeof v.value === 'string' && ['scheduled','completed','cancelled','noShow','lateCancelled'].includes(v.value) ? <p>{t(v.value as TextKey)}</p>

@@ -27,3 +27,5 @@ Die ursprünglichen PNGs bleiben unverändert erhalten, damit ein späterer Wech
 Die ausgelieferten Ressourcen liegen in `src/assets/`. Die Entwürfe und Druck-/Weitergabe-Dateien in diesem Dokumentationsordner werden nicht in den App-Build aufgenommen. Für einen späteren Wechsel beide Bilddateien sowie die `practitionerBrand*`-Einträge in **beiden** Sprachdateien prüfen. Praxis-Stammdaten, Rechnungsabsender und Bankdaten werden durch die grafische Marke nicht geändert.
 
 Eine Marken-, Namens-, Domain- oder rechtliche Prüfung ist damit nicht verbunden. Es wird keine bestimmte Wirkung auf neue Klienten zugesichert.
+
+Seit Version 0.6.1 lässt sich das englische Logo auch auf neuen Rechnungen verwenden, abschalten oder durch ein verschlüsselt gespeichertes eigenes PNG ersetzen. App-Marke und Rechnungslogo sind getrennt. [Bedienung und technische Übergabe](../rechnungslogo.md).

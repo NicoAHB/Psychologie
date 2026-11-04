@@ -12,7 +12,7 @@ export interface WorkerTasks {
   openVault: { input: { key: CryptoKey; envelope: VaultEnvelope }; output: { value: VaultData; migrated: boolean } };
   encryptBytes: { input: { key: CryptoKey; bytes: Uint8Array<ArrayBuffer>; context: string }; output: Ciphertext };
   decryptBytes: { input: { key: CryptoKey; payload: Ciphertext; context: string }; output: Uint8Array<ArrayBuffer> };
-  invoice: { input: { invoice: Invoice; paid: string | null }; output: Uint8Array<ArrayBuffer> };
+  invoice: { input: { invoice: Invoice; paid: string | null; logoBytes?: Uint8Array<ArrayBuffer> }; output: Uint8Array<ArrayBuffer> };
   questionnaire: { input: { kind: AssessmentKind; language: Language; documentId: string }; output: Uint8Array<ArrayBuffer> };
   readQuestionnaire: { input: { bytes: Uint8Array<ArrayBuffer>; kind: AssessmentKind; documentId: string }; output: ImportedQuestionnaire };
   merge: { input: { local: VaultData; remote: VaultData }; output: VaultData };

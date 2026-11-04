@@ -7,10 +7,25 @@ import { Field, Notice } from './ui';
 import { ExchangeRateField } from './money';
 import { SaveButton } from './SaveButton';
 import { useSaveStatus } from '../lib/useSaveStatus';
+import { InvoiceLogoFields } from './InvoiceLogoFields';
+import { defaultInvoiceLogo, type PendingInvoiceLogo } from '../lib/invoiceLogo';
 
 export function PracticeCard({ vault, focus, currency = 'EUR' }: { vault: VaultController; focus?: 'practice' | 'banks'; currency?: Currency }) {
   const { t } = useI18n(); const stored = vault.data!.settings.practice;
   const [draft, setDraft] = useState<PracticeProfile>(stored); const [rate, setRate] = useState<ExchangeRate | undefined>(vault.data!.settings.exchangeRate); const saveStatus = useSaveStatus();
+  const [logo, setLogo] = useState(vault.data!.settings.invoiceLogo ?? defaultInvoiceLogo());
+  const [pendingLogo, setPendingLogo] = useState<PendingInvoiceLogo>(); const [readingLogo, setReadingLogo] = useState(false);
+  const logoEdited = useRef(false);
+  useEffect(() => { if (!logoEdited.current) setLogo(vault.data!.settings.invoiceLogo ?? defaultInvoiceLogo()); }, [vault.data?.settings.invoiceLogo]);
+  async function save() {
+    const upload = pendingLogo, previousLogo = logo; let added: string | undefined;
+    try {
+      if (upload) added = await vault.addFile(upload.bytes);
+      const nextLogo = upload && added ? { enabled: logo.enabled, source: 'custom' as const, file: { blobId: added, fileName: upload.fileName, mimeType: 'image/png', size: upload.bytes.byteLength } } : logo;
+      await vault.update(d => { d.settings.practice = { ...draft, name: draft.name.trim(), iban: draft.iban.replace(/\s+/g, ' ').trim(), ibanUa: draft.ibanUa?.replace(/\s+/g, ' ').trim() }; d.settings.exchangeRate = rate; if (logoEdited.current) d.settings.invoiceLogo = nextLogo; });
+      added = undefined; logoEdited.current = false; setPendingLogo(current => current === upload ? undefined : current); setLogo(current => current === previousLogo ? nextLogo : current);
+    } catch (error) { if (added) await vault.purgeUnused([added]).catch(() => {}); throw error; }
+  }
   const cardRef = useRef<HTMLElement>(null);
   useEffect(() => { if (focus) { const node = focus === 'banks' ? cardRef.current?.querySelector<HTMLElement>(currency === 'UAH' ? 'fieldset:nth-of-type(2)' : 'fieldset') : cardRef.current; node?.focus(); node?.scrollIntoView({ block: 'start' }); } }, [focus, currency]);
   const field = (key: keyof PracticeProfile, label: TextKey, props: { multiline?: boolean; hint?: TextKey; placeholder?: TextKey; max?: number } = {}) =>
@@ -25,5 +40,6 @@ export function PracticeCard({ vault, focus, currency = 'EUR' }: { vault: VaultC
     <div className="form-section"><h3>{t('exchangeRateTitle')}</h3><p className="hint">{t('exchangeRatePrivacy')}</p><ExchangeRateField value={rate} onChange={value => { setRate(value); saveStatus.changed(); }}/></div>
     <div className="form-grid">{field('serviceName', 'practiceService')}{field('invoicePrefix', 'practicePrefix', { max: 10 })}</div>
     {field('taxNote', 'practiceTaxNote', { multiline: true, placeholder: 'practiceTaxNotePlaceholder', max: 600 })}
-    <div className="button-row"><SaveButton status={saveStatus} disabled={vault.demo} onClick={() => { void saveStatus.save(() => vault.update(d => { d.settings.practice = { ...draft, name: draft.name.trim(), iban: draft.iban.replace(/\s+/g, ' ').trim(), ibanUa: draft.ibanUa?.replace(/\s+/g, ' ').trim() }; d.settings.exchangeRate = rate; })).catch(() => {}); }}/></div>{saveStatus.failed && <Notice error>{t('storageError')}</Notice>}</section>;
+    <InvoiceLogoFields vault={vault} value={logo} pending={pendingLogo} disabled={vault.demo || saveStatus.saving} onBusy={setReadingLogo} onChange={value => { logoEdited.current = true; setLogo(value); saveStatus.changed(); }} onUpload={value => { logoEdited.current = true; setPendingLogo(value); saveStatus.changed(); }}/>
+    <div className="button-row"><SaveButton status={saveStatus} disabled={vault.demo || readingLogo} onClick={() => { void saveStatus.save(save).catch(() => {}); }}/></div>{saveStatus.failed && <Notice error>{t('storageError')}</Notice>}</section>;
 }

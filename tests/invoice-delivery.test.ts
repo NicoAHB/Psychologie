@@ -25,16 +25,16 @@ test('invoice correspondence follows the client language with native currency on
 });
 test('local invoice PDF supports Cyrillic, many pages and long descriptions without changing its snapshot', async () => {
   const { invoice } = sample();
-  const [regular, bold] = await Promise.all([readFile('src/assets/DejaVuSans.ttf'), readFile('src/assets/DejaVuSans-Bold.ttf')]);
+  const [regular, bold, logo] = await Promise.all([readFile('src/assets/DejaVuSans.ttf'), readFile('src/assets/DejaVuSans-Bold.ttf'), readFile('src/assets/nadiia-logo-en.png')]);
   const original = structuredClone(invoice);
   for (const language of ['de', 'uk'] as const) {
-    const bytes = await invoicePdf({ ...invoice, language }, null, regular, bold); const pdf = await PDFDocument.load(bytes);
+    const bytes = await invoicePdf({ ...invoice, language }, null, regular, bold, logo); const pdf = await PDFDocument.load(bytes);
     assert.equal(pdf.getPageCount(), 1); assert.match(pdf.getTitle()!, new RegExp(invoice.number)); assert.equal(pdf.getForm().getFields().length, 0);
     if (process.env.SAVE_INVOICE_PDFS) await writeFile(`/tmp/praxisraum-invoice-${language}.pdf`, bytes);
   }
   const many = { ...invoice, lines: Array.from({ length: 85 }, (_, i) => ({ ...invoice.lines[0], sessionId: `s${i}`, description: `${i + 1}. Психологічна консультація — ${'Підготовка '.repeat(i % 5)}` })), totalCents: invoice.totalCents * 85 };
-  const bytes = await invoicePdf(many, null, regular, bold); assert.ok((await PDFDocument.load(bytes)).getPageCount() >= 4);
-  const long = await invoicePdf({ ...invoice, lines: [{ ...invoice.lines[0], description: 'довгийтекст'.repeat(300) }] }, '2026-10-21', regular, bold); assert.ok((await PDFDocument.load(long)).getPageCount() >= 2);
+  const bytes = await invoicePdf(many, null, regular, bold, logo); assert.ok((await PDFDocument.load(bytes)).getPageCount() >= 4);
+  const long = await invoicePdf({ ...invoice, lines: [{ ...invoice.lines[0], description: 'довгийтекст'.repeat(300) }] }, '2026-10-21', regular, bold, logo); assert.ok((await PDFDocument.load(long)).getPageCount() >= 2);
   if (process.env.SAVE_INVOICE_PDFS) { await writeFile('/tmp/praxisraum-invoice-many.pdf', bytes); await writeFile('/tmp/praxisraum-invoice-long.pdf', long); }
   assert.deepEqual(invoice, original);
 });

@@ -3,7 +3,7 @@ import type { WorkerTasks } from '../lib/workerTasks';
 import { normalizeVault } from '../lib/types';
 
 // Deliberately no DOM, IndexedDB, analytics, logging, credential storage or network sync here.
-// Only same-origin font files are fetched, lazily, by the PDF task.
+// Only same-origin font files and the built-in static logo are fetched by PDF tasks.
 const scope = globalThis as unknown as { onmessage: (event: MessageEvent) => void; postMessage: (value: unknown, transfer?: Transferable[]) => void };
 async function execute<K extends keyof WorkerTasks>(task: K, input: WorkerTasks[K]['input']): Promise<WorkerTasks[K]['output']> {
   switch (task) {
@@ -24,7 +24,13 @@ async function execute<K extends keyof WorkerTasks>(task: K, input: WorkerTasks[
       const p = input as WorkerTasks['invoice']['input'];
       const [{ invoicePdf }, { loadPdfFonts }] = await Promise.all([import('../lib/invoicePdf'), import('../lib/pdfFonts')]);
       const { regular, bold } = await loadPdfFonts(JSON.stringify(p.invoice));
-      return await invoicePdf(p.invoice, p.paid, regular, bold) as WorkerTasks[K]['output'];
+      let logoBytes = p.logoBytes;
+      if (p.invoice.logo?.enabled && p.invoice.logo.source === 'nadiia') {
+        const { nadiiaInvoiceLogoUrl } = await import('../lib/invoiceLogo');
+        try { const response = await fetch(nadiiaInvoiceLogoUrl()); if (!response.ok) throw new Error(); logoBytes = new Uint8Array(await response.arrayBuffer()); }
+        catch { throw new Error('invoiceLogoReadError'); }
+      }
+      return await invoicePdf(p.invoice, p.paid, regular, bold, logoBytes) as WorkerTasks[K]['output'];
     }
     case 'homeworkPdf': {
       const p=input as WorkerTasks['homeworkPdf']['input'];const [{homeworkPdf},{loadPdfFonts}]=await Promise.all([import('../lib/homeworkPdf'),import('../lib/pdfFonts')]);const {regular,bold}=await loadPdfFonts(JSON.stringify(p.snapshot));return await homeworkPdf(p,regular,bold) as WorkerTasks[K]['output'];
@@ -46,7 +52,7 @@ scope.onmessage = event => {
   void execute(task, input).then(value => {
     scope.postMessage({ id, value }, value instanceof Uint8Array ? [value.buffer] : []);
   }, error => {
-    const allowed = ['invalidBackup', 'hwInvalid', 'invoicePdfError', 'questionnaireImportInvalid', 'questionnaireImportIncomplete', 'questionnaireImportMismatch'];
+    const allowed = ['invalidBackup', 'hwInvalid', 'invoicePdfError', 'invoiceLogoReadError', 'questionnaireImportInvalid', 'questionnaireImportIncomplete', 'questionnaireImportMismatch'];
     scope.postMessage({ id, error: error instanceof Error && allowed.includes(error.message) ? error.message : 'workerFailed' });
   });
 };

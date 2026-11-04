@@ -30,7 +30,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('node_modules/playwright-core/browsers.json') }}
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- tests/browser/email-setup-connected.spec.ts tests/browser/email.spec.ts tests/browser/homework-delivery.spec.ts --workers=1 --reporter=line,github
+      - run: npm run test:e2e -- tests/browser/email-setup-connected.spec.ts tests/browser/email.spec.ts tests/browser/homework-delivery.spec.ts tests/browser/invoice-delivery.spec.ts --workers=1 --reporter=line,github
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

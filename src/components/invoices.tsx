@@ -21,15 +21,18 @@ import { BillingMoney, ExchangeRateField } from './money';
 import { Field, Modal, Notice } from './ui';
 import { InvoiceRevisionDialog } from './invoice-revision';
 import { practiceToday } from '../lib/followUp';
+import { nadiiaInvoiceLogoUrl } from '../lib/invoiceLogo';
+import { useInvoiceLogo } from '../lib/useInvoiceLogo';
 
 /** The printable document. It is rendered once on screen (preview) and once into #print-root for the print dialog. */
-export function InvoiceSheet({ invoice, paid }: { invoice: Invoice; paid: string | null }) {
+export function InvoiceSheet({ invoice, paid, logoUrl }: { invoice: Invoice; paid: string | null; logoUrl?: string }) {
   const l = invoice.language; const T = (key: TextKey) => translate(l, key); const p = invoice.sender; const currency = invoice.currency ?? 'EUR'; const account = invoice.paymentAccount ?? bankFor(p, currency);
   const date = (iso: string) => dateLabel(iso, l, { day: '2-digit', month: '2-digit', year: 'numeric' });
   const reference = invoice.cancels ?? invoice.replaces;
   const relation = reference && T(invoice.cancels ? 'invoiceCancels' : 'invoiceReplaces').replace('{number}', reference.number).replace('{date}', date(reference.issuedAt));
+  const image = invoice.logo?.enabled ? invoice.logo.source === 'nadiia' ? nadiiaInvoiceLogoUrl() : logoUrl : undefined;
   return <article className="invoice-sheet" lang={l}>
-    <header className="invoice-header"><div className="invoice-brand"><Leaf size={30} strokeWidth={1.4} aria-hidden="true"/><div className="invoice-sender"><strong>{p.name}</strong><span className="pre-line">{p.address}</span>{p.taxId && <span>{T('invoiceTaxId')}: {p.taxId}</span>}</div></div><div className="invoice-heading"><h1>{T(invoiceTitleKey(invoice))}</h1><dl className="invoice-meta"><div><dt>{T('invoiceNumber')}</dt><dd>{invoice.number}</dd></div><div><dt>{T('invoiceDate')}</dt><dd>{date(invoice.issuedAt)}</dd></div>{invoice.dueOn && !isCancellation(invoice) && <div><dt>{T('invoiceDueOn')}</dt><dd>{invoicePaymentTerm(invoice)}</dd></div>}</dl></div></header>
+    <header className="invoice-header"><div className="invoice-brand">{!invoice.logo && <Leaf size={30} strokeWidth={1.4} aria-hidden="true"/>}<div className="invoice-identity">{image && <div className={`invoice-logo-display invoice-logo-${invoice.logo?.source}`}><img src={image} alt={T('invoiceLogoPreview')}/></div>}<div className="invoice-sender"><strong>{p.name}</strong><span className="pre-line">{p.address}</span>{p.taxId && <span>{T('invoiceTaxId')}: {p.taxId}</span>}</div></div></div><div className="invoice-heading"><h1>{T(invoiceTitleKey(invoice))}</h1><dl className="invoice-meta"><div><dt>{T('invoiceNumber')}</dt><dd>{invoice.number}</dd></div><div><dt>{T('invoiceDate')}</dt><dd>{date(invoice.issuedAt)}</dd></div>{invoice.dueOn && !isCancellation(invoice) && <div><dt>{T('invoiceDueOn')}</dt><dd>{invoicePaymentTerm(invoice)}</dd></div>}</dl></div></header>
     <section className="invoice-recipient"><small>{T('invoiceRecipient')}</small><strong>{invoice.recipient.name}</strong><span className="pre-line">{invoice.recipient.address}</span></section>
     {relation && <p className="invoice-reference">{relation}{invoice.correctionReason && <span className="pre-line">{invoice.correctionReason}</span>}</p>}
     <table><colgroup><col className="invoice-date-column"/><col/><col className="invoice-amount-column"/></colgroup><thead><tr><th>{T('invoiceServiceDate')}</th><th>{T('invoiceItem')}</th><th className="num">{T('invoiceAmount')}</th></tr></thead>
@@ -42,6 +45,7 @@ export function InvoiceSheet({ invoice, paid }: { invoice: Invoice; paid: string
 }
 export function InvoiceView({ vault, invoice: initialInvoice, onClose }: { vault: VaultController; invoice: Invoice; onClose: () => void }) {
   const { t, language } = useI18n(); const [currentId, setCurrentId] = useState(initialInvoice.id); const invoice = vault.data!.invoices.find(i => i.id === currentId) ?? initialInvoice;
+  const logo = useInvoiceLogo(vault, invoice.logo);
   const paid = paidOn(vault.data!, invoice); const root = document.getElementById('print-root');
   const cancelled = cancellationOf(vault.data!, invoice.id); const outstanding = invoiceOutstanding(vault.data!, invoice); const [revision, setRevision] = useState<'cancel' | 'correct'>();
   const related = vault.data!.invoices.filter(i => i.id === invoice.cancels?.id || i.id === invoice.replaces?.id || i.replaces?.id === invoice.id || i.cancels?.id === invoice.id);
@@ -58,14 +62,15 @@ export function InvoiceView({ vault, invoice: initialInvoice, onClose }: { vault
       if (purpose === 'paymentReminder' && (!(outstanding && outstanding > 0) || conflict)) throw new Error('invoiceReminderUnavailable');
       let copy = copies.find(d => d.invoicePaidOn === paid);
       if (!copy) {
-        const bytes = await runSecureTask('invoice', { invoice, paid });
+        const logoBytes = invoice.logo?.enabled && invoice.logo.source === 'custom' ? new Uint8Array(await (await vault.file(invoice.logo.file.blobId, 'image/png')).arrayBuffer()) : undefined;
+        const bytes = await runSecureTask('invoice', { invoice, paid, logoBytes });
         added = await vault.addFile(bytes);
         copy = { id: uid(), clientId: client.id, title: `${translate(invoice.language, invoiceTitleKey(invoice))} ${invoice.number}`, createdAt: new Date().toISOString(), invoiceId: invoice.id, invoicePaidOn: paid, language: invoice.language, returnExpected: false, deliveries: [], returns: [], file: { blobId: added, fileName: invoiceFilename(invoice), mimeType: 'application/pdf', size: bytes.byteLength } } satisfies ClientDocument;
         const stored = copy; await vault.update(d => { d.documents.push(stored); }); added = undefined;
       }
       if (kind === 'download') downloadDocument(await vault.file(copy.file.blobId, copy.file.mimeType), copy.file.fileName);
       else setComposer({ kind, id: copy.id, purpose });
-    } catch (e) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(e instanceof Error && ['invoicePdfError', 'invoiceInactive', 'invoiceReminderUnavailable', 'workerUnavailable', 'workerFailed'].includes(e.message) ? e.message as TextKey : 'storageError'); }
+    } catch (e) { if (added) await vault.purgeUnused([added]).catch(() => {}); setError(e instanceof Error && ['invoicePdfError', 'invoiceLogoReadError', 'invoiceInactive', 'invoiceReminderUnavailable', 'workerUnavailable', 'workerFailed'].includes(e.message) ? e.message as TextKey : 'storageError'); }
     finally { setBusy(false); }
   }
   return <Modal title={`${t(invoiceTitleKey(invoice))} ${invoice.number}`} onClose={() => { if (!busy) onClose(); }} wide>
@@ -74,16 +79,17 @@ export function InvoiceView({ vault, invoice: initialInvoice, onClose }: { vault
     {isCancellation(invoice) && invoice.paymentSnapshot?.some(s => s.paidAt) && <Notice>{t('invoiceRefundHint')}</Notice>}
     {conflict && <Notice error>{t('invoiceWorkflowConflict')}</Notice>}
     {related.length > 0 && <div className="invoice-relations">{related.map(i => <button key={i.id} className="text-link" onClick={() => { setCurrentId(i.id); setError(undefined); }}>{t(invoiceTitleKey(i))} {i.number}</button>)}</div>}
-    <InvoiceSheet invoice={invoice} paid={paid}/>
+    {logo.error && <Notice error>{t('invoiceLogoReadError')}</Notice>}
+    <InvoiceSheet invoice={invoice} paid={paid} logoUrl={logo.url}/>
     <p className="hint">{t('invoicePrintHint')}</p><p className="hint">{t('invoiceArchived')}</p>
     {!validEmail(client?.email ?? '') && <p className="hint">{t('clientEmailMissing')}</p>}
     {copies.some(d => d.deliveries.length || d.telegramDeliveries?.length) && <div className="invoice-send-history">{copies.flatMap(d => [...d.deliveries.map(x => <p className="hint" key={x.id}>{x.purpose === 'paymentReminder' && `${t('invoiceReminderTitle')} · `}{t(x.acceptedAt ? 'documentSentOn' : 'documentNotSent')} · {when(x.acceptedAt ?? x.requestedAt)} · {x.recipient}</p>), ...(d.telegramDeliveries ?? []).map(x => <p className="hint" key={x.id}>{x.purpose === 'paymentReminder' && `${t('invoiceReminderTitle')} · `}{t(x.acceptedAt ? 'telegramSentOn' : 'telegramNotSent')} · {when(x.acceptedAt ?? x.requestedAt)} · {x.recipient}</p>)])}</div>}
     {error && <Notice error>{t(error)}</Notice>}
-    <div className="form-actions invoice-actions"><button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-secondary" disabled={busy || !client} onClick={() => void prepare('download')}><Download size={17}/>{t(busy ? 'working' : 'invoiceDownload')}</button><button className="btn btn-secondary" disabled={busy} onClick={() => window.print()}><Printer size={17}/>{t('printInvoice')}</button><button className="btn btn-primary" disabled={busy || !!cancelled || conflict || !validEmail(client?.email ?? '')} onClick={() => void prepare('email')}><Mail size={17}/>{t('invoiceEmail')}</button><button className="btn btn-primary" disabled={busy || !!cancelled || conflict || !client} onClick={() => void prepare('telegram')}><Send size={17}/>{t('invoiceTelegram')}</button></div>
+    <div className="form-actions invoice-actions"><button className="btn btn-secondary" disabled={busy} onClick={onClose}>{t('close')}</button><button className="btn btn-secondary" disabled={busy || !client} onClick={() => void prepare('download')}><Download size={17}/>{t(busy ? 'working' : 'invoiceDownload')}</button><button className="btn btn-secondary" disabled={busy || logo.loading || logo.error} onClick={() => window.print()}><Printer size={17}/>{t('printInvoice')}</button><button className="btn btn-primary" disabled={busy || !!cancelled || conflict || !validEmail(client?.email ?? '')} onClick={() => void prepare('email')}><Mail size={17}/>{t('invoiceEmail')}</button><button className="btn btn-primary" disabled={busy || !!cancelled || conflict || !client} onClick={() => void prepare('telegram')}><Send size={17}/>{t('invoiceTelegram')}</button></div>
     {!isCancellation(invoice) && !cancelled && <div className="invoice-workflow-actions"><button className="btn btn-secondary" disabled={busy || conflict} onClick={() => setRevision('correct')}>{t('invoiceCorrect')}</button><button className="btn btn-ghost" disabled={busy} onClick={() => setRevision('cancel')}>{t('invoiceCancel')}</button></div>}
     {!isCancellation(invoice) && !cancelled && outstanding !== null && outstanding > 0 && <section className="invoice-reminder"><h3>{t('invoiceReminderTitle')} · {money(outstanding, language, invoice.currency ?? 'EUR')}</h3><p className="hint">{t('invoiceReminderHint')}</p><div className="button-row"><button className="btn btn-secondary" disabled={busy || conflict || !validEmail(client?.email ?? '')} onClick={() => void prepare('email', 'paymentReminder')}><Mail size={16}/>{t('invoiceReminder')} · E-Mail</button><button className="btn btn-secondary" disabled={busy || conflict || !client} onClick={() => void prepare('telegram', 'paymentReminder')}><Send size={16}/>{t('invoiceReminder')} · Telegram</button></div></section>}
     {!cancelled && !isCancellation(invoice) && <InvoiceChecks source={invoice} issued onFix={() => setRevision('correct')}/>}
-    {root && createPortal(<InvoiceSheet invoice={invoice} paid={paid}/>, root)}
+    {root && createPortal(<InvoiceSheet invoice={invoice} paid={paid} logoUrl={logo.url}/>, root)}
     {revision && <InvoiceRevisionDialog key={invoice.id} vault={vault} invoice={invoice} correct={revision === 'correct'} onClose={() => setRevision(undefined)} onSaved={next => { setRevision(undefined); setCurrentId(next.id); setError(undefined); }}/>}
     {composer && client && (composer.kind === 'email' ? <EmailComposer vault={vault} client={client} documentId={composer.id} purpose={composer.purpose} onClose={() => setComposer(undefined)}/> : <TelegramComposer vault={vault} client={client} documentId={composer.id} purpose={composer.purpose} onClose={() => setComposer(undefined)}/>)}
   </Modal>;

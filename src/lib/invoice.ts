@@ -2,6 +2,7 @@ import { translate } from './i18n';
 import { bankFor, convertWhole, currencyOf, wholeCents } from './currency';
 import { dateLabel, isIsoDay, money } from './dates';
 import type { BankAccount, Client, Currency, ExchangeRate, Invoice, Language, PracticeProfile, Session, VaultData } from './types';
+import { defaultInvoiceLogo } from './invoiceLogo';
 import { syncConflicts } from './crdt';
 
 export const validDay = isIsoDay;
@@ -59,7 +60,7 @@ export function buildInvoice(data: VaultData, client: Client, sessions: Session[
     return { sessionId: s.id, date: s.date, description: s.kind === 'cancellationFee' ? translate(language, 'cancellationFee') : service, amountCents, ...(currency === 'UAH' ? { euroCents: wholeCents(s.feeCents), ...(appliedRate && { rate: { ...appliedRate } }) } : {}) };
   });
   return { id, number: nextInvoiceNumber(data, issuedAt), clientId: client.id, issuedAt, dueOn, lines, totalCents: lines.reduce((sum, l) => sum + l.amountCents, 0),
-    recipient: { name: client.name, address: client.address ?? '' }, sender: structuredClone(data.settings.practice), language, currency, paymentAccount: bankFor(data.settings.practice, currency), ...(currency === 'UAH' ? { totalEuroCents: lines.reduce((sum, line) => sum + (line.euroCents ?? 0), 0) } : {}) };
+    recipient: { name: client.name, address: client.address ?? '' }, sender: structuredClone(data.settings.practice), logo: structuredClone(data.settings.invoiceLogo ?? defaultInvoiceLogo()), language, currency, paymentAccount: bankFor(data.settings.practice, currency), ...(currency === 'UAH' ? { totalEuroCents: lines.reduce((sum, line) => sum + (line.euroCents ?? 0), 0) } : {}) };
 }
 /** Commit the issued currency to the ledger too, including older EUR-only sessions invoiced in UAH. */
 export function attachInvoice(data: VaultData, invoice: Invoice) {
@@ -119,7 +120,7 @@ export function reviseInvoice(data: VaultData, invoiceId: string, revision: Invo
   const reversalLines = original.lines.map(line => ({ ...structuredClone(line), amountCents: -line.amountCents, ...(line.euroCents === undefined ? {} : { euroCents: -line.euroCents }) }));
   const cancellation: Invoice = { id: revision.cancellationId, number: nextInvoiceNumber(data, revision.issuedAt, original.sender.invoicePrefix), clientId: original.clientId, issuedAt: revision.issuedAt,
     kind: 'cancellation', cancels: reference, correctionReason: revision.reason.trim(), paymentSnapshot: original.lines.map(line => ({ sessionId: line.sessionId, paidAt: data.sessions.find(s => s.id === line.sessionId)?.paidAt ?? null })), lines: reversalLines, totalCents: -original.totalCents, recipient: structuredClone(original.recipient), sender: structuredClone(original.sender), language: original.language,
-    currency: original.currency, ...(original.paymentAccount && { paymentAccount: structuredClone(original.paymentAccount) }), ...(original.totalEuroCents === undefined ? {} : { totalEuroCents: -original.totalEuroCents }) };
+    currency: original.currency, ...(original.logo && { logo: structuredClone(original.logo) }), ...(original.paymentAccount && { paymentAccount: structuredClone(original.paymentAccount) }), ...(original.totalEuroCents === undefined ? {} : { totalEuroCents: -original.totalEuroCents }) };
   let replacement: Invoice | undefined;
   const changedFees = new Map<string, number>();
   const draft = revision.replacement;
@@ -136,7 +137,7 @@ export function reviseInvoice(data: VaultData, invoiceId: string, revision: Invo
       return { ...structuredClone(line), description: edit.description.trim(), amountCents: edit.amountCents, ...(original.currency === 'UAH' ? { euroCents: euroCents ?? session.feeCents } : {}) };
     });
     replacement = { id: draft.id, number: nextInvoiceNumber({ ...data, invoices: [...data.invoices, cancellation] }, revision.issuedAt, draft.sender.invoicePrefix), clientId: original.clientId, issuedAt: revision.issuedAt, dueOn: draft.dueOn,
-      replaces: reference, correctionReason: revision.reason.trim(), language: draft.language, currency: original.currency, recipient: structuredClone(draft.recipient), sender: structuredClone(draft.sender), paymentAccount: structuredClone(draft.paymentAccount),
+      replaces: reference, correctionReason: revision.reason.trim(), language: draft.language, currency: original.currency, recipient: structuredClone(draft.recipient), sender: structuredClone(draft.sender), paymentAccount: structuredClone(draft.paymentAccount), logo: structuredClone(data.settings.invoiceLogo ?? defaultInvoiceLogo()),
       lines, totalCents: lines.reduce((sum, line) => sum + line.amountCents, 0), ...(original.currency === 'UAH' ? { totalEuroCents: lines.reduce((sum, line) => sum + (line.euroCents ?? 0), 0) } : {}) };
   }
   data.invoices.push(cancellation);

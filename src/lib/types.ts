@@ -1,6 +1,7 @@
 import { validateHomeworkSelection, validHomeworkSnapshot, normalizeHomeworkRecords, type HomeworkSnapshot, type HomeworkAssignment, type HomeworkSelection, type HomeworkTemplate } from './homeworkTypes';
 import type { CrdtState } from './crdt';
 import { normalizeClientAddress } from './clientAddress';
+import { validateInvoiceLogo } from './invoiceLogo';
 export type Language = 'de' | 'uk';
 export type Currency = 'EUR' | 'UAH';
 export type PaymentMethod = 'cash' | 'transfer';
@@ -105,6 +106,8 @@ export interface Invoice extends Stamped {
   id: string; number: string; clientId: string; issuedAt: string; lines: InvoiceLine[]; totalCents: number;
   /** Snapshots: later edits of the client or practice profile never alter an issued invoice. */
   recipient: { name: string; address: string }; sender: PracticeProfile; language: Language;
+  /** Immutable branding choice; missing on invoices issued before logo support. */
+  logo?: InvoiceLogo;
   currency?: Currency; totalEuroCents?: number; paymentAccount?: BankAccount;
   dueOn?: string;
   kind?: 'invoice' | 'cancellation';
@@ -118,6 +121,7 @@ export interface Invoice extends Stamped {
 }
 export type AssessmentKind = 'phq9' | 'gad7';
 export interface DocumentFile { blobId: string; fileName: string; mimeType: string; size: number }
+export type InvoiceLogo = { enabled: boolean; source: 'nadiia' } | { enabled: boolean; source: 'custom'; file: DocumentFile };
 export interface EmailDelivery {
   id: string; recipient: string; requestedAt: string; subject: string; body: string;
   acceptedAt?: string; providerId?: string;
@@ -189,6 +193,7 @@ export interface Settings {
   timeZone: string; advisorChatId: string; autoSync: boolean; remindersEnabled: boolean;
   autoLockMinutes?: number;
   practice: PracticeProfile; updatedAt?: number;
+  invoiceLogo?: InvoiceLogo;
   exchangeRate?: ExchangeRate;
   /** Practice-wide memo title choices; encrypted with the rest of the vault. */
   memoLabels?: string[];
@@ -247,7 +252,7 @@ export interface RemoteVault { vault_id: string; salt: string; payload: Cipherte
 export const emptyPractice = (): PracticeProfile => ({ name: '', address: '', taxId: '', iban: '', bank: '', taxNote: '', invoicePrefix: '', serviceName: '', accountHolder: '', bic: '', ibanUa: '', bankUa: '', accountHolderUa: '', bicUa: '' });
 export const emptyVault = (): VaultData => ({
   schema: 1, homeworkTemplates: [], homeworkAssignments: [], clients: [], appointments: [], sessions: [], notes: [], invoices: [], assessments: [], templates: [], documents: [], availability: [], audioMemos: [], waitlist: [], followUps: [], sessionDrafts: [], messageTemplates: [], marketingCampaigns: [], newsletters: [], newsletterDrafts: [], referralCodes: [], referrals: [], referralPayouts: [], deleted: {},
-  settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice() },
+  settings: { timeZone: 'Europe/Berlin', advisorChatId: '', autoSync: false, remindersEnabled: false, practice: emptyPractice(), invoiceLogo: { enabled: true, source: 'nadiia' } },
 });
 /** Fill fields that vaults written by earlier versions lack. */
 export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData {
@@ -256,6 +261,8 @@ export function normalizeVault(value: VaultData, wholeAmounts = true): VaultData
   const result = { ...base, ...value, ...homework, sessions: value.sessions.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), appointments: value.appointments.map(record => ({ ...record, ...(record.billing && { billing: { ...record.billing } }) })), invoices: (value.invoices ?? []).map(invoice => ({ ...invoice })), assessments: value.assessments ?? [], templates: value.templates ?? [], deleted: value.deleted ?? {},
     documents: value.documents ?? [], waitlist: value.waitlist ?? [], followUps: value.followUps ?? [], availability: value.availability ?? [], audioMemos: value.audioMemos ?? [], sessionDrafts: value.sessionDrafts ?? [], messageTemplates: value.messageTemplates ?? [], marketingCampaigns: value.marketingCampaigns ?? [], newsletters: value.newsletters ?? [], newsletterDrafts: value.newsletterDrafts ?? [], referralCodes: (value.referralCodes ?? []).map(c => ({ ...c })), referrals: (value.referrals ?? []).map(r => ({ ...r })), referralPayouts: (value.referralPayouts ?? []).map(p => ({ ...p, allocations: p.allocations.map(a => ({ ...a })) })), settings: { ...base.settings, ...value.settings, practice: { ...base.settings.practice, ...value.settings?.practice } } };
   result.clients = value.clients.map(client => normalizeClientAddress(client, value.crdt?.entities[JSON.stringify(['clients', client.id])]?.postalAddress?.values.at(-1)?.value));
+  validateInvoiceLogo(result.settings.invoiceLogo);
+  for (const invoice of result.invoices) validateInvoiceLogo(invoice.logo);
   for (const draft of result.sessionDrafts) if (draft.payload.homeworkSelections !== undefined) { if (!Array.isArray(draft.payload.homeworkSelections) || draft.payload.homeworkSelections.length > 30) throw new Error('invalidBackup'); draft.payload.homeworkSelections.forEach(validateHomeworkSelection); }
   for (const draft of result.sessionDrafts) if (draft.payload.homeworkReviewIds !== undefined && (!Array.isArray(draft.payload.homeworkReviewIds) || draft.payload.homeworkReviewIds.length > 100 || draft.payload.homeworkReviewIds.some(id => typeof id !== 'string' || !id || id.length > 240))) throw new Error('invalidBackup');
   if(result.settings.homeworkFavorites!==undefined&&(!Array.isArray(result.settings.homeworkFavorites)||result.settings.homeworkFavorites.length>2030||result.settings.homeworkFavorites.some(id=>typeof id!=='string'||!id||id.length>200)))throw new Error('invalidBackup');

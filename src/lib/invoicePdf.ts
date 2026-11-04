@@ -1,16 +1,22 @@
-import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, rgb, pushGraphicsState, popGraphicsState, rectangle, clip, endPath, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { bankFor } from './currency';
 import { dateLabel, money } from './dates';
 import { translate, type TextKey } from './i18n';
 import type { Invoice } from './types';
 import { invoicePaymentTerm, invoiceTitleKey, isCancellation } from './invoice';
+import { validateInvoicePng } from './invoiceLogo';
 
 /** Local, searchable A4 export with embedded Cyrillic fonts. No clinical notes or internal EUR comparison. */
-export async function invoicePdf(invoice: Invoice, paid: string | null, regularBytes: Uint8Array, boldBytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
+export async function invoicePdf(invoice: Invoice, paid: string | null, regularBytes: Uint8Array, boldBytes: Uint8Array, logoBytes?: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
   const pdf = await PDFDocument.create(); pdf.registerFontkit(fontkit);
+  let logoImage;
+  if (invoice.logo?.enabled) {
+    try { if (!logoBytes) throw new Error(); validateInvoicePng(logoBytes); logoImage = await pdf.embedPng(logoBytes); }
+    catch { throw new Error('invoiceLogoReadError'); }
+  }
   const regular = await pdf.embedFont(regularBytes, { subset: true }); const bold = await pdf.embedFont(boldBytes, { subset: true });
-  const ink = rgb(.15, .24, .21), sage = rgb(.26, .42, .38), muted = rgb(.4, .47, .42), paper = rgb(.956, .969, .949), line = rgb(.87, .9, .87);
+  const ink = rgb(.15, .24, .21), sage = rgb(.26, .42, .38), muted = rgb(.32, .39, .34), paper = rgb(.956, .969, .949), line = rgb(.87, .9, .87);
   const T = (key: TextKey) => translate(invoice.language, key);
   const date = (value: string) => dateLabel(value, invoice.language, { day: '2-digit', month: '2-digit', year: 'numeric' });
   const amount = (cents: number) => money(cents, invoice.language, invoice.currency ?? 'EUR');
@@ -45,10 +51,23 @@ export async function invoicePdf(invoice: Invoice, paid: string | null, regularB
     const title = T('invoiceAmount'); draw(title, right - 8 - regular.widthOfTextAtSize(title, 8), y - 8, 8, regular, muted); y -= 37;
   }
   newPage();
-  paragraph(T(invoiceTitleKey(invoice)), 28, bold, sage); y -= 4;
-  paragraph(`${T('invoiceNumber')}: ${invoice.number}`, 10, bold);
-  paragraph(`${T('invoiceDate')}: ${date(invoice.issuedAt)}`, 10, regular, muted);
-  if (invoice.dueOn && !isCancellation(invoice)) paragraph(`${T('invoiceDueOn')}: ${invoicePaymentTerm(invoice)}`, 10, regular, muted);
+  const headerTop = y, headerX = logoImage ? left + 275 : left, headerWidth = right - headerX;
+  if (logoImage) {
+    if (invoice.logo?.source === 'nadiia') {
+      const logoWidth = 250, height = logoWidth / 3, fullHeight = logoWidth * logoImage.height / logoImage.width;
+      page.pushOperators(pushGraphicsState(), rectangle(left, headerTop + 12 - height, logoWidth, height), clip(), endPath());
+      page.drawImage(logoImage, { x: left, y: headerTop + 12 - height - (fullHeight - height) / 2, width: logoWidth, height: fullHeight });
+      page.pushOperators(popGraphicsState());
+    } else {
+      const scale = Math.min(250 / logoImage.width, 90 / logoImage.height);
+      page.drawImage(logoImage, { x: left, y: headerTop + 12 - logoImage.height * scale, width: logoImage.width * scale, height: logoImage.height * scale });
+    }
+  }
+  paragraph(T(invoiceTitleKey(invoice)), logoImage ? 23 : 28, bold, sage, headerWidth, headerX); y -= 4;
+  paragraph(`${T('invoiceNumber')}: ${invoice.number}`, 10, bold, ink, headerWidth, headerX);
+  paragraph(`${T('invoiceDate')}: ${date(invoice.issuedAt)}`, 10, regular, muted, headerWidth, headerX);
+  if (invoice.dueOn && !isCancellation(invoice)) paragraph(`${T('invoiceDueOn')}: ${invoicePaymentTerm(invoice)}`, 10, regular, muted, headerWidth, headerX);
+  if (logoImage) y = Math.min(y, headerTop - 86);
   y -= 19;
   if (invoice.sender.name) paragraph(invoice.sender.name, 16, bold);
   if (invoice.sender.address) paragraph(invoice.sender.address, 9.5, regular, muted);

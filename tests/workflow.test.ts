@@ -92,6 +92,6 @@ test('return queue distinguishes unsent, waiting and overdue; received or closed
 });
 test('reversal PDFs keep Cyrillic references and native negative amounts without bank instructions or an artificial due date', async () => {
   const { data, invoice } = sample('UAH'); const { cancellation } = reviseInvoice(data, invoice.id, { issuedAt: '2026-10-21', reason: 'Виправлення адреси', cancellationId: uid() });
-  const [regular, bold] = await Promise.all([readFile('src/assets/DejaVuSans.ttf'), readFile('src/assets/DejaVuSans-Bold.ttf')]); const bytes = await invoicePdf(cancellation, null, regular, bold); const pdf = await PDFDocument.load(bytes); assert.match(pdf.getTitle()!, /Сторнувальний/); assert.equal(pdf.getPageCount(), 1);
+  const [regular, bold] = await Promise.all([readFile('src/assets/DejaVuSans.ttf'), readFile('src/assets/DejaVuSans-Bold.ttf')]); const bytes = await invoicePdf(cancellation, null, regular, bold, await readFile('src/assets/nadiia-logo-en.png')); const pdf = await PDFDocument.load(bytes); assert.match(pdf.getTitle()!, /Сторнувальний/); assert.equal(pdf.getPageCount(), 1);
   if (process.env.SAVE_INVOICE_PDFS) await writeFile('/tmp/praxisraum-cancellation.pdf', bytes);
 });
