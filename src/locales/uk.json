@@ -2125,5 +2125,7 @@
   "hwPracticeEntry": "Запис {n}",
   "hwPrivateDraftExport": "Чернетка, зміни з якої ще не застосовано",
   "hwWorksheetFileName": "Завдання",
-  "hwResumeDraft": "Продовжити роботу з чернеткою"
+  "hwResumeDraft": "Продовжити роботу з чернеткою",
+  "hwOpenTask": "Відкрити завдання: {title}",
+  "hwArchivedTemplate": "Архівний шаблон — відновіть його, щоб призначити завдання"
 }

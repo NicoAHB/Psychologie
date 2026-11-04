@@ -2125,5 +2125,7 @@
   "hwPracticeEntry": "Eintrag {n}",
   "hwPrivateDraftExport": "Noch nicht übernommener Entwurf",
   "hwWorksheetFileName": "Arbeitsblatt",
-  "hwResumeDraft": "Entwurf weiterbearbeiten"
+  "hwResumeDraft": "Entwurf weiterbearbeiten",
+  "hwOpenTask": "Aufgabe öffnen: {title}",
+  "hwArchivedTemplate": "Archivierte Vorlage – zum Zuweisen erst wiederherstellen"
 }

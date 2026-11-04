@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu in **0.5.1**: Aufgaben öffnen sich über die ganze Karte. Separate Aktionen bleiben sicher bedienbar; Tastaturfokus, archivierte Vorlagen und die Suche sind übersichtlicher. [Bedienung und technische Übergabe für Claude](docs/aufgaben-bedienung.md).
+
 Neu in **0.5.0**: Hausaufgaben mit klientenbezogenen Auswahlfiltern, lesbarer Vorschau, klaren Fälligkeiten und Rückläufen, verschlüsselten Bearbeitungsentwürfen mit Konfliktschutz sowie optionaler ausfüllbarer Protokollseite im PDF. [Bedienung und technische Übergabe für Claude](docs/hausaufgaben-feinschliff.md).
 
 Neu in **0.4.0**: **30 deutsch/ukrainische Hausaufgaben**, eigene Vorlagen und Favoriten, bewusste Wiederholungswarnung, verschlüsselter Klientenverlauf, ausfüllbare PDFs, bestehender E-Mail-/Telegram-Versand und datierte Rückläufe. [Bedienung und technische Übergabe für Claude](docs/hausaufgaben-claude.md).

@@ -70,3 +70,20 @@
 .hw-event-list time { display:block;margin-top:5px; }
 @media (max-width:700px) { .hw-file-grid { grid-template-columns:minmax(0,1fr); } }
 @media (max-width:460px) { .hw-workboard { grid-template-columns:minmax(0,1fr);gap:8px; } .hw-workboard-card { flex-direction:row;align-items:center;min-height:54px;gap:14px;padding:12px; } }
+/* One native button opens the card; independent actions stay above its hit area. */
+.hw-click-card { position:relative;isolation:isolate; }
+.hw-card-open:not(:disabled)::after { content:"";position:absolute;inset:0;border-radius:12px; }
+.hw-card-action,.hw-overview-item .homework-actions > :is(button,label) { position:relative;z-index:1; }
+.hw-choice-title { display:flex;align-items:flex-start;justify-content:space-between;gap:12px;width:100%; }
+.hw-choice.is-archived { border-style:dashed; }
+.hw-overview-open { display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:44px;padding:0;border:0;background:none;text-align:left; }
+.hw-overview-open strong { min-width:0;overflow-wrap:anywhere; }
+.hw-preview > h3 { padding-top:18px;overflow-wrap:anywhere; }
+.hw-section .hw-results-line { margin-bottom:16px; }
+@supports selector(:has(*)) {
+  .hw-click-card:has(.hw-card-open:focus-visible) { outline:3px solid var(--sage);outline-offset:3px; }
+  .hw-card-open:focus-visible { outline:0; }
+  @media (hover:hover) { .hw-click-card:has(.hw-card-open:not(:disabled):hover) { border-color:var(--sage); } }
+}
+
+.hw-results-line .text-link { min-height:44px; }
