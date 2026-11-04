@@ -29,6 +29,8 @@ npm run build
 npm run test:e2e -- --workers=2 tests/browser/homework-cards.spec.ts tests/browser/homework.spec.ts tests/browser/homework-files.spec.ts tests/browser/homework-polish.spec.ts tests/browser/a11y.spec.ts tests/browser/discussion.spec.ts
 ```
 
+Die Suchprüfungen warten auf die fertige Ergebnisliste und `aria-busy="false"`, bevor sie eine bestimmte Karte prüfen; so wird die bewusst verzögerte Suche auch unter Safari korrekt berücksichtigt.
+
 Die neuen Browserprüfungen tippen ausdrücklich in die freie Kartenecke, testen echte Touch-Eingaben im Mobilprojekt, separate Favoriten-/Verlaufs-/Kopier-/Erledigt-Aktionen, Enter/Leertaste, Fokus nach Zurück/Schließen, Filter-Reset, archivierte Vorlagen und die Wiederholungswarnung. Axe und Layoutprüfungen laufen in Deutsch/Ukrainisch, Hell/Dunkel sowie bei 820/390 Pixeln. Die neuen Ansichten sind außerdem im vorhandenen Safari-Workflow eingetragen. Es werden nur synthetische Testakten verwendet.
 
 ## Geänderte Dateien
