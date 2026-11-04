@@ -7,7 +7,10 @@ import type { VaultController } from '../lib/useVault';
 export function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) { return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
 export function Logo({ full = false }: { full?: boolean }) {
   const {t}=useI18n();
-  if(full) return <div className="brand practitioner-brand practitioner-brand-full" role="img" aria-label={t('practitionerBrandLabel')}><img src={new URL('../assets/nadiia-logo-en.png',import.meta.url).href} alt="" width={1774} height={887} decoding="async"/></div>;
+  if(full) {
+    const source = new URL('../assets/nadiia-login-light.png', import.meta.url).href;
+    return <div className="brand practitioner-brand practitioner-brand-full" role="img" aria-label={t('practitionerBrandLabel')}><img className="practitioner-brand-art" src={source} alt="" width={1774} height={887} decoding="async"/><img className="practitioner-brand-colour" src={source} alt="" width={1774} height={887} decoding="async"/></div>;
+  }
   const nadiiaMark=new URL('../assets/nadiia-mark.png',import.meta.url).href;
   return <div className="brand practitioner-brand" role="img" aria-label={t('practitionerBrandLabel')}><span className="practitioner-brand-mark"><img src={nadiiaMark} alt="" width={44} height={44}/></span><span className="practitioner-brand-text"><strong>{t('practitionerBrandName')}</strong><span className="practitioner-brand-slogan">{t('practitionerBrandSlogan')}</span><small className="practitioner-brand-profession">{t('practitionerBrandProfession')} · {t('practitionerBrandOwner')}</small></span></div>;
 }

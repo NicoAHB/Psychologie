@@ -16,7 +16,7 @@ Technische Übergabe für Claude und Beschreibung für die Praxis. Basis ist Ver
 - `moreNavigation` bleibt der flache Routen-Katalog. Jedes Werkzeug hat zusätzlich eine Gruppe; `moreNavigationGroups` steuert Reihenfolge, Überschriften und Hilfetexte. Die bestehenden Routen und Links bleiben gültig.
 - `cancelScheduledAppointments` prüft im aktuellen Update-Entwurf erneut, welche ausgewählten Termine noch geplant sind. Bereits abgeschlossene, abgesagte oder ausgefallene Termine werden nicht überschrieben. Ohne zulässigen Termin schlägt die Aktion vor Änderungen fehl. Frei gewordene zukünftige Zeitfenster werden weiterhin über das vorhandene `releaseSlot` erfasst. Die Funktion nutzt ausschließlich bestehende Termin-/Wartelistenfelder.
 - `Logo` bindet lokale Bilddateien mit `new URL(..., import.meta.url)` ein. Kein statischer PNG-Import im gemeinsamen UI-Modul: Dieses Modul wird auch durch Node-Unit-Tests importiert, deren Loader keine PNG-Dateien ausführt.
-- Die vollständige englische Grafik ist das unveränderte freigegebene Original. CSS begrenzt nur den sichtbaren hellen Rand auf ein horizontales Logoformat. Die kompakte Darstellung setzt den Markennamen als anpassbaren Text; lange Zeilen dürfen umbrechen. Sie ist keine neue Spracheinstellung.
+- Die ursprüngliche englische Grafik bleibt für Rechnungen als unverändertes freigegebenes Original erhalten. Seit 0.6.2 verwendet die Anmeldeseite eine transparente Grafik mit zur Darstellung passender Schriftfarbe (siehe `docs/branding/README.md`). CSS begrenzt den äußeren Leerraum auf ein horizontales Logoformat. Die kompakte Darstellung setzt den Markennamen als anpassbaren Text; lange Zeilen dürfen umbrechen. Sie ist keine neue Spracheinstellung.
 
 ## Daten und bewusst unveränderter Umfang
 

@@ -1,5 +1,7 @@
 # Praxisraum
 
+Neu in **0.6.2**: Das große Logo auf der Anmeldeseite hat einen transparenten Hintergrund und wechselt passend zum Hell-/Dunkelmodus zwischen dunkler und heller Schrift. Die Anpassung betrifft nur die Anmeldedarstellung. [Marken-Dateien und technische Hinweise](docs/branding/README.md).
+
 Neu in **0.6.1**: **Rechnungslogo ein-/ausschalten oder durch ein eigenes PNG ersetzen** – unter „Mehr → Einstellungen → Praxis & Bankdaten“. Vorschau, Druck, Offline-PDF und Versand verwenden dieselbe Logo-Auswahl; ausgestellte Rechnungen behalten ihre damalige Gestaltung. [Bedienung und technische Übergabe für Claude](docs/rechnungslogo.md).
 
 Neu in **0.6.0**: **Nadiia – The Confidence Space** als App-Marke, kurzer Weg zur Anleitung, verständliche Terminaktionen, Suche nach Name/E-Mail mit Hinweisen auf frühere Klienten und gruppierte Werkzeuge unter „Mehr“. [Bedienung und technische Übergabe für Claude](docs/bedienung-und-marke.md). [Alle Logos und fünf Originalentwürfe](docs/branding/README.md).

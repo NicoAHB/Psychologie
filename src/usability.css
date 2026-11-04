@@ -33,9 +33,13 @@
 .sidebar .practitioner-brand-profession { display:none; }
 .sidebar-brand { gap:8px; }
 .sidebar-brand > .icon-btn { flex-shrink:0; }
-/* Preserve the approved artwork. Its cream plate keeps navy lettering legible in both themes. */
-.brand.practitioner-brand-full { display:block;width:min(100%,560px);aspect-ratio:3 / 1;overflow:hidden;border:1px solid #e9e3d8;border-radius:16px;background:#fcf8f1;flex-shrink:1; }
+/* The login artwork has real alpha transparency and theme-appropriate lettering. */
+.brand.practitioner-brand-full { --brand-symbol-edge:29%;position:relative;display:block;width:min(100%,560px);aspect-ratio:3 / 1;overflow:hidden;border:0;border-radius:0;background:transparent;box-shadow:none;flex-shrink:1; }
 .practitioner-brand-full > img { display:block;width:100%;height:100%;object-fit:cover;object-position:center; }
+.practitioner-brand-full > .practitioner-brand-colour { display:none;position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--brand-symbol-edge)) 0 0); }
+/* The approved symbol occupies the left 29%. Keep its colours while lightening the lettering. */
+:root[data-theme=dark] .practitioner-brand-full > .practitioner-brand-art { filter:brightness(0) invert(1);clip-path:inset(0 0 0 var(--brand-symbol-edge)); }
+:root[data-theme=dark] .practitioner-brand-full > .practitioner-brand-colour { display:block; }
 .welcome-header { gap:24px;flex-wrap:wrap; }
 .welcome-controls { display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:auto; }
 .share-guest-header { gap:20px;flex-wrap:wrap; }
